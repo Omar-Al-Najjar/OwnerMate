@@ -1,0 +1,186 @@
+# API.md
+> **Note:** Put this file at the repository root.
+
+# API Draft
+
+## 1. API Scope
+
+This document defines the intended backend API surface for the current OwnerMate implementation.
+
+It covers:
+- auth-aware application endpoints
+- review ingestion and retrieval
+- sentiment analysis
+- content generation
+- multi-agent execution
+
+It explicitly excludes:
+- trend analysis endpoints
+- forecast endpoints
+- predictive analytics endpoints
+
+## 2. API Style
+
+- REST-style JSON API
+- validated with Pydantic schemas
+- structured error responses
+- auth required for protected operations
+
+## 3. Suggested Route Groups
+
+### Health
+- `GET /health`
+- `GET /ready`
+
+### Auth / Session
+- `GET /auth/me`
+- `POST /auth/logout`
+
+### Reviews
+- `GET /reviews`
+- `GET /reviews/{review_id}`
+- `POST /reviews/import`
+- `POST /reviews/import/google`
+- `POST /reviews/import/facebook`
+- `PATCH /reviews/{review_id}/status`
+
+### Sentiment
+- `POST /sentiment/analyze`
+- `POST /sentiment/analyze-batch`
+- `GET /sentiment/reviews/{review_id}`
+
+### Content Generation
+- `POST /content/generate/reply`
+- `POST /content/generate/marketing`
+- `POST /content/regenerate`
+- `POST /content/save`
+- `GET /content/{content_id}`
+
+### Agents
+- `POST /agents/route`
+- `POST /agents/run`
+- `GET /agents/runs/{run_id}`
+
+### Settings / User Preferences
+- `GET /settings`
+- `PATCH /settings/theme`
+- `PATCH /settings/language`
+
+## 4. Example Schemas
+
+### Review Import Request
+```json
+{
+  "business_id": "uuid",
+  "source": "google",
+  "source_config": {
+    "location_id": "optional"
+  }
+}
+```
+
+### Review Response
+```json
+{
+  "id": "uuid",
+  "source": "google",
+  "rating": 4,
+  "language": "en",
+  "review_text": "Great service",
+  "status": "pending",
+  "review_created_at": "2026-03-17T10:00:00Z"
+}
+```
+
+### Sentiment Analyze Request
+```json
+{
+  "review_id": "uuid",
+  "language_hint": "ar"
+}
+```
+
+### Sentiment Result
+```json
+{
+  "review_id": "uuid",
+  "label": "negative",
+  "confidence": 0.93,
+  "summary_tags": ["slow service", "late order"]
+}
+```
+
+### Generate Reply Request
+```json
+{
+  "review_id": "uuid",
+  "language": "ar",
+  "tone": "professional",
+  "business_context": "local coffee shop"
+}
+```
+
+### Generate Reply Response
+```json
+{
+  "content_id": "uuid",
+  "type": "review_reply",
+  "language": "ar",
+  "generated_text": "..."
+}
+```
+
+### Agent Route Request
+```json
+{
+  "business_id": "uuid",
+  "task": "generate_reply",
+  "payload": {
+    "review_id": "uuid"
+  }
+}
+```
+
+## 5. Response Conventions
+
+### Success Shape
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+### Error Shape
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid request payload"
+  }
+}
+```
+
+## 6. Permissions Guidance
+* Users should only access their own business data unless explicitly authorized.
+* Admin-level routes should be clearly separated if they exist.
+* Generated content and review data should be scoped by business ownership.
+
+## 7. Data Integrity Guidance
+* Import endpoints should support idempotency or deduplication logic.
+* Analysis endpoints should not create duplicate rows unnecessarily.
+* Content generation should preserve prompt context and creation metadata.
+
+## 8. Excluded Endpoints
+Do not add endpoints such as:
+* `POST /forecast/*`
+* `GET /trends/*`
+* `POST /predict/*`
+* `GET /analytics/forecast`
+
+## 9. Documentation Rule
+When an endpoint is added, removed, or behavior changes, the agent must:
+* Update this file (`API.md`).
+* Record the change in `WORK_LOG.md`.
+* Note whether frontend consumers were updated too.
