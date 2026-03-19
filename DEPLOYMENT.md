@@ -49,6 +49,9 @@ Current backend deployment assumptions:
 - `REDOC_URL`
 - `OPENAPI_URL`
 
+Routing note:
+- if `API_V1_PREFIX` is set in a deployed environment, all backend routes are mounted under that prefix
+
 ### AI / Provider Settings
 - `SENTIMENT_PROVIDER`
 - `CONTENT_PROVIDER`
@@ -65,6 +68,7 @@ Current implementation status:
 - the current backend request boundary still uses `X-User-Id`
 - readiness reports this explicitly through the `auth_boundary` check
 - this is acceptable for scaffold/dev deployment validation, but it remains a production blocker until real session verification is wired in
+- frontend or API clients must currently send `X-User-Id` on protected requests until the real backend session boundary is implemented
 
 ## 5. Docker Build
 
@@ -81,6 +85,7 @@ Current backend image contents:
 - application code under `app/`
 - Alembic config via `alembic.ini`
 - migration scripts under `migrations/`
+- deployment helper scripts under `scripts/`
 - runtime dependencies from `backend/requirements.txt`
 
 ## 6. Docker Run
@@ -156,22 +161,60 @@ Safety notes:
 - deployments must provide `DATABASE_URL` explicitly
 - the backend does not auto-run migrations on container boot, which avoids unsafe repeated startup-side schema changes
 
-## 10. Deployment Validation Checklist
+## 10. Disposable Smoke Stack
+
+The repository now includes a disposable backend-only smoke stack for deployment rehearsal:
+
+- `backend/.env.example`
+- `backend/docker-compose.smoke.yml`
+- `backend/scripts/seed_smoke_data.py`
+- `backend/scripts/smoke_test.py`
+
+Recommended local verification flow:
+1. `cd backend`
+2. `docker compose -f docker-compose.smoke.yml build backend`
+3. `docker compose -f docker-compose.smoke.yml up -d db`
+4. `docker compose -f docker-compose.smoke.yml run --rm backend python -m alembic -c alembic.ini upgrade head`
+5. `docker compose -f docker-compose.smoke.yml up -d backend`
+6. seed one owner user and business for auth-scoped smoke requests
+7. run `python scripts/smoke_test.py` with `SMOKE_BASE_URL`, `SMOKE_USER_ID`, and `SMOKE_BUSINESS_ID`
+8. `docker compose -f docker-compose.smoke.yml down -v`
+
+Smoke coverage currently verifies:
+- `GET /health`
+- `GET /ready`
+- `GET /auth/me`
+- `POST /reviews/import`
+- `GET /reviews`
+- `GET /reviews/{review_id}`
+- `PATCH /reviews/{review_id}/status`
+- `POST /sentiment/analyze`
+- `GET /sentiment/reviews/{review_id}`
+- `POST /content/generate/reply`
+- `POST /content/save`
+- `GET /content/{content_id}`
+- `POST /content/generate/marketing`
+
+## 11. Deployment Validation Checklist
 
 - backend image builds successfully
 - required env vars are present in the runtime environment
 - `GET /health` returns `200`
 - `GET /ready` returns `200` after env injection and DB availability
 - `python -m alembic -c alembic.ini upgrade head` succeeds in the deployment environment
+- core auth-, review-, sentiment-, and content-flow smoke tests succeed against a live backend instance
 - privileged secrets are injected only into the backend runtime, never the client
 
-## 11. Current Production Blockers
+For operator-facing rollout order, preflight checks, and rollback steps, use:
+- `PRODUCTION_ROLLOUT_RUNBOOK.md`
+
+## 12. Current Production Blockers
 
 - real Supabase-backed session verification is not implemented yet; auth still relies on the temporary `X-User-Id` backend boundary
-- no deployment-level proof was captured here for a real managed Postgres/Supabase database connection, only local/containerized readiness behavior
+- no deployment-level proof was captured here for a real managed Postgres/Supabase database connection; current verification covers local/containerized Postgres-backed behavior
 - no end-to-end release job or orchestrator manifest exists yet for automatically sequencing migration job then app rollout
 
-## 12. Documentation Rule
+## 13. Documentation Rule
 
 Whenever deployment setup changes:
 - update this file

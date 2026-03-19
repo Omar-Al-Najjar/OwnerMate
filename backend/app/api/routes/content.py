@@ -1,9 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from fastapi import status
 
-from ...core.exceptions import AppError
 from ...core.responses import success_response
 from ...models.user import User
 from ...schemas.common import SuccessResponse
@@ -32,13 +30,7 @@ async def generate_review_reply(
     service: ContentGenerationService = Depends(get_content_generation_service),
 ):
     authorization.ensure_business_access(current_user, payload.business_id)
-    review = authorization.ensure_review_access(current_user, payload.review_id)
-    if review.business_id != payload.business_id:
-        raise AppError(
-            code="REVIEW_BUSINESS_SCOPE_MISMATCH",
-            message="Review does not belong to the specified business.",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
+    authorization.ensure_review_access(current_user, payload.review_id)
     return success_response(service.generate_reply(payload))
 
 

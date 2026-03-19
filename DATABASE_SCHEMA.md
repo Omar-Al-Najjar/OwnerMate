@@ -137,6 +137,11 @@ All schema changes must be made through Alembic migrations.
 - `created_at` timestamptz not null
 - `updated_at` timestamptz not null
 
+Implementation note:
+- this table is documented as an optional future structure
+- the current backend does not implement `user_settings`
+- current settings endpoints persist `language_preference` and `theme_preference` directly on `users`
+
 ## Recommended Enums or Controlled Values
 
 ### user role
@@ -203,6 +208,7 @@ All schema changes must be made through Alembic migrations.
 The current backend persistence layer implements the initial in-scope tables through SQLAlchemy models and an Alembic migration.
 
 - implemented tables: `users`, `businesses`, `reviews`, `sentiment_results`, `generated_contents`, `agent_runs`
+- user preference storage currently lives on `users.language_preference` and `users.theme_preference`; no separate `user_settings` table exists in the implemented schema
 - `reviews.review_source_id` is now implemented as a nullable UUID column to preserve the review-source boundary before the `review_sources` table is introduced
 - `reviews.source_metadata` is now implemented as a nullable JSONB column so source-specific review metadata can be preserved during import without breaking normalization
 - `reviews.rating` now has a database-level range check so persisted ratings stay within `1..5`

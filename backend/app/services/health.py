@@ -40,7 +40,11 @@ class HealthService:
                     else "not_configured"
                 ),
                 configured=db_reachable,
-                details={"error": database_error} if database_error else None,
+                details=(
+                    {"error": "Database connection check failed."}
+                    if database_error and settings.database_url
+                    else None
+                ),
             ),
             ReadinessDependency(
                 name="auth_boundary",

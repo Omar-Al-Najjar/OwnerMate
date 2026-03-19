@@ -104,6 +104,12 @@ class FakeContentGenerationService:
         return self.generated_content.model_copy(update={"id": content_id})
 
 
+class ExplodingContentGenerationService(FakeContentGenerationService):
+    def generate_marketing_copy(self, payload):
+        del payload
+        raise RuntimeError("provider token leaked")
+
+
 class FakeAuthorizationService:
     def ensure_business_access(self, user, business_id):
         return None
@@ -226,6 +232,28 @@ class ContentRouteTests(unittest.TestCase):
         body = response.json()
         self.assertTrue(body["success"])
         self.assertEqual(body["data"]["id"], content_id)
+
+    def test_unhandled_content_errors_do_not_expose_raw_exception_text(self) -> None:
+        app.dependency_overrides[get_content_generation_service] = (
+            lambda: ExplodingContentGenerationService()
+        )
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/content/generate/marketing",
+            json={
+                "business_id": str(uuid4()),
+                "language": "en",
+                "tone": "friendly",
+            },
+        )
+
+        self.assertEqual(response.status_code, 500)
+        body = response.json()
+        self.assertFalse(body["success"])
+        self.assertEqual(body["error"]["code"], "INTERNAL_SERVER_ERROR")
+        self.assertNotIn("details", body["error"])
+        self.assertNotIn("provider token leaked", response.text)
 
 
 if __name__ == "__main__":

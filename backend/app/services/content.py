@@ -6,6 +6,7 @@ from fastapi import status
 from ..core.exceptions import AppError
 from ..models.agent_run import AgentRun
 from ..models.generated_content import GeneratedContent
+from ..models.review import Review
 from ..repositories.agent_run import AgentRunRepository
 from ..repositories.business import BusinessRepository
 from ..repositories.generated_content import GeneratedContentRepository
@@ -43,13 +44,10 @@ class ContentGenerationService:
 
     def generate_reply(self, payload: GenerateReplyRequest) -> ContentGenerationResult:
         business = self._get_business_or_raise(payload.business_id)
-        review = self.review_repository.get_by_id(payload.review_id)
-        if review is None or review.business_id != business.id:
-            raise AppError(
-                code="REVIEW_NOT_FOUND",
-                message="Review not found for the specified business.",
-                status_code=status.HTTP_404_NOT_FOUND,
-            )
+        review = self._get_business_review_or_raise(
+            review_id=payload.review_id,
+            business_id=business.id,
+        )
 
         agent_run = AgentRun(
             business_id=business.id,
@@ -232,6 +230,22 @@ class ContentGenerationService:
                 status_code=status.HTTP_404_NOT_FOUND,
             )
         return business
+
+    def _get_business_review_or_raise(self, *, review_id: UUID, business_id: UUID) -> Review:
+        review = self.review_repository.get_by_id(review_id)
+        if review is None:
+            raise AppError(
+                code="REVIEW_NOT_FOUND",
+                message="Review not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        if review.business_id != business_id:
+            raise AppError(
+                code="REVIEW_BUSINESS_SCOPE_MISMATCH",
+                message="Review does not belong to the specified business.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        return review
 
     def _mark_agent_run_failed(self, agent_run: AgentRun, error_message: str) -> None:
         try:

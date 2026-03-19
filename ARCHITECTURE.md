@@ -59,8 +59,13 @@ User
 ### 4.1 Authentication Flow
 * user opens the frontend
 * frontend requests auth state
-* auth provider validates session
+* current backend scaffold resolves the authenticated user from the `X-User-Id` request header
+* backend loads the stored user record and applies business-scoped authorization checks
 * protected routes render only for authenticated users
+
+Current implementation note:
+- real Supabase token/session verification is not wired into the backend yet
+- the `X-User-Id` boundary is acceptable for scaffold/dev work only and remains a production blocker
 
 ### 4.2 Review Ingestion Flow
 * user triggers review import or sync
@@ -157,15 +162,18 @@ frontend/
 * **Review**
   * id
   * business_id
-  * source
+  * review_source_id (nullable)
+  * source_type
   * source_review_id
   * rating
   * language
   * reviewer_name
   * review_text
+  * source_metadata
   * review_created_at
   * ingested_at
   * status
+  * response_status
 
 * **SentimentResult**
   * id
@@ -179,11 +187,13 @@ frontend/
   * id
   * business_id
   * review_id (nullable)
-  * type
+  * content_type
   * language
+  * tone
   * prompt_context
   * generated_text
   * edited_text (nullable)
+  * created_by_user_id (nullable)
   * created_at
 
 * **AgentRun**

@@ -145,6 +145,7 @@ The current backend scaffolding includes an `app/agents/` package and an orchest
 - unsupported forecasting or trend tasks are intentionally not routable
 - backend service abstractions now exist for sentiment analysis and content generation
 - mock/dev providers are available so backend flows can be exercised without a real model provider
+- direct frontend-oriented backend endpoints for reviews, sentiment, and content coexist with the orchestrator, while cross-service routing still stays behind the explicit orchestration boundary
 - agent run tracking is persisted for sentiment and content service executions
 - review ingestion and review summary orchestration now persist `agent_runs` as well
 - direct backend endpoints now also exist for reviews, sentiment, and content while the orchestrator remains the explicit cross-service routing boundary

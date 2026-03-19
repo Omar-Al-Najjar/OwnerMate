@@ -42,6 +42,27 @@ class HealthServiceTests(unittest.TestCase):
         self.assertEqual(database_connection.status, "reachable")
         self.assertTrue(database_connection.configured)
 
+    def test_readiness_sanitizes_database_error_details(self) -> None:
+        with patch("backend.app.services.health.get_settings") as mock_settings:
+            with patch("backend.app.services.health.check_database_connection") as mock_check:
+                mock_settings.return_value.app_env = "production"
+                mock_settings.return_value.app_version = "0.1.0"
+                mock_settings.return_value.database_url = "postgresql://user:secret@db/internal"
+                mock_settings.return_value.supabase_url = None
+                mock_settings.return_value.supabase_service_role_key = None
+                mock_check.return_value = (False, "password authentication failed for user")
+
+                readiness = HealthService.get_readiness_status()
+
+        database_connection = next(
+            check for check in readiness.checks if check.name == "database_connection"
+        )
+        self.assertEqual(database_connection.status, "unreachable")
+        self.assertEqual(
+            database_connection.details,
+            {"error": "Database connection check failed."},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

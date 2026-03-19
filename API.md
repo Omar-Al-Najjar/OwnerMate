@@ -333,6 +333,7 @@ Current implementation notes:
 ### Generate Reply Request
 ```json
 {
+  "business_id": "uuid",
   "review_id": "uuid",
   "language": "ar",
   "tone": "professional",
@@ -393,10 +394,12 @@ Current implementation notes:
 ```json
 {
   "content_id": "uuid",
-  "edited_text": "Updated copy the user approved.",
-  "created_by_user_id": "uuid"
+  "edited_text": "Updated copy the user approved."
 }
 ```
+
+Current implementation note:
+- `POST /content/save` stamps `created_by_user_id` from the authenticated backend user and does not rely on a client-supplied user id
 
 ### Settings Response
 ```json

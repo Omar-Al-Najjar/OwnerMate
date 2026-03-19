@@ -143,7 +143,9 @@ If a task changes architecture, API behavior, database schema, agent workflow, o
 - Supabase project credentials
 
 ### Suggested startup flow
-- docker compose up --build
+- backend-only smoke/deployment rehearsal: `cd backend && docker compose -f docker-compose.smoke.yml build backend && docker compose -f docker-compose.smoke.yml up -d db`
+- run migrations explicitly before backend startup, then bring up the backend service
+- use `backend/.env.example` as the starting point for backend env configuration
 
 ### Required Environment Variables
 
@@ -165,6 +167,7 @@ At minimum, the project will likely need:
 - API.md
 - AGENTS.md
 - DEPLOYMENT.md
+- PRODUCTION_ROLLOUT_RUNBOOK.md
 - DATABASE_SCHEMA.md
 - CODING_RULES.md
 - WORK_LOG.md

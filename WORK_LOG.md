@@ -896,3 +896,220 @@ The backend needed a safer and more explicit deployment story before it can be t
 - readiness now verifies DB connectivity, but this session did not validate connectivity to a real managed Postgres or Supabase database
 - no stack change was introduced, so `TECH_STACK.md` did not need updates
 - no UI behavior changed in this backend deployment-readiness step
+
+## 2026-03-19 11:20 - Backend error exposure hardened
+
+### Task
+Tighten backend safety against accidental secret or infrastructure leakage by sanitizing unhandled error responses and readiness diagnostics, while keeping FastAPI routes thin.
+
+### Files Changed
+- `WORK_LOG.md`
+- `backend/app/api/routes/content.py`
+- `backend/app/main.py`
+- `backend/app/services/content.py`
+- `backend/app/services/health.py`
+- `backend/tests/test_content_routes.py`
+- `backend/tests/test_content_service.py`
+- `backend/tests/test_health_service.py`
+
+### What Was Done
+- removed raw exception text from the global `500` response envelope so unexpected backend failures no longer echo internal error strings to API clients
+- sanitized the readiness `database_connection` check so it reports a generic failure message instead of returning raw driver/connection exception text
+- moved the review/business scope mismatch enforcement for reply generation into `ContentGenerationService` so the route stays thinner and the business rule lives in the service layer
+- added tests covering sanitized readiness output, service-layer scope mismatch handling, and the new non-leaking `500` response behavior
+
+### Why
+The backend already used structured errors, but two paths could still surface raw exception text. This hardening closes those leaks and keeps the routing layer closer to simple auth plus delegation.
+
+### Testing
+- targeted unit test: `python -m unittest backend.tests.test_health_service backend.tests.test_content_service backend.tests.test_content_routes`
+- not tested yet: full backend test suite
+- not tested yet: live HTTP requests against a running FastAPI server
+
+### Migrations / Env Changes
+- no schema migrations
+- no new env variables
+
+### Remaining Work / Notes
+- no agent routing or supported task types changed in this step, so `AGENTS.md` did not require an update
+- API payload shape did not change
+- API error behavior changed slightly for unexpected `500` responses and readiness failure details: raw internal exception strings are no longer exposed
+- no UI behavior changed in this step
+
+## 2026-03-19 11:42 - Backend package edge and API doc drift cleaned up
+
+### Task
+Fix backend edge cases left behind after iterative changes, with emphasis on dependency wiring and docs matching implementation.
+
+### Files Changed
+- `API.md`
+- `WORK_LOG.md`
+- `backend/__init__.py`
+- `backend/tests/conftest.py`
+
+### What Was Done
+- added a package marker at `backend/__init__.py` so the backend package resolves consistently in Python tooling
+- added `backend/tests/conftest.py` to pin the repository root onto `sys.path`, which fixes `backend.*` imports when pytest is run from the documented `backend/` working directory
+- synced `API.md` with the current authenticated content-save behavior by removing the stale client-supplied `created_by_user_id` field from the request example and documenting that the backend stamps it from the authenticated user
+
+### Why
+The backend test suite was failing at collection time because the package/import boundary was brittle. This change restores reliable test execution and tightens the API docs so they no longer imply the client controls `created_by_user_id` on saved generated content.
+
+### Testing
+- unit test: `cd backend; pytest`
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+
+### Remaining Work / Notes
+- no agent routing or supported task types changed in this step, so `AGENTS.md` did not require an update
+- no API behavior changed; this step fixed backend test/package wiring and corrected API documentation drift
+- no UI behavior changed in this step
+
+## 2026-03-19 11:55 - Frontend integration handoff prepared
+
+### Task
+Prepare a clean frontend handoff for the implemented review, sentiment, and content integration surface.
+
+### Files Changed
+- `FRONTEND_INTEGRATION_HANDOFF.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- documented the final frontend-relevant endpoint list for auth context, review retrieval/detail/status, sentiment, and content flows
+- captured the actual request and response body shapes from the implemented FastAPI schemas and route behavior
+- documented current auth requirements, common response envelopes, known frontend-relevant error codes, and backend env vars that affect integration
+- clearly marked which endpoints are fully implemented and persisted versus implemented but still backed by mock providers or stubbed import fetchers
+
+### Why
+The frontend task plan depends on these integrations, and a clean handoff reduces payload drift, auth confusion, and uncertainty about which endpoints are safe to wire now versus which still have mock-backed behavior.
+
+### Testing
+- documentation-only change
+- request/response shapes were verified against the current route and schema implementations in `backend/app/api/routes/` and `backend/app/schemas/`
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+
+### Remaining Work / Notes
+- no agent routing changed, so `AGENTS.md` did not require an update
+- no backend API contract changed in this step; this was a documentation handoff only
+- no UI behavior changed in this step
+
+## 2026-03-19 12:08 - Required markdown verification pass completed
+
+### Task
+Verify the required related markdown files are aligned in the same session after recent backend behavior and documentation updates.
+
+### Files Changed
+- `API.md`
+- `AGENTS.md`
+- `ARCHITECTURE.md`
+- `DATABASE_SCHEMA.md`
+- `DEPLOYMENT.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- corrected `API.md` so the `POST /content/generate/reply` request example now includes the required `business_id`
+- updated `ARCHITECTURE.md` to reflect the actual current backend auth boundary using `X-User-Id` instead of implying completed session-token validation
+- aligned domain-entity examples in `ARCHITECTURE.md` with implemented field names such as `source_type`, `review_source_id`, `content_type`, `tone`, `source_metadata`, and `created_by_user_id`
+- clarified in `DATABASE_SCHEMA.md` that `user_settings` is still optional/future-facing and that current settings persistence lives on the `users` table
+- tightened `DEPLOYMENT.md` to explicitly call out the current protected-request header requirement and the routing impact of `API_V1_PREFIX`
+- updated `AGENTS.md` to note that direct frontend-oriented endpoints coexist with the explicit orchestration boundary
+
+### Why
+The repo rules call for related markdown files to stay aligned when behavior or documented integration expectations shift. This pass closes a few subtle drift points that could have misled frontend or backend follow-up work.
+
+### Testing
+- documentation verification against current backend route, schema, and startup code in `backend/app/`
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+
+### Remaining Work / Notes
+- no backend runtime behavior changed in this step
+- no API payload contract changed beyond correcting documentation examples to match the existing implementation
+- no UI behavior changed in this step
+
+## 2026-03-19 12:28 - Deployment rehearsal and smoke tooling added
+
+### Task
+Advance the next planned deployment phase by rehearsing backend deployment locally, verifying DB/auth/connectivity paths, and adding repeatable smoke-test helpers.
+
+### Files Changed
+- `DEPLOYMENT.md`
+- `README.md`
+- `WORK_LOG.md`
+- `backend/.env.example`
+- `backend/Dockerfile`
+- `backend/docker-compose.smoke.yml`
+- `backend/scripts/seed_smoke_data.py`
+- `backend/scripts/smoke_test.py`
+
+### What Was Done
+- added `backend/.env.example` as the backend production/staging env template starting point
+- added `backend/docker-compose.smoke.yml` with a disposable Postgres plus backend stack for deployment rehearsal
+- added `backend/scripts/seed_smoke_data.py` to create one owner-scoped user and business for auth-scoped smoke requests
+- added `backend/scripts/smoke_test.py` to exercise health, readiness, auth, review import/list/detail/status, sentiment, and content endpoints over live HTTP
+- updated `backend/Dockerfile` to include the `scripts/` directory in the built image
+- updated deployment docs and README guidance to point at the validated smoke workflow
+
+### Why
+This phase needed something stronger than unit tests or static docs. The new smoke tooling makes deployment checks repeatable and proves the current backend can start, migrate, connect to Postgres, authorize a user, and complete the core review/sentiment/content flows in a live environment.
+
+### Testing
+- `cd backend; docker compose -f docker-compose.smoke.yml build backend`
+- `cd backend; docker compose -f docker-compose.smoke.yml up -d db`
+- `cd backend; docker compose -f docker-compose.smoke.yml run --rm backend python -m alembic -c alembic.ini upgrade head`
+- `cd backend; docker compose -f docker-compose.smoke.yml up -d backend`
+- seeded a smoke owner user and business against the live Postgres instance
+- `cd backend; python scripts/smoke_test.py`
+- `cd backend; pytest`
+- `cd backend; docker compose -f docker-compose.smoke.yml down -v`
+
+### Migrations / Env Changes
+- no new Alembic migrations
+- added `backend/.env.example` for deployment configuration guidance
+- no runtime contract changes to existing env vars
+
+### Remaining Work / Notes
+- local/containerized Postgres-backed deployment behavior is now verified
+- real production auth remains blocked on Supabase token/session verification replacing the temporary `X-User-Id` boundary
+- real production connectivity to managed Postgres/Supabase still needs to be validated in the target environment with actual secrets
+- no API contract or UI behavior changed in this step
+
+## 2026-03-19 12:37 - Production rollout runbook prepared
+
+### Task
+Prepare a concrete production rollout checklist and operator runbook for the next deployment phase.
+
+### Files Changed
+- `DEPLOYMENT.md`
+- `PRODUCTION_ROLLOUT_RUNBOOK.md`
+- `README.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- added `PRODUCTION_ROLLOUT_RUNBOOK.md` with a preflight checklist, environment collection sheet, build and migration order, smoke gates, rollback triggers, rollback actions, and operator signoff section
+- explicitly marked the current release state as `NO-GO` for true public production traffic until backend auth stops relying on `X-User-Id`
+- linked `DEPLOYMENT.md` to the new operator-facing rollout runbook
+- added the new runbook to the repository documentation index in `README.md`
+
+### Why
+The next major phase is deployment and release execution. The repo needed a single operator-facing runbook that turns the deployment docs and smoke tooling into a usable rollout sequence with explicit stop conditions.
+
+### Testing
+- documentation-only change
+- runbook content was based on the already validated local Docker build, migration, readiness, and smoke-test flow
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+
+### Remaining Work / Notes
+- this runbook is ready for staging or controlled validation use now
+- true production go-live remains blocked on real backend token or session verification
+- no API contract or UI behavior changed in this step

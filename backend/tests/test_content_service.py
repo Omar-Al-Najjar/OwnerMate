@@ -253,6 +253,34 @@ class ContentGenerationServiceTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, "GENERATED_CONTENT_NOT_FOUND")
 
+    def test_generate_reply_raises_scope_mismatch_for_review_from_other_business(self) -> None:
+        other_business_id = uuid4()
+        other_review_id = uuid4()
+        other_review = Review(
+            id=other_review_id,
+            business_id=other_business_id,
+            source_type="google",
+            source_review_id="r-2",
+            review_text="Wrong business",
+            reviewer_name="Omar",
+            rating=1,
+            language="en",
+            status="pending",
+        )
+        self.service.review_repository.reviews[other_review_id] = other_review
+
+        with self.assertRaises(AppError) as raised:
+            self.service.generate_reply(
+                GenerateReplyRequest(
+                    business_id=self.business_id,
+                    review_id=other_review_id,
+                    language="en",
+                    tone="professional",
+                )
+            )
+
+        self.assertEqual(raised.exception.code, "REVIEW_BUSINESS_SCOPE_MISMATCH")
+
 
 if __name__ == "__main__":
     unittest.main()
