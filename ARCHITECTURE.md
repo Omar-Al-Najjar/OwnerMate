@@ -22,13 +22,17 @@ This architecture deliberately excludes forecasting and trend-analysis services.
 - FastAPI application
 - Uvicorn server
 - Pydantic schemas for validation
+- centralized Pydantic settings for backend configuration
+- structured success and error response helpers
 - service layer for ingestion, sentiment analysis, and content generation
+- provider abstraction layer for AI integration boundaries
 - orchestration layer for agent routing
 
 ### Data and Platform Services
 - Supabase auth
 - Supabase Postgres storage
 - Alembic migrations for managed schema evolution
+- SQLAlchemy ORM models for backend persistence boundaries
 
 ### AI and Workflow Layer
 - intent recognition and routing
@@ -89,6 +93,7 @@ User
 ```text
 backend/
   app/
+    main.py
     api/
     core/
     models/
@@ -98,6 +103,27 @@ backend/
     repositories/
     migrations/
 ```
+
+## 5.1 Current Backend Foundation Boundary
+
+The current backend foundation keeps infrastructure and orchestration boundaries in place before feature-specific business logic is implemented.
+
+- `app/main.py` creates the FastAPI app and registers shared exception handling
+- `app/api/` exposes health and readiness endpoints with thin handlers
+- `app/core/` owns runtime settings and API response helpers
+- `app/core/db.py` owns shared engine and session-factory creation for persistence
+- `app/services/` contains health/readiness checks and will remain the home for backend workflows
+- `app/services/review.py` now owns normalization, deduplication, and persistence orchestration for review APIs
+- `app/services/source_review_import.py` now keeps Google/Facebook source-fetch boundaries separate from the shared review persistence flow
+- `app/services/review_summary.py` now provides grounded review-intelligence summaries from stored reviews and stored sentiment results without introducing trend or forecasting behavior
+- `app/services/sentiment.py` and `app/services/content.py` now persist AI outputs through provider-agnostic service abstractions
+- `app/services/providers/` contains provider interfaces and mock/dev implementations for AI-backed capabilities and source-specific review ingestion stubs
+- `app/models/` now defines the SQLAlchemy persistence schema for core backend entities
+- `app/repositories/` now contains review/business persistence access plus AI output and agent run persistence helpers
+- `app/agents/orchestrator.py` now validates supported agent tasks and delegates execution to specialized services
+- `app/api/routes/agents.py` exposes orchestration endpoints as backend wrappers rather than embedding workflow logic in routes
+- `migrations/` and `alembic.ini` manage versioned database schema changes
+- `app/agents/` contains orchestration scaffolding only and does not implement model execution yet
 
 ## 6. Recommended Frontend Modules
 
@@ -195,6 +221,7 @@ Do not create these architecture components in this phase:
 * return validation errors with actionable messages
 * isolate external ingestion failures so they do not crash the whole app
 * log agent failures with enough metadata for debugging
+* keep health and readiness checks separate from AI execution logic
 
 ## 11. Observability
 

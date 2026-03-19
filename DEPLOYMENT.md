@@ -1,135 +1,179 @@
-# AGENTS.md
-> **Note:** Put this file at the repository root.
+# DEPLOYMENT.md
+# Put this file at: repository root
 
-# Agent System Design
+# Deployment Guide
 
-## 1. Agentic Scope
+## 1. Scope
 
-OwnerMate uses a multi-agent or workflow-based orchestration layer to route user tasks to the correct service.
+This document covers deployment expectations for the current OwnerMate implementation.
 
-This layer is limited to the current in-scope features:
-- review ingestion assistance
-- sentiment analysis
-- content generation
-- intent routing
+It focuses on:
+- FastAPI backend runtime deployment
+- Alembic migration execution
+- Docker-compatible backend packaging
+- environment variable requirements
 
-It explicitly excludes:
-- trend analysis agents
-- forecasting agents
-- predictive inventory agents
+It does not add:
+- forecasting infrastructure
+- trend-analysis services
+- non-Docker deployment-only architecture changes
 
-## 2. Recommended Agent Roles
+## 2. Backend Deployment Summary
 
-### 2.1 Orchestrator Agent
-**Responsibilities:**
-- receive task intent
-- validate task type
-- decide which specialized service or agent should run
-- return a structured result or structured failure
+The backend is designed to run as a containerized FastAPI service.
 
-### 2.2 Review Ingestion Agent
-**Responsibilities:**
-- coordinate source-specific review fetch flows
-- normalize data into the project schema
-- report ingestion results and failures
+Current backend deployment assumptions:
+- the backend image is built from `backend/`
+- Uvicorn serves `app.main:app`
+- the backend requires `DATABASE_URL` for database-backed readiness
+- Alembic migrations run as an explicit deployment step, not automatically on every app start
+- privileged keys remain server-side only
 
-### 2.3 Sentiment Analysis Agent
-**Responsibilities:**
-- process single or batch reviews
-- classify sentiment
-- attach confidence and theme tags
-- support Arabic and English workflows
+## 3. Required Backend Environment Variables
 
-### 2.4 Content Generation Agent
-**Responsibilities:**
-- generate review replies
-- generate short marketing or engagement text
-- respect selected language and tone
-- return editable outputs
+### Runtime
+- `APP_ENV`
+- `DATABASE_URL`
 
-## 3. Optional Supporting Components
+### Auth / Platform
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-These may be implemented as services instead of independent agents if that is simpler:
-- language detection helper
-- prompt builder
-- review summarization helper
-- policy or safety guard layer
+### Optional Runtime Tuning
+- `API_V1_PREFIX`
+- `UVICORN_HOST`
+- `UVICORN_PORT`
+- `PORT`
+- `LOG_LEVEL`
+- `DOCS_URL`
+- `REDOC_URL`
+- `OPENAPI_URL`
 
-## 4. Recommended Routing Model
+### AI / Provider Settings
+- `SENTIMENT_PROVIDER`
+- `CONTENT_PROVIDER`
+- `GOOGLE_REVIEW_PROVIDER`
+- `FACEBOOK_REVIEW_PROVIDER`
+- `REVIEW_INTELLIGENCE_PROVIDER`
 
-```text
-User Action or Prompt
-  -> Orchestrator
-      -> Ingestion Agent
-      -> Sentiment Agent
-      -> Content Generation Agent
+## 4. Current Auth Assumption
+
+The current backend auth/session boundary is not yet fully Supabase-token-verified.
+
+Current implementation status:
+- protected backend routes require an authenticated backend user
+- the current backend request boundary still uses `X-User-Id`
+- readiness reports this explicitly through the `auth_boundary` check
+- this is acceptable for scaffold/dev deployment validation, but it remains a production blocker until real session verification is wired in
+
+## 5. Docker Build
+
+Backend image build context:
+- `backend/`
+
+Example build command:
+
+```bash
+docker build -t ownermate-backend ./backend
 ```
 
-## 5. Suggested Task Types
+Current backend image contents:
+- application code under `app/`
+- Alembic config via `alembic.ini`
+- migration scripts under `migrations/`
+- runtime dependencies from `backend/requirements.txt`
 
-* `import_reviews`
-* `analyze_review`
-* `analyze_review_batch`
-* `generate_reply`
-* `generate_marketing_copy`
-* `get_review_summary`
+## 6. Docker Run
 
-## 6. Output Requirements
+Example backend run command:
 
-All agent outputs should be:
-* structured
-* typed
-* debuggable
-* safe for frontend rendering
-
-**Suggested output shape:**
-```json
-{
-  "task_type": "generate_reply",
-  "status": "success",
-  "data": {},
-  "meta": {
-    "agent": "content_generation",
-    "duration_ms": 1234
-  }
-}
+```bash
+docker run --rm -p 8000:8000 \
+  -e APP_ENV=production \
+  -e DATABASE_URL=postgresql+psycopg://user:pass@host:5432/dbname \
+  -e SUPABASE_URL=https://project.supabase.co \
+  -e SUPABASE_SERVICE_ROLE_KEY=server-side-secret \
+  ownermate-backend
 ```
 
-## 7. Failure Handling
+Notes:
+- the container listens on `0.0.0.0`
+- the runtime command honors `PORT` when the deployment platform injects it
+- the image exposes port `8000`
+- the container includes a Docker `HEALTHCHECK` against `GET /health`
 
-The agent layer should fail gracefully when:
-* task type is unsupported
-* required input is missing
-* external source ingestion fails
-* sentiment model fails
-* generation provider is unavailable
+## 7. Health and Readiness
 
-## 8. Guardrails
+### `GET /health`
+Use for liveness.
 
-* Do not route any task to forecasting or trend modules.
-* Do not create fallback predictive logic under another name.
-* Keep user-facing results grounded in stored reviews and approved context.
-* Preserve enough metadata for debugging and auditability.
+Current behavior:
+- returns `200` when the FastAPI process is running
+- includes backend environment and version metadata
 
-## 9. Logging and Traceability
+### `GET /ready`
+Use for readiness / traffic eligibility.
 
-Each meaningful agent run should ideally log:
-* task type
-* selected agent
-* business or user scope
-* start and end time
-* success or failure
-* key references to inputs and outputs
+Current behavior:
+- returns `200` only when required deployment checks pass
+- returns `503` when required deployment checks fail
+- checks whether `DATABASE_URL` is configured
+- checks actual database connectivity with a lightweight connection probe
+- reports the current backend auth boundary assumption
+- confirms Alembic migration config files are present in the deployed image
 
-## 10. Documentation Rule for Agents
+## 8. Database Connectivity Assumption
 
-Whenever an agent is added, changed, rerouted, or removed, the coding agent must:
-* update this file (`AGENTS.md`)
-* update `WORK_LOG.md`
-* mention whether API payloads or UI behavior changed
+The backend expects a Postgres-compatible connection string in `DATABASE_URL`.
 
-## 11. Implementation Note for Codex
+Current expectation:
+- SQLAlchemy uses `DATABASE_URL` for runtime database access
+- Alembic also resolves migrations from `DATABASE_URL`
+- readiness is not considered healthy until the backend can connect to the database
 
-If a task can be solved with a simple service layer before full multi-agent abstraction, that is acceptable. 
+## 9. Migration Flow
 
-However, the documentation and code should still preserve a clear orchestration boundary so the project can scale later.
+Migrations should run as a separate deployment step before routing application traffic.
+
+Recommended flow:
+1. build backend image
+2. inject deployment environment variables
+3. run migrations as a one-off job
+4. start or roll the backend app containers
+5. use `GET /ready` before sending live traffic
+
+Example migration command:
+
+```bash
+docker run --rm \
+  -e DATABASE_URL=postgresql+psycopg://user:pass@host:5432/dbname \
+  ownermate-backend \
+  python -m alembic -c alembic.ini upgrade head
+```
+
+Safety notes:
+- `backend/alembic.ini` no longer contains a real fallback database URL
+- deployments must provide `DATABASE_URL` explicitly
+- the backend does not auto-run migrations on container boot, which avoids unsafe repeated startup-side schema changes
+
+## 10. Deployment Validation Checklist
+
+- backend image builds successfully
+- required env vars are present in the runtime environment
+- `GET /health` returns `200`
+- `GET /ready` returns `200` after env injection and DB availability
+- `python -m alembic -c alembic.ini upgrade head` succeeds in the deployment environment
+- privileged secrets are injected only into the backend runtime, never the client
+
+## 11. Current Production Blockers
+
+- real Supabase-backed session verification is not implemented yet; auth still relies on the temporary `X-User-Id` backend boundary
+- no deployment-level proof was captured here for a real managed Postgres/Supabase database connection, only local/containerized readiness behavior
+- no end-to-end release job or orchestrator manifest exists yet for automatically sequencing migration job then app rollout
+
+## 12. Documentation Rule
+
+Whenever deployment setup changes:
+- update this file
+- update `WORK_LOG.md`
+- update `TECH_STACK.md` only if the approved stack changes

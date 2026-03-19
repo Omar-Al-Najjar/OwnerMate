@@ -133,3 +133,21 @@ Whenever an agent is added, changed, rerouted, or removed, the coding agent must
 If a task can be solved with a simple service layer before full multi-agent abstraction, that is acceptable. 
 
 However, the documentation and code should still preserve a clear orchestration boundary so the project can scale later.
+
+## 12. Current Implementation Status
+
+The current backend scaffolding includes an `app/agents/` package and an orchestrator placeholder to preserve the orchestration boundary.
+
+- backend orchestration endpoints now wrap specialized services through an explicit task router
+- the orchestrator validates and dispatches only these task types:
+  `import_reviews`, `analyze_review`, `analyze_review_batch`, `generate_reply`, `generate_marketing_copy`, `get_review_summary`
+- unsupported task names now fail through the orchestration boundary with a structured backend error instead of falling through to implicit routing behavior
+- unsupported forecasting or trend tasks are intentionally not routable
+- backend service abstractions now exist for sentiment analysis and content generation
+- mock/dev providers are available so backend flows can be exercised without a real model provider
+- agent run tracking is persisted for sentiment and content service executions
+- review ingestion and review summary orchestration now persist `agent_runs` as well
+- direct backend endpoints now also exist for reviews, sentiment, and content while the orchestrator remains the explicit cross-service routing boundary
+- no model training or real provider-specific AI integration is implemented yet
+- no agent payload contracts changed beyond establishing the backend scaffold and service boundary
+- no UI behavior changed in this backend-foundation step

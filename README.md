@@ -182,10 +182,30 @@ At minimum, the project will likely need:
 ```text
 frontend/
 backend/
+  app/
+    main.py
+    api/
+    core/
+    models/
+    schemas/
+    repositories/
+    services/
+    agents/
 components/
 lib/
 services/
 agents/
 docs/
+```
+
+## Current Backend Foundation
+
+The backend foundation now starts inside `backend/app` and is intentionally separated from AI execution details.
+
+- `app/api/` holds thin FastAPI route handlers
+- `app/core/` holds shared configuration and response helpers
+- `app/services/` holds backend business logic
+- `app/repositories/` is reserved for persistence boundaries
+- `app/agents/` preserves the orchestration boundary without implementing model logic yet
 
 
