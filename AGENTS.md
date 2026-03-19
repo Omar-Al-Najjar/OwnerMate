@@ -90,7 +90,7 @@ All agent outputs should be:
   "data": {},
   "meta": {
     "agent": "content_generation",
-    "duration_ms": 1234
+    "agent_run_id": "uuid"
   }
 }
 ```
@@ -136,7 +136,7 @@ However, the documentation and code should still preserve a clear orchestration 
 
 ## 12. Current Implementation Status
 
-The current backend scaffolding includes an `app/agents/` package and an orchestrator placeholder to preserve the orchestration boundary.
+The current backend includes an `app/agents/` package and a working orchestrator that preserves the orchestration boundary.
 
 - backend orchestration endpoints now wrap specialized services through an explicit task router
 - the orchestrator validates and dispatches only these task types:
@@ -150,5 +150,6 @@ The current backend scaffolding includes an `app/agents/` package and an orchest
 - review ingestion and review summary orchestration now persist `agent_runs` as well
 - direct backend endpoints now also exist for reviews, sentiment, and content while the orchestrator remains the explicit cross-service routing boundary
 - no model training or real provider-specific AI integration is implemented yet
-- no agent payload contracts changed beyond establishing the backend scaffold and service boundary
-- no UI behavior changed in this backend-foundation step
+- current orchestrator result metadata uses persisted `agent_run_id` references rather than duration metrics
+- no forecasting, trend, or predictive task types are implemented under alternate names
+- no UI behavior changed in this backend step

@@ -1155,3 +1155,53 @@ The next phase is frontend integration support plus deployment prep, so the repo
 - secrets remain server-side in the current backend design, but true production auth is still blocked
 - backend CORS is not configured yet, so browser-based cross-origin frontend integration will need a proxy or a backend CORS change
 - next likely work is frontend integration bug fixing, deployment env wiring, and target-environment smoke validation
+
+## 2026-03-19 13:12 - Final backend verification and documentation reality check
+
+### Task
+Run the final backend verification pass without expanding scope, confirm no forecast or trend behavior slipped in, and make sure the required docs match the implemented backend.
+
+### Files Changed
+- `AGENTS.md`
+- `ARCHITECTURE.md`
+- `DATABASE_SCHEMA.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- verified the backend stayed within scope and did not introduce forecasting, trend, or predictive routes, services, or schema
+- audited the required documentation set against the implemented backend behavior
+- updated `ARCHITECTURE.md` so the auth and observability notes reflect the current `X-User-Id` auth boundary and the current traceability implementation
+- updated `AGENTS.md` so the suggested agent result metadata matches the implemented `agent_run_id` shape and the orchestrator status reflects a working router rather than a placeholder
+- updated `DATABASE_SCHEMA.md` so sentiment-result persistence and the current not-yet-implemented tables are described accurately
+
+### Why
+The backend handoff is only trustworthy if the repo docs describe the code that actually exists. This pass closes the gap between design-oriented docs and the concrete backend that frontend integration and deployment work will consume.
+
+### Testing
+- `cd backend && pytest`
+- result: `65 passed`
+- `cd backend && docker compose -f docker-compose.smoke.yml build backend`
+- `cd backend && docker compose -f docker-compose.smoke.yml up -d db`
+- `cd backend && docker compose -f docker-compose.smoke.yml run --rm backend python -m alembic -c alembic.ini upgrade head`
+- `cd backend && docker compose -f docker-compose.smoke.yml up -d backend`
+- `cd backend && docker compose -f docker-compose.smoke.yml run --rm backend python scripts/seed_smoke_data.py`
+- `cd backend && python scripts/smoke_test.py`
+- smoke flow passed for health, readiness, auth, reviews, sentiment, and content endpoints
+
+### Security / Validation Findings
+- auth checks are present and covered by tests for missing headers, invalid UUIDs, and missing authenticated users
+- permission checks are present through business-, review-, content-, and agent-run-scoped authorization paths
+- secret handling remains server-side; readiness sanitizes database connection error details and unhandled route errors do not expose raw exception text
+- input validation remains enforced through Pydantic route schemas and structured `422` responses
+
+### Migrations / Env Changes
+- no new migrations
+- existing Alembic migration chain applied cleanly from base to head in the smoke stack
+- no env var contract changes
+- no API payload changes
+- no UI behavior changes
+
+### Remaining Work / Notes
+- production auth is still blocked on replacing `X-User-Id` with real backend token or session verification
+- backend CORS is still not configured for browser cross-origin traffic
+- deployment to a target managed environment still needs real-secret connectivity validation and target-environment smoke checks

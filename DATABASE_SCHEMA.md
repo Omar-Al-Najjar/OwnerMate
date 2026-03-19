@@ -174,7 +174,7 @@ Implementation note:
 
 - one `user` can own one or more `businesses`
 - one `business` can have many `reviews`
-- one `review` can have one or more `sentiment_results` if versioning is allowed
+- one `review` can have one stored latest `sentiment_result` in the current backend flow, even though the table shape could support multiple rows
 - one `review` can be linked to zero or more `generated_contents`
 - one `business` can have many `agent_runs`
 - one `business` can have many `review_sources`
@@ -209,12 +209,14 @@ The current backend persistence layer implements the initial in-scope tables thr
 
 - implemented tables: `users`, `businesses`, `reviews`, `sentiment_results`, `generated_contents`, `agent_runs`
 - user preference storage currently lives on `users.language_preference` and `users.theme_preference`; no separate `user_settings` table exists in the implemented schema
+- `business_members` and `review_sources` are still documented design targets only and are not implemented tables yet
 - `reviews.review_source_id` is now implemented as a nullable UUID column to preserve the review-source boundary before the `review_sources` table is introduced
 - `reviews.source_metadata` is now implemented as a nullable JSONB column so source-specific review metadata can be preserved during import without breaking normalization
 - `reviews.rating` now has a database-level range check so persisted ratings stay within `1..5`
 - `reviews` duplicate protection is enforced with a unique constraint on `business_id + source_type + source_review_id`
 - `reviews` also includes a composite index on `business_id + status + review_created_at` to support common dashboard filtering
 - `sentiment_results.confidence` now has a database-level range check so persisted confidence stays within `0..1` when present
+- repeated sentiment analysis currently updates the latest stored row for a review instead of intentionally creating version history
 - no forecasting, trend, or predictive tables were added
 
 ## Data Integrity Rules

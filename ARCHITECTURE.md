@@ -29,7 +29,7 @@ This architecture deliberately excludes forecasting and trend-analysis services.
 - orchestration layer for agent routing
 
 ### Data and Platform Services
-- Supabase auth
+- Supabase-backed auth is planned, but the current backend request boundary still uses `X-User-Id`
 - Supabase Postgres storage
 - Alembic migrations for managed schema evolution
 - SQLAlchemy ORM models for backend persistence boundaries
@@ -114,7 +114,7 @@ backend/
 The current backend foundation keeps infrastructure and orchestration boundaries in place before feature-specific business logic is implemented.
 
 - `app/main.py` creates the FastAPI app and registers shared exception handling
-- `app/api/` exposes health and readiness endpoints with thin handlers
+- `app/api/` exposes health, auth, review, sentiment, content, settings, and agent endpoints with thin handlers
 - `app/core/` owns runtime settings and API response helpers
 - `app/core/db.py` owns shared engine and session-factory creation for persistence
 - `app/services/` contains health/readiness checks and will remain the home for backend workflows
@@ -241,6 +241,10 @@ Recommended minimum observability:
 * agent run logs
 * generation failure logs
 * sentiment processing failure logs
+
+Current implementation note:
+- persisted `agent_runs` now provide the main implemented traceability path for ingestion, sentiment, content, and review-summary executions
+- generalized request logging middleware is not implemented yet
 
 ## 12. Documentation Rule
 
