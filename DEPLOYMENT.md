@@ -29,7 +29,7 @@ Current backend deployment assumptions:
 - Alembic migrations run as an explicit deployment step, not automatically on every app start
 - privileged keys remain server-side only
 
-## 3. Required Backend Environment Variables
+## 3. Backend Environment Variables
 
 ### Runtime
 - `APP_ENV`
@@ -59,6 +59,12 @@ Routing note:
 - `FACEBOOK_REVIEW_PROVIDER`
 - `REVIEW_INTELLIGENCE_PROVIDER`
 
+Exact current runtime behavior:
+- `DATABASE_URL` is the only environment variable required for DB-backed readiness
+- `APP_ENV` and the runtime tuning variables have safe defaults
+- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are read by config and surfaced in readiness, but they are not required for startup or readiness today
+- all provider settings currently only support `mock`
+
 ## 4. Current Auth Assumption
 
 The current backend auth/session boundary is not yet fully Supabase-token-verified.
@@ -69,6 +75,7 @@ Current implementation status:
 - readiness reports this explicitly through the `auth_boundary` check
 - this is acceptable for scaffold/dev deployment validation, but it remains a production blocker until real session verification is wired in
 - frontend or API clients must currently send `X-User-Id` on protected requests until the real backend session boundary is implemented
+- no backend CORS middleware is configured yet, so browser-based cross-origin deployments need a same-origin proxy or an explicit backend CORS change
 
 ## 5. Docker Build
 

@@ -1113,3 +1113,45 @@ The next major phase is deployment and release execution. The repo needed a sing
 - this runbook is ready for staging or controlled validation use now
 - true production go-live remains blocked on real backend token or session verification
 - no API contract or UI behavior changed in this step
+
+## 2026-03-19 12:55 - Backend contract freeze and integration handoff cleanup
+
+### Task
+Freeze the current backend contract in documentation, publish a frontend-ready backend handoff, and verify the backend before the frontend integration and deployment support phase.
+
+### Files Changed
+- `API.md`
+- `BACKEND_HANDOFF.md`
+- `DEPLOYMENT.md`
+- `FRONTEND_INTEGRATION_HANDOFF.md`
+- `PRODUCTION_ROLLOUT_RUNBOOK.md`
+- `README.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- rewrote `API.md` to match the currently implemented backend routes, envelopes, auth boundary, error codes, env vars, and mock-versus-real provider behavior
+- added `BACKEND_HANDOFF.md` as a short backend package note for teammates and future integration work
+- tightened `FRONTEND_INTEGRATION_HANDOFF.md` so it now reflects the real backend auth mechanism, the exact frontend-ready routes, and the current CORS limitation
+- updated deployment and rollout docs to clarify that `DATABASE_URL` is the only env var currently required for DB-backed readiness, while Supabase vars are present in config but not yet enforced for runtime auth
+- documented the current no-CORS state as an integration and deployment caveat
+- added the new handoff document to the repo documentation index
+
+### Why
+The next phase is frontend integration support plus deployment prep, so the repo needed an exact contract reference instead of aspirational docs. This pass reduces integration risk by making the current backend behavior explicit, especially around auth, error handling, provider mock status, and deployment constraints.
+
+### Testing
+- `cd backend && pytest`
+- result: `65 passed`
+
+### Migrations / Env Changes
+- no schema migrations
+- no backend runtime behavior changes
+- no API payload changes
+- no UI behavior changes
+
+### Remaining Work / Notes
+- protected routes are still gated by the temporary `X-User-Id` header boundary
+- business scoping remains enforced in the current authorization layer and is covered by tests
+- secrets remain server-side in the current backend design, but true production auth is still blocked
+- backend CORS is not configured yet, so browser-based cross-origin frontend integration will need a proxy or a backend CORS change
+- next likely work is frontend integration bug fixing, deployment env wiring, and target-environment smoke validation

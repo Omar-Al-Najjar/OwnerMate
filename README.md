@@ -165,6 +165,7 @@ At minimum, the project will likely need:
 - TECH_STACK.md
 - TASKS.md
 - API.md
+- BACKEND_HANDOFF.md
 - AGENTS.md
 - DEPLOYMENT.md
 - PRODUCTION_ROLLOUT_RUNBOOK.md

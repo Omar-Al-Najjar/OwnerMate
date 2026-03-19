@@ -93,6 +93,10 @@ Right now the supported provider values are:
 - `FACEBOOK_REVIEW_PROVIDER=mock`
 - `REVIEW_INTELLIGENCE_PROVIDER=mock`
 
+Exact current runtime note:
+- `DATABASE_URL` is the only variable required for DB-backed readiness
+- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are still important collection fields for the planned auth path, but the current server does not require them to boot
+
 ## Environment Collection Sheet
 
 Use this section as the handoff worksheet for whoever owns secrets and infra.
@@ -234,6 +238,7 @@ That means:
 - the backend is not yet verifying Supabase access tokens
 - a real production deployment would need compensating controls if exposed externally
 - public traffic should not be enabled as though auth were complete
+- cross-origin browser traffic would also need explicit CORS handling because the backend does not configure CORS middleware today
 
 Recommended stance until auth is fixed:
 - limit deployment to internal validation, staging, or tightly controlled access
