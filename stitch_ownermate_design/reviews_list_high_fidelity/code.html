@@ -1,0 +1,673 @@
+<!doctype html>
+
+<html dir="ltr" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-container": "#e5e2e1",
+              error: "#9f403d",
+              "surface-tint": "#5f5e5e",
+              primary: "#5f5e5e",
+              "primary-dim": "#535252",
+              "on-tertiary-fixed-variant": "#5e6165",
+              "on-primary": "#faf7f6",
+              "surface-variant": "#dde4e5",
+              tertiary: "#5c5f63",
+              "primary-fixed": "#e5e2e1",
+              "surface-bright": "#f9f9f9",
+              "tertiary-fixed": "#e9ebf0",
+              "on-primary-fixed": "#403f3f",
+              "on-secondary-container": "#505251",
+              "on-primary-fixed-variant": "#5c5b5b",
+              "tertiary-container": "#e9ebf0",
+              "surface-container-high": "#e4e9ea",
+              "surface-container-low": "#f2f4f4",
+              "surface-container": "#ebeeef",
+              "on-error-container": "#752121",
+              "secondary-dim": "#525352",
+              surface: "#f9f9f9",
+              "inverse-surface": "#0c0f0f",
+              "on-surface-variant": "#5a6061",
+              "error-dim": "#4e0309",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#2d3435",
+              outline: "#757c7d",
+              "inverse-primary": "#ffffff",
+              background: "#f9f9f9",
+              "secondary-fixed-dim": "#d4d5d3",
+              "on-primary-container": "#525151",
+              "on-error": "#fff7f6",
+              "on-background": "#2d3435",
+              "on-secondary-fixed-variant": "#5a5c5b",
+              "inverse-on-surface": "#9c9d9d",
+              "tertiary-dim": "#505357",
+              "surface-container-highest": "#dde4e5",
+              "secondary-fixed": "#e2e3e1",
+              secondary: "#5e5f5e",
+              "outline-variant": "#adb3b4",
+              "on-tertiary": "#f7f9fd",
+              "on-tertiary-fixed": "#424549",
+              "secondary-container": "#e2e3e1",
+              "on-secondary": "#f9f9f7",
+              "error-container": "#fe8983",
+              "tertiary-fixed-dim": "#dbdde1",
+              "primary-fixed-dim": "#d7d4d3",
+              "surface-dim": "#d4dbdd",
+              "on-tertiary-container": "#54575b",
+              "on-secondary-fixed": "#3e403f",
+            },
+            fontFamily: {
+              headline: ["Inter"],
+              body: ["Inter"],
+              label: ["Inter"],
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+        vertical-align: middle;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f9f9f9;
+      }
+      .blueprint-grid {
+        background-image: radial-gradient(#adb3b4 0.5px, transparent 0.5px);
+        background-size: 16px 16px;
+        opacity: 0.05;
+      }
+    </style>
+  </head>
+  <body class="bg-background text-on-surface antialiased overflow-x-hidden">
+    <!-- TopNavBar -->
+    <header
+      class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-slate-50 dark:bg-zinc-950 border-b border-zinc-300 dark:border-zinc-800"
+    >
+      <div class="flex items-center gap-8">
+        <span
+          class="text-xl font-black tracking-tighter text-zinc-900 dark:text-white"
+          >OwnerMate</span
+        >
+        <div class="hidden md:flex items-center gap-6">
+          <nav
+            class="flex gap-4 font-sans uppercase tracking-widest font-bold text-xs"
+          >
+            <a
+              class="text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors px-2 py-1"
+              href="#"
+              >Dashboard</a
+            >
+            <a
+              class="text-zinc-900 dark:text-white border-b-2 border-zinc-900 dark:border-white px-2 py-1"
+              href="#"
+              >Reviews</a
+            >
+            <a
+              class="text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors px-2 py-1"
+              href="#"
+              >AI Content Lab</a
+            >
+          </nav>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="relative hidden sm:block">
+          <span
+            class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm"
+            >search</span
+          >
+          <input
+            class="bg-surface-container-low border border-outline-variant/30 text-xs py-2 pl-10 pr-4 w-64 focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all"
+            placeholder="Search entries..."
+            type="text"
+          />
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            class="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <span class="material-symbols-outlined">language</span>
+          </button>
+          <button
+            class="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <span class="material-symbols-outlined">dark_mode</span>
+          </button>
+          <button
+            class="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <span class="material-symbols-outlined">account_circle</span>
+          </button>
+        </div>
+      </div>
+    </header>
+    <!-- SideNavBar -->
+    <aside
+      class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 flex flex-col p-4 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-300 dark:border-zinc-800 hidden md:flex"
+    >
+      <div class="mb-8 px-2">
+        <h2 class="text-lg font-bold text-zinc-900 dark:text-white uppercase">
+          OwnerMate Admin
+        </h2>
+        <p class="text-[10px] font-mono uppercase tracking-tight text-zinc-500">
+          Technical Suite
+        </p>
+      </div>
+      <nav class="flex flex-col gap-1 flex-1">
+        <a
+          class="flex items-center gap-3 px-3 py-3 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all text-xs font-mono uppercase tracking-tight group"
+          href="#"
+        >
+          <span class="material-symbols-outlined text-lg">dashboard</span>
+          <span>Dashboard</span>
+        </a>
+        <a
+          class="flex items-center gap-3 px-3 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold transition-transform translate-x-1 text-xs font-mono uppercase tracking-tight"
+          href="#"
+        >
+          <span class="material-symbols-outlined text-lg">rate_review</span>
+          <span>Reviews</span>
+        </a>
+        <a
+          class="flex items-center gap-3 px-3 py-3 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all text-xs font-mono uppercase tracking-tight group"
+          href="#"
+        >
+          <span class="material-symbols-outlined text-lg">auto_awesome</span>
+          <span>AI Content Lab</span>
+        </a>
+        <a
+          class="flex items-center gap-3 px-3 py-3 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all text-xs font-mono uppercase tracking-tight group"
+          href="#"
+        >
+          <span class="material-symbols-outlined text-lg">settings</span>
+          <span>Settings</span>
+        </a>
+      </nav>
+      <div
+        class="mt-auto p-4 border-t border-outline-variant/20 flex items-center gap-3"
+      >
+        <div
+          class="w-8 h-8 bg-primary rounded-sm flex items-center justify-center text-white font-bold text-xs"
+        >
+          JD
+        </div>
+        <div class="flex flex-col">
+          <span class="text-[10px] font-bold uppercase">John Drafter</span>
+          <span class="text-[9px] text-zinc-500 uppercase">Administrator</span>
+        </div>
+      </div>
+    </aside>
+    <!-- Main Content Canvas -->
+    <main class="md:ml-64 pt-16 min-h-screen relative">
+      <div class="blueprint-grid absolute inset-0 pointer-events-none"></div>
+      <div class="p-8 relative z-10">
+        <!-- Header Section -->
+        <div
+          class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 border-b border-outline-variant/30 pb-6"
+        >
+          <div>
+            <h1
+              class="text-2xl font-black uppercase tracking-widest text-on-surface"
+            >
+              Review Repository
+            </h1>
+            <p class="text-sm font-mono text-on-surface-variant mt-1">
+              Status: Operational // Data Sync Active
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              class="bg-primary text-on-primary text-[10px] font-bold uppercase tracking-widest px-4 py-2 flex items-center gap-2 transition-opacity active:opacity-80"
+            >
+              <span class="material-symbols-outlined text-sm">download</span>
+              Export Dataset
+            </button>
+          </div>
+        </div>
+        <!-- Filters Bar -->
+        <div
+          class="bg-surface-container-lowest border border-outline-variant/40 mb-6 flex flex-wrap items-center p-2 gap-2"
+        >
+          <div class="flex-1 min-w-[240px] px-2">
+            <div class="relative">
+              <span
+                class="material-symbols-outlined absolute left-0 top-1/2 -translate-y-1/2 text-outline text-lg"
+                >filter_list</span
+              >
+              <input
+                class="w-full bg-transparent border-none text-xs pl-8 focus:ring-0 placeholder:uppercase placeholder:font-mono"
+                placeholder="Filter by customer or content..."
+                type="text"
+              />
+            </div>
+          </div>
+          <div class="h-6 w-px bg-outline-variant/30 hidden md:block"></div>
+          <div class="flex gap-2 p-1">
+            <select
+              class="bg-surface-container text-[10px] font-mono uppercase border-none focus:ring-0 py-1 pl-2 pr-8"
+            >
+              <option>Sentiment: All</option>
+              <option>Positive</option>
+              <option>Neutral</option>
+              <option>Negative</option>
+            </select>
+            <select
+              class="bg-surface-container text-[10px] font-mono uppercase border-none focus:ring-0 py-1 pl-2 pr-8"
+            >
+              <option>Rating: Any</option>
+              <option>5 Stars</option>
+              <option>4 Stars</option>
+              <option>3 Stars &amp; Below</option>
+            </select>
+            <select
+              class="bg-surface-container text-[10px] font-mono uppercase border-none focus:ring-0 py-1 pl-2 pr-8"
+            >
+              <option>Date: Newest</option>
+              <option>Past 24h</option>
+              <option>Past Week</option>
+              <option>Past Month</option>
+            </select>
+          </div>
+        </div>
+        <!-- Dense Review Table -->
+        <div
+          class="bg-surface-container-lowest border border-outline-variant/40 overflow-hidden"
+        >
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr
+                class="bg-surface-container text-[10px] font-black uppercase tracking-tighter text-on-surface-variant border-b border-outline-variant/40"
+              >
+                <th class="px-6 py-4 font-black">Customer Entity</th>
+                <th class="px-6 py-4 font-black">Sentiment Index</th>
+                <th class="px-6 py-4 font-black">Rating Vector</th>
+                <th class="px-6 py-4 font-black">Temporal Stamp</th>
+                <th class="px-6 py-4 font-black">Review Summary</th>
+                <th class="px-6 py-4 font-black text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/20">
+              <!-- Row 1 -->
+              <tr class="hover:bg-surface-bright transition-colors group">
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-8 h-8 bg-tertiary-container flex items-center justify-center text-on-tertiary-container font-mono text-[10px]"
+                    >
+                      E1
+                    </div>
+                    <span class="text-xs font-bold uppercase tracking-tight"
+                      >Elena Vance</span
+                    >
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase tracking-widest border border-emerald-200"
+                    >Positive</span
+                  >
+                </td>
+                <td class="px-6 py-4">
+                  <div class="flex text-primary">
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                  </div>
+                </td>
+                <td
+                  class="px-6 py-4 font-mono text-[10px] text-on-surface-variant uppercase"
+                >
+                  Oct 24, 2023 // 14:20
+                </td>
+                <td class="px-6 py-4 max-w-xs">
+                  <p
+                    class="text-[11px] leading-tight line-clamp-2 text-on-surface"
+                  >
+                    Exceptional turnaround time on the architectural drafts. The
+                    AI optimization captured our core requirements perfectly.
+                  </p>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <button
+                    class="border border-outline px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-all"
+                  >
+                    Reply
+                  </button>
+                </td>
+              </tr>
+              <!-- Row 2 -->
+              <tr class="hover:bg-surface-bright transition-colors group">
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-8 h-8 bg-tertiary-container flex items-center justify-center text-on-tertiary-container font-mono text-[10px]"
+                    >
+                      A4
+                    </div>
+                    <span class="text-xs font-bold uppercase tracking-tight"
+                      >Arthur Morgan</span
+                    >
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase tracking-widest border border-amber-200"
+                    >Neutral</span
+                  >
+                </td>
+                <td class="px-6 py-4">
+                  <div class="flex text-primary">
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span class="material-symbols-outlined text-sm">star</span>
+                    <span class="material-symbols-outlined text-sm">star</span>
+                  </div>
+                </td>
+                <td
+                  class="px-6 py-4 font-mono text-[10px] text-on-surface-variant uppercase"
+                >
+                  Oct 23, 2023 // 09:15
+                </td>
+                <td class="px-6 py-4 max-w-xs">
+                  <p
+                    class="text-[11px] leading-tight line-clamp-2 text-on-surface"
+                  >
+                    The UI is precise but requires a steep learning curve. The
+                    data export modules are robust.
+                  </p>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <button
+                    class="border border-outline px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-all"
+                  >
+                    Reply
+                  </button>
+                </td>
+              </tr>
+              <!-- Row 3 -->
+              <tr class="hover:bg-surface-bright transition-colors group">
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-8 h-8 bg-tertiary-container flex items-center justify-center text-on-tertiary-container font-mono text-[10px]"
+                    >
+                      M1
+                    </div>
+                    <span class="text-xs font-bold uppercase tracking-tight"
+                      >Miriam Sekhmet</span
+                    >
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-widest border border-red-200"
+                    >Negative</span
+                  >
+                </td>
+                <td class="px-6 py-4">
+                  <div class="flex text-primary">
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span class="material-symbols-outlined text-sm">star</span>
+                    <span class="material-symbols-outlined text-sm">star</span>
+                    <span class="material-symbols-outlined text-sm">star</span>
+                  </div>
+                </td>
+                <td
+                  class="px-6 py-4 font-mono text-[10px] text-on-surface-variant uppercase"
+                >
+                  Oct 22, 2023 // 18:45
+                </td>
+                <td class="px-6 py-4 max-w-xs">
+                  <p
+                    class="text-[11px] leading-tight line-clamp-2 text-on-surface"
+                  >
+                    Integration issues with the existing legacy database.
+                    Waiting for support ticket #4412.
+                  </p>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <button
+                    class="border border-outline px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-all"
+                  >
+                    Reply
+                  </button>
+                </td>
+              </tr>
+              <!-- Row 4 -->
+              <tr class="hover:bg-surface-bright transition-colors group">
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-8 h-8 bg-tertiary-container flex items-center justify-center text-on-tertiary-container font-mono text-[10px]"
+                    >
+                      L9
+                    </div>
+                    <span class="text-xs font-bold uppercase tracking-tight"
+                      >Linus Torv</span
+                    >
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase tracking-widest border border-emerald-200"
+                    >Positive</span
+                  >
+                </td>
+                <td class="px-6 py-4">
+                  <div class="flex text-primary">
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span class="material-symbols-outlined text-sm">star</span>
+                  </div>
+                </td>
+                <td
+                  class="px-6 py-4 font-mono text-[10px] text-on-surface-variant uppercase"
+                >
+                  Oct 21, 2023 // 11:30
+                </td>
+                <td class="px-6 py-4 max-w-xs">
+                  <p
+                    class="text-[11px] leading-tight line-clamp-2 text-on-surface"
+                  >
+                    The monochromatic aesthetic is exactly what we needed to
+                    focus on raw data analysis. Great work.
+                  </p>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <button
+                    class="border border-outline px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-all"
+                  >
+                    Reply
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Pagination -->
+        <div
+          class="mt-6 flex flex-col md:flex-row justify-between items-center gap-4"
+        >
+          <span class="text-[10px] font-mono uppercase text-on-surface-variant"
+            >Showing 4 of 1,280 entries // Partition: Alpha-01</span
+          >
+          <div class="flex items-center gap-1">
+            <button
+              class="w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all"
+            >
+              <span class="material-symbols-outlined text-sm"
+                >chevron_left</span
+              >
+            </button>
+            <button
+              class="w-8 h-8 flex items-center justify-center bg-primary text-on-primary text-[10px] font-bold"
+            >
+              1
+            </button>
+            <button
+              class="w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all text-[10px] font-bold"
+            >
+              2
+            </button>
+            <button
+              class="w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all text-[10px] font-bold"
+            >
+              3
+            </button>
+            <span class="px-2 text-[10px] font-bold">...</span>
+            <button
+              class="w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all text-[10px] font-bold"
+            >
+              128
+            </button>
+            <button
+              class="w-8 h-8 flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-all"
+            >
+              <span class="material-symbols-outlined text-sm"
+                >chevron_right</span
+              >
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Footer Metric Bar -->
+      <footer
+        class="mt-12 border-t border-outline-variant/30 p-8 flex flex-wrap gap-8 bg-surface-container-low"
+      >
+        <div class="flex flex-col">
+          <span
+            class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant"
+            >Aggregate Rating</span
+          >
+          <span class="text-xl font-black text-on-surface">4.8 / 5.0</span>
+        </div>
+        <div class="flex flex-col">
+          <span
+            class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant"
+            >Confidence Index</span
+          >
+          <span class="text-xl font-black text-emerald-700">92%</span>
+        </div>
+        <div class="flex flex-col">
+          <span
+            class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant"
+            >Response Latency</span
+          >
+          <span class="text-xl font-black text-on-surface">1.2H</span>
+        </div>
+        <div class="flex flex-col ml-auto">
+          <span
+            class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant"
+            >System Time</span
+          >
+          <span class="text-xl font-mono font-bold text-on-surface uppercase"
+            >2023.10.24 16:45:01</span
+          >
+        </div>
+      </footer>
+    </main>
+    <!-- Contextual FAB - Restricted to relevant task screens -->
+    <button
+      class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary flex items-center justify-center shadow-none border-0 hover:bg-primary-dim transition-colors group"
+    >
+      <span
+        class="material-symbols-outlined text-2xl group-active:scale-90 transition-transform"
+        >add</span
+      >
+    </button>
+  </body>
+</html>
