@@ -1,0 +1,487 @@
+<!doctype html>
+
+<html class="light" dir="ltr" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>OwnerMate | Review Detail</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=IBM+Plex+Mono&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 200,
+          "GRAD" 0,
+          "opsz" 24;
+        vertical-align: middle;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      [dir="rtl"] body {
+        font-family: "IBM Plex Sans Arabic", sans-serif;
+      }
+      .blueprint-grid {
+        background-image: radial-gradient(circle, #adb3b4 1px, transparent 1px);
+        background-size: 16px 16px;
+        opacity: 0.05;
+      }
+      .hairline-border {
+        border: 1px solid rgba(173, 179, 180, 0.2);
+      }
+    </style>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-container": "#e5e2e1",
+              error: "#9f403d",
+              "surface-tint": "#5f5e5e",
+              primary: "#5f5e5e",
+              "primary-dim": "#535252",
+              "on-tertiary-fixed-variant": "#5e6165",
+              "on-primary": "#faf7f6",
+              "surface-variant": "#dde4e5",
+              tertiary: "#5c5f63",
+              "primary-fixed": "#e5e2e1",
+              "surface-bright": "#f9f9f9",
+              "tertiary-fixed": "#e9ebf0",
+              "on-primary-fixed": "#403f3f",
+              "on-secondary-container": "#505251",
+              "on-primary-fixed-variant": "#5c5b5b",
+              "tertiary-container": "#e9ebf0",
+              "surface-container-high": "#e4e9ea",
+              "surface-container-low": "#f2f4f4",
+              "surface-container": "#ebeeef",
+              "on-error-container": "#752121",
+              "secondary-dim": "#525352",
+              surface: "#f9f9f9",
+              "inverse-surface": "#0c0f0f",
+              "on-surface-variant": "#5a6061",
+              "error-dim": "#4e0309",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#2d3435",
+              outline: "#757c7d",
+              "inverse-primary": "#ffffff",
+              background: "#f9f9f9",
+              "secondary-fixed-dim": "#d4d5d3",
+              "on-primary-container": "#525151",
+              "on-error": "#fff7f6",
+              "on-background": "#2d3435",
+              "on-secondary-fixed-variant": "#5a5c5b",
+              "inverse-on-surface": "#9c9d9d",
+              "tertiary-dim": "#505357",
+              "surface-container-highest": "#dde4e5",
+              "secondary-fixed": "#e2e3e1",
+              secondary: "#5e5f5e",
+              "outline-variant": "#adb3b4",
+              "on-tertiary": "#f7f9fd",
+              "on-tertiary-fixed": "#424549",
+              "secondary-container": "#e2e3e1",
+              "on-secondary": "#f9f9f7",
+              "error-container": "#fe8983",
+              "tertiary-fixed-dim": "#dbdde1",
+              "primary-fixed-dim": "#d7d4d3",
+              "surface-dim": "#d4dbdd",
+              "on-tertiary-container": "#54575b",
+              "on-secondary-fixed": "#3e403f",
+            },
+            fontFamily: {
+              headline: ["Inter", "IBM Plex Sans Arabic"],
+              body: ["Inter", "IBM Plex Sans Arabic"],
+              label: ["IBM Plex Mono", "monospace"],
+            },
+            borderRadius: {
+              DEFAULT: "0px",
+              lg: "2px",
+              xl: "2px",
+              full: "9999px",
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="bg-background text-on-surface">
+    <!-- TopNavBar -->
+    <header
+      class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-slate-50 dark:bg-zinc-950 border-b border-zinc-300 dark:border-zinc-800"
+    >
+      <div class="flex items-center gap-8">
+        <span
+          class="text-xl font-black tracking-tighter text-zinc-900 dark:text-white"
+          >OwnerMate</span
+        >
+        <nav class="hidden md:flex gap-6 h-16 items-center">
+          <a
+            class="h-full flex items-center px-1 font-sans uppercase tracking-widest font-bold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            href="#"
+            >DASHBOARD</a
+          >
+          <a
+            class="h-full flex items-center px-1 font-sans uppercase tracking-widest font-bold text-zinc-900 dark:text-white border-b-2 border-zinc-900 dark:border-white"
+            href="#"
+            >REVIEWS</a
+          >
+          <a
+            class="h-full flex items-center px-1 font-sans uppercase tracking-widest font-bold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            href="#"
+            >ANALYTICS</a
+          >
+        </nav>
+      </div>
+      <div class="flex items-center gap-4">
+        <button
+          class="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <span class="material-symbols-outlined">language</span>
+        </button>
+        <button
+          class="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <span class="material-symbols-outlined">dark_mode</span>
+        </button>
+        <button
+          class="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <span class="material-symbols-outlined">account_circle</span>
+        </button>
+      </div>
+    </header>
+    <!-- SideNavBar -->
+    <aside
+      class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 flex flex-col p-4 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-300 dark:border-zinc-800 hidden md:flex"
+    >
+      <div class="mb-8 px-2">
+        <h2 class="text-lg font-bold text-zinc-900 dark:text-white">
+          OwnerMate Admin
+        </h2>
+        <p class="text-[10px] font-mono uppercase tracking-tight text-zinc-500">
+          Technical Suite
+        </p>
+      </div>
+      <nav class="flex-1 space-y-1">
+        <a
+          class="flex items-center gap-3 px-4 py-3 text-xs font-mono uppercase tracking-tight text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all"
+          href="#"
+        >
+          <span class="material-symbols-outlined">dashboard</span>
+          Dashboard
+        </a>
+        <a
+          class="flex items-center gap-3 px-4 py-3 text-xs font-mono uppercase tracking-tight bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold translate-x-1 transition-transform"
+          href="#"
+        >
+          <span class="material-symbols-outlined">rate_review</span>
+          Reviews
+        </a>
+        <a
+          class="flex items-center gap-3 px-4 py-3 text-xs font-mono uppercase tracking-tight text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all"
+          href="#"
+        >
+          <span class="material-symbols-outlined">auto_awesome</span>
+          AI Content Lab
+        </a>
+        <a
+          class="flex items-center gap-3 px-4 py-3 text-xs font-mono uppercase tracking-tight text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all"
+          href="#"
+        >
+          <span class="material-symbols-outlined">settings</span>
+          Settings
+        </a>
+      </nav>
+      <div
+        class="mt-auto p-4 flex items-center gap-3 border-t border-zinc-200 dark:border-zinc-800"
+      >
+        <img
+          class="w-10 h-10 object-cover rounded-full"
+          data-alt="User avatar for OwnerMate admin"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0BUWpZFxQt1zgEv8f39W3c74tiUxkwFR1poPmoJhDw2J3TsSQuvuvfIY2AbAfGZO4EQiQE_zkMom4S_kohFx-atGsbuq_NBmPZpKCt8QaPPA9_e6j4oLyCZhokwET_NX_N8mIdH01O6fxy6dQ4PlS5G-JR61AABrIql9TG-1u_kmwWkx5IoIwscUEXUxApiTxsgYwbRsIsW7bBSbFm23On0bdftQezmV4rf8WbC1MnQ6zLFInI9Vra8RMrykI4rHT0lqpHAEQILE"
+        />
+        <div class="overflow-hidden">
+          <p class="text-xs font-bold truncate">Alex Drafter</p>
+          <p class="text-[10px] text-zinc-500 uppercase tracking-tighter">
+            Chief Architect
+          </p>
+        </div>
+      </div>
+    </aside>
+    <!-- Main Content Canvas -->
+    <main class="md:ml-64 pt-16 min-h-screen relative overflow-hidden">
+      <div class="blueprint-grid absolute inset-0 pointer-events-none"></div>
+      <div class="relative z-10 p-6 md:p-10 max-w-7xl mx-auto">
+        <!-- Header Breadcrumb -->
+        <div
+          class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-outline-variant/20 pb-6"
+        >
+          <div>
+            <span
+              class="text-[10px] font-mono text-outline uppercase tracking-[0.2em] mb-2 block"
+              >Project / Reviews / Detail</span
+            >
+            <h1
+              class="text-3xl font-bold uppercase tracking-tight text-primary"
+            >
+              REVIEW_ID: #OM-8842
+            </h1>
+          </div>
+          <div class="flex gap-2">
+            <button
+              class="px-4 py-2 text-xs font-mono uppercase tracking-widest border border-outline-variant text-on-surface hover:bg-surface-container transition-all"
+            >
+              Archive
+            </button>
+            <button
+              class="px-4 py-2 text-xs font-mono uppercase tracking-widest bg-error text-on-error hover:opacity-90 transition-all"
+            >
+              Flag Review
+            </button>
+          </div>
+        </div>
+        <!-- Split-pane Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <!-- Left Pane: Customer Details -->
+          <div class="lg:col-span-5 space-y-8">
+            <section class="bg-surface-container-lowest hairline-border p-8">
+              <div class="flex items-start gap-6 mb-8">
+                <img
+                  class="w-20 h-20 object-cover grayscale"
+                  data-alt="Customer portrait for review author"
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMD3aY4TOmAAG7COGvrCRZLbMbK1zNY4EF1_Dq6D64Qtb1dN2MkOJ9ctO2PSYIVbeA3UUBuwmfxRhExniZXv3mzQ_8BZbRLgiJot1jZ9FIQiEFHg9vr_5oXKKSl4ipDH7Ia-eggfOmaXeaFb-9CTHAI-U6ZbLSUgSdE8VRTqBRs8_yPPqho1lM8xVCgDiYvLd-A0R1quFpBAfuPGDbrbvrNEhTVhTG81n2_KZghRkp366takcUTAKL_VTsDD40HxgKfgyT0H-WMd0"
+                />
+                <div class="space-y-1">
+                  <h3 class="text-xl font-bold uppercase tracking-tight">
+                    Jonathan Harker
+                  </h3>
+                  <p class="text-xs font-mono text-outline">
+                    ORDER_ID: <span class="text-on-surface">99-XJ-001</span>
+                  </p>
+                  <div class="flex gap-1 pt-2">
+                    <span
+                      class="material-symbols-outlined text-primary text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-primary text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-primary text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-primary text-sm"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >star</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-outline-variant text-sm"
+                      >star</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-4">
+                <h4
+                  class="text-[10px] font-mono text-outline uppercase tracking-[0.2em]"
+                >
+                  Customer Statement
+                </h4>
+                <p class="text-on-surface leading-relaxed text-lg font-light">
+                  "The architectural integration of the software is impressive,
+                  but I found the onboarding workflow slightly disjointed for
+                  complex data sets. However, once established, the precision of
+                  the AI reports is unparalleled in this sector. Looking forward
+                  to the V2.0 rollout."
+                </p>
+                <div class="pt-4 flex items-center gap-4">
+                  <span class="text-[10px] font-mono text-outline uppercase"
+                    >Received: Oct 24, 2023</span
+                  >
+                  <span class="text-[10px] font-mono text-outline uppercase"
+                    >Via: Direct Integration</span
+                  >
+                </div>
+              </div>
+            </section>
+            <!-- Sentiment Breakdown Bento -->
+            <section class="grid grid-cols-2 gap-4">
+              <div class="bg-surface-container hairline-border p-4">
+                <h4
+                  class="text-[10px] font-mono text-outline uppercase tracking-widest mb-2"
+                >
+                  Sentiment
+                </h4>
+                <div class="text-2xl font-bold text-tertiary uppercase">
+                  Neutral-Positive
+                </div>
+              </div>
+              <div class="bg-surface-container hairline-border p-4">
+                <h4
+                  class="text-[10px] font-mono text-outline uppercase tracking-widest mb-2"
+                >
+                  Stability Score
+                </h4>
+                <div class="text-2xl font-bold text-tertiary">88.4%</div>
+              </div>
+            </section>
+          </div>
+          <!-- Right Pane: AI Insights & Workspace -->
+          <div class="lg:col-span-7 space-y-8">
+            <!-- AI Insights Panel -->
+            <section class="bg-surface-container hairline-border p-8">
+              <div class="flex items-center gap-2 mb-6">
+                <span class="material-symbols-outlined text-primary"
+                  >auto_awesome</span
+                >
+                <h3
+                  class="text-xs font-mono font-bold uppercase tracking-[0.2em]"
+                >
+                  AI Insights Engine
+                </h3>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h4
+                    class="text-[10px] font-mono text-outline uppercase tracking-widest mb-4"
+                  >
+                    Key Themes Detected
+                  </h4>
+                  <ul class="space-y-3">
+                    <li
+                      class="flex items-center gap-3 text-xs font-medium border-l-2 border-primary pl-3"
+                    >
+                      Architectural Precision
+                    </li>
+                    <li
+                      class="flex items-center gap-3 text-xs font-medium border-l-2 border-outline-variant pl-3"
+                    >
+                      Onboarding Complexity
+                    </li>
+                    <li
+                      class="flex items-center gap-3 text-xs font-medium border-l-2 border-primary pl-3"
+                    >
+                      V2.0 Anticipation
+                    </li>
+                  </ul>
+                </div>
+                <div class="flex flex-col justify-end">
+                  <div
+                    class="bg-surface-container-highest p-4 border border-outline-variant/20"
+                  >
+                    <h4
+                      class="text-[10px] font-mono text-outline uppercase tracking-widest mb-1"
+                    >
+                      Impact Analysis
+                    </h4>
+                    <p
+                      class="text-xs italic leading-snug text-on-surface-variant"
+                    >
+                      "User highlights a friction point in onboarding. High
+                      conversion risk if not addressed in next patch."
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <!-- Workspace Panel -->
+            <section class="bg-surface-container-lowest hairline-border p-8">
+              <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-primary"
+                    >terminal</span
+                  >
+                  <h3
+                    class="text-xs font-mono font-bold uppercase tracking-[0.2em]"
+                  >
+                    AI Response Workspace
+                  </h3>
+                </div>
+                <span
+                  class="text-[10px] font-mono bg-primary-container text-on-primary-container px-2 py-0.5"
+                  >DRAFT_MODE</span
+                >
+              </div>
+              <div class="relative mb-6">
+                <textarea
+                  class="w-full bg-surface p-6 font-mono text-sm border-0 border-b border-outline focus:ring-0 placeholder:text-outline-variant/50 resize-none"
+                  placeholder="Draft your response or let AI generate one..."
+                  rows="8"
+                ></textarea>
+                <div class="absolute bottom-4 right-4 flex gap-3">
+                  <button
+                    class="p-2 text-outline hover:text-primary transition-colors"
+                  >
+                    <span class="material-symbols-outlined">content_copy</span>
+                  </button>
+                  <button
+                    class="p-2 text-outline hover:text-primary transition-colors"
+                  >
+                    <span class="material-symbols-outlined">save</span>
+                  </button>
+                </div>
+              </div>
+              <div class="flex flex-col sm:flex-row gap-4">
+                <button
+                  class="flex-1 bg-primary text-on-primary font-mono uppercase tracking-[0.2em] text-xs py-4 px-6 hover:bg-primary-dim transition-all flex items-center justify-center gap-3"
+                >
+                  <span class="material-symbols-outlined text-sm">bolt</span>
+                  Generate AI Response
+                </button>
+                <button
+                  class="px-8 py-4 border border-outline font-mono uppercase tracking-[0.2em] text-xs hover:bg-surface-container transition-all"
+                >
+                  Send Draft
+                </button>
+              </div>
+            </section>
+            <!-- History / Logs -->
+            <section
+              class="bg-transparent border-l border-outline-variant/30 ml-4 pl-8 space-y-6"
+            >
+              <h4
+                class="text-[10px] font-mono text-outline uppercase tracking-[0.2em]"
+              >
+                Activity Log
+              </h4>
+              <div class="space-y-4">
+                <div class="flex items-center gap-4">
+                  <span class="w-2 h-2 bg-outline-variant rotate-45"></span>
+                  <p class="text-xs font-mono text-outline-variant">
+                    SYSTEM: Review received and categorized via API
+                    <span class="ml-2 opacity-50">12:44:02</span>
+                  </p>
+                </div>
+                <div class="flex items-center gap-4">
+                  <span class="w-2 h-2 bg-primary rotate-45"></span>
+                  <p class="text-xs font-mono text-primary">
+                    AI: Sentiment analysis complete. Score: 0.82
+                    <span class="ml-2 opacity-50">12:44:05</span>
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+    <!-- FAB (Suppressed as per rules for Detail page, but keeping script awareness if needed) -->
+  </body>
+</html>
