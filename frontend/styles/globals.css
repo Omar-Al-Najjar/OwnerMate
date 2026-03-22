@@ -1,0 +1,75 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --surface: 220 14% 96%;
+  --card: 0 0% 100%;
+  --foreground: 224 71% 4%;
+  --muted: 220 9% 46%;
+  --border: 220 13% 91%;
+  --primary: 231 48% 48%;
+  --primary-hover: 231 48% 42%;
+  --success: 142 71% 45%;
+  --warning: 43 96% 56%;
+  --error: 0 84% 60%;
+  --sentiment-positive: 142 71% 45%;
+  --sentiment-neutral: 220 9% 70%;
+  --sentiment-negative: 0 84% 60%;
+}
+
+.dark {
+  --background: 224 15% 12%;
+  --surface: 224 12% 17%;
+  --card: 224 12% 17%;
+  --foreground: 220 14% 96%;
+  --muted: 220 9% 65%;
+  --border: 217 19% 27%;
+  --primary: 231 60% 57%;
+  --primary-hover: 231 70% 66%;
+  --success: 142 69% 58%;
+  --warning: 43 96% 64%;
+  --error: 0 91% 71%;
+  --sentiment-positive: 142 69% 58%;
+  --sentiment-neutral: 220 9% 44%;
+  --sentiment-negative: 0 91% 71%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans), sans-serif;
+}
+
+[dir="rtl"] body {
+  font-family: var(--font-arabic), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-border bg-card shadow-panel;
+  }
+
+  .page-grid {
+    @apply grid gap-6 md:gap-8;
+  }
+
+  .soft-panel {
+    @apply rounded-2xl border border-border/80 bg-card/95 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.28)];
+  }
+}
