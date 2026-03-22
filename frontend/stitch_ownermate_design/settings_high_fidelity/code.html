@@ -1,0 +1,500 @@
+<!doctype html>
+
+<html dir="ltr" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-container": "#e5e2e1",
+              error: "#9f403d",
+              "surface-tint": "#5f5e5e",
+              primary: "#5f5e5e",
+              "primary-dim": "#535252",
+              "on-tertiary-fixed-variant": "#5e6165",
+              "on-primary": "#faf7f6",
+              "surface-variant": "#dde4e5",
+              tertiary: "#5c5f63",
+              "primary-fixed": "#e5e2e1",
+              "surface-bright": "#f9f9f9",
+              "tertiary-fixed": "#e9ebf0",
+              "on-primary-fixed": "#403f3f",
+              "on-secondary-container": "#505251",
+              "on-primary-fixed-variant": "#5c5b5b",
+              "tertiary-container": "#e9ebf0",
+              "surface-container-high": "#e4e9ea",
+              "surface-container-low": "#f2f4f4",
+              "surface-container": "#ebeeef",
+              "on-error-container": "#752121",
+              "secondary-dim": "#525352",
+              surface: "#f9f9f9",
+              "inverse-surface": "#0c0f0f",
+              "on-surface-variant": "#5a6061",
+              "error-dim": "#4e0309",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#2d3435",
+              outline: "#757c7d",
+              "inverse-primary": "#ffffff",
+              background: "#f9f9f9",
+              "secondary-fixed-dim": "#d4d5d3",
+              "on-primary-container": "#525151",
+              "on-error": "#fff7f6",
+              "on-background": "#2d3435",
+              "on-secondary-fixed-variant": "#5a5c5b",
+              "inverse-on-surface": "#9c9d9d",
+              "tertiary-dim": "#505357",
+              "surface-container-highest": "#dde4e5",
+              "secondary-fixed": "#e2e3e1",
+              secondary: "#5e5f5e",
+              "outline-variant": "#adb3b4",
+              "on-tertiary": "#f7f9fd",
+              "on-tertiary-fixed": "#424549",
+              "secondary-container": "#e2e3e1",
+              "on-secondary": "#f9f9f7",
+              "error-container": "#fe8983",
+              "tertiary-fixed-dim": "#dbdde1",
+              "primary-fixed-dim": "#d7d4d3",
+              "surface-dim": "#d4dbdd",
+              "on-tertiary-container": "#54575b",
+              "on-secondary-fixed": "#3e403f",
+            },
+            fontFamily: {
+              headline: ["Inter"],
+              body: ["Inter"],
+              label: ["Inter"],
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 300,
+          "GRAD" 0,
+          "opsz" 24;
+        vertical-align: middle;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      [dir="rtl"] body {
+        font-family: "IBM Plex Sans Arabic", sans-serif;
+      }
+      .blueprint-grid {
+        background-image: radial-gradient(circle, #adb3b4 1px, transparent 1px);
+        background-size: 16px 16px;
+        opacity: 0.05;
+      }
+    </style>
+  </head>
+  <body class="bg-surface text-on-surface min-h-screen">
+    <!-- TopNavBar -->
+    <header
+      class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-slate-50 dark:bg-zinc-950 border-b border-zinc-300 dark:border-zinc-800"
+    >
+      <div class="flex items-center gap-8">
+        <span
+          class="text-xl font-black tracking-tighter text-zinc-900 dark:text-white"
+          >OwnerMate</span
+        >
+        <nav class="hidden md:flex gap-6 h-16 items-center">
+          <a
+            class="h-full flex items-center px-2 font-sans uppercase tracking-widest font-bold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            href="#"
+            >Dashboard</a
+          >
+          <a
+            class="h-full flex items-center px-2 font-sans uppercase tracking-widest font-bold text-zinc-900 dark:text-white border-b-2 border-zinc-900 dark:border-white"
+            href="#"
+            >Settings</a
+          >
+        </nav>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="relative hidden sm:block">
+          <span
+            class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant"
+            >search</span
+          >
+          <input
+            class="bg-surface-container-low border-none text-[0.75rem] font-mono tracking-tight px-10 py-2 focus:ring-1 focus:ring-primary w-64 uppercase"
+            placeholder="SEARCH COMMANDS..."
+            type="text"
+          />
+        </div>
+        <button
+          class="p-2 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <span class="material-symbols-outlined">language</span>
+        </button>
+        <button
+          class="p-2 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <span class="material-symbols-outlined">dark_mode</span>
+        </button>
+        <button
+          class="p-2 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <span
+            class="material-symbols-outlined"
+            data-weight="fill"
+            style="font-variation-settings: &quot;FILL&quot; 1"
+            >account_circle</span
+          >
+        </button>
+      </div>
+    </header>
+    <!-- SideNavBar -->
+    <aside
+      class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 flex flex-col p-4 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-300 dark:border-zinc-800 hidden md:flex"
+    >
+      <div class="mb-8 px-2 py-4 border-b border-outline-variant/20">
+        <h2 class="text-lg font-bold text-zinc-900 dark:text-white">
+          OwnerMate Admin
+        </h2>
+        <p class="text-xs font-mono uppercase tracking-tight text-zinc-500">
+          Technical Suite
+        </p>
+      </div>
+      <nav class="flex flex-col gap-1 flex-grow">
+        <a
+          class="flex items-center gap-3 px-3 py-3 text-xs font-mono uppercase tracking-tight text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all hover:translate-x-1"
+          href="#"
+        >
+          <span class="material-symbols-outlined">dashboard</span>
+          <span>Dashboard</span>
+        </a>
+        <a
+          class="flex items-center gap-3 px-3 py-3 text-xs font-mono uppercase tracking-tight text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all hover:translate-x-1"
+          href="#"
+        >
+          <span class="material-symbols-outlined">rate_review</span>
+          <span>Reviews</span>
+        </a>
+        <a
+          class="flex items-center gap-3 px-3 py-3 text-xs font-mono uppercase tracking-tight text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all hover:translate-x-1"
+          href="#"
+        >
+          <span class="material-symbols-outlined">auto_awesome</span>
+          <span>AI Content Lab</span>
+        </a>
+        <a
+          class="flex items-center gap-3 px-3 py-3 text-xs font-mono uppercase tracking-tight bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold transition-all translate-x-1"
+          href="#"
+        >
+          <span class="material-symbols-outlined">settings</span>
+          <span>Settings</span>
+        </a>
+      </nav>
+      <div
+        class="mt-auto px-2 flex items-center gap-3 pt-4 border-t border-outline-variant/20"
+      >
+        <img
+          alt="User Profile"
+          class="w-10 h-10 border border-outline"
+          data-alt="User profile avatar male professional"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLxs-Q4p715mSbr6dxxEQlX_RLOXA-WJpV3eXY3nVt97EIfY8wTtmlfU5m76_Xcz2UPU9a6CnJUcP6ky1m4kn8LabuugZIvqGJgBngfd1M5p37HtRoukBZcvkOtKyB4iLyN_JXqpDBGzhqamjGpfXiXZ-aUpjbsKRvUJGDyDBUTv3wfRSQ3heSxIeFxOmgeNUSuvIAbedXmzdWcgKtwylovsFZLBcaelW-Bk-PrBQFldkfFPuF6SG93kJNBomfEhjHYaxBmSIfXFg"
+        />
+        <div>
+          <p class="text-[0.75rem] font-bold uppercase tracking-wider">
+            Arch. Admin
+          </p>
+          <p class="text-[0.65rem] opacity-60 uppercase">System Root</p>
+        </div>
+      </div>
+    </aside>
+    <!-- Main Content Canvas -->
+    <main class="md:ml-64 pt-16 min-h-screen relative overflow-hidden">
+      <div class="blueprint-grid absolute inset-0 pointer-events-none"></div>
+      <div class="max-w-5xl mx-auto px-6 py-12 relative z-10">
+        <!-- Header Section -->
+        <header class="mb-12">
+          <h1
+            class="text-4xl font-extrabold uppercase tracking-[0.1em] border-l-4 border-primary pl-6 mb-2"
+          >
+            Technical Parameters
+          </h1>
+          <p class="text-on-surface-variant font-mono text-sm max-w-2xl">
+            Configuration module for individual and workspace environment
+            variables. All changes are logged to the structural audit trail.
+          </p>
+        </header>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          <!-- Profile Section -->
+          <section class="lg:col-span-12">
+            <div class="flex items-baseline gap-4 mb-8">
+              <span class="text-xs font-mono text-outline-variant">01/</span>
+              <h3 class="text-xl font-bold uppercase tracking-widest">
+                Profile Identity
+              </h3>
+              <div class="h-[1px] bg-outline-variant/20 flex-grow"></div>
+            </div>
+            <div
+              class="bg-surface-container-lowest p-8 border border-outline-variant/10 grid grid-cols-1 md:grid-cols-2 gap-12"
+            >
+              <div class="space-y-6">
+                <div class="group">
+                  <label
+                    class="block text-[0.75rem] font-mono uppercase text-outline-variant mb-2 group-focus-within:text-primary transition-colors"
+                    >Full Name</label
+                  >
+                  <input
+                    class="w-full bg-transparent border-b border-outline-variant/40 focus:border-primary focus:ring-0 px-0 py-2 text-lg font-medium outline-none transition-all placeholder:opacity-30"
+                    type="text"
+                    value="Alexander Sterling"
+                  />
+                </div>
+                <div class="group">
+                  <label
+                    class="block text-[0.75rem] font-mono uppercase text-outline-variant mb-2 group-focus-within:text-primary transition-colors"
+                    >Professional Email</label
+                  >
+                  <input
+                    class="w-full bg-transparent border-b border-outline-variant/40 focus:border-primary focus:ring-0 px-0 py-2 text-lg font-medium outline-none transition-all placeholder:opacity-30"
+                    type="email"
+                    value="a.sterling@ownermate.tech"
+                  />
+                </div>
+              </div>
+              <div class="flex items-start gap-6">
+                <div class="relative group">
+                  <div
+                    class="w-32 h-32 border border-outline-variant flex items-center justify-center bg-surface-container relative overflow-hidden"
+                  >
+                    <img
+                      alt="Profile"
+                      class="w-full h-full object-cover opacity-80 mix-blend-multiply grayscale"
+                      data-alt="Architectural style headshot of man"
+                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuCsKYpWBTQBUzmKR2vApL3cQPyM1szN7azl-nPow6mlptztpRW5zPywt-CNMvwNN2CtePjMdUvzwk2Lkuz29Bv5ZwNjlCTM47cL6N1QjIkxX862tbg-iha3n7y3MQoJT9u4hO7GGy_gbN6DLKLuuhn4kAyjufMR1-1swPzyV8DjIl3qnyXYTjp9yJM4bGxQT9QVcof2komWUAK_-zKShkfInr6yL29z9nCvG0bZXfsNlpBsB4T5puy_2cmW_urOCUU9Ks7BcqFFLbI"
+                    />
+                    <button
+                      class="absolute inset-0 bg-primary/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1"
+                    >
+                      <span class="material-symbols-outlined text-sm"
+                        >photo_camera</span
+                      >
+                      <span class="text-[0.6rem] font-mono">UPDATE_IMG</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <p
+                    class="text-[0.75rem] font-mono uppercase text-outline-variant"
+                  >
+                    System Role
+                  </p>
+                  <div
+                    class="inline-block px-3 py-1 bg-primary text-white text-[0.65rem] font-mono uppercase tracking-tighter"
+                  >
+                    Administrator
+                  </div>
+                  <p class="text-[0.65rem] font-mono text-outline-variant mt-4">
+                    Last updated: 2023.10.24-14:22
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+          <!-- Workspace Preferences -->
+          <section class="lg:col-span-8">
+            <div class="flex items-baseline gap-4 mb-8">
+              <span class="text-xs font-mono text-outline-variant">02/</span>
+              <h3 class="text-xl font-bold uppercase tracking-widest">
+                Workspace Environment
+              </h3>
+              <div class="h-[1px] bg-outline-variant/20 flex-grow"></div>
+            </div>
+            <div class="space-y-6">
+              <!-- Interface Mode -->
+              <div
+                class="bg-surface-container-lowest border border-outline-variant/10 p-6 flex items-center justify-between hover:border-outline-variant transition-colors"
+              >
+                <div>
+                  <h4 class="font-bold uppercase text-sm tracking-tight">
+                    Interface Mode
+                  </h4>
+                  <p class="text-[0.75rem] text-on-surface-variant font-mono">
+                    Switch between light and high-contrast dark draft modes.
+                  </p>
+                </div>
+                <div class="flex bg-surface-container p-1 rounded-sm">
+                  <button
+                    class="px-4 py-2 bg-surface-container-lowest text-[0.65rem] font-bold font-mono uppercase shadow-sm"
+                  >
+                    Light
+                  </button>
+                  <button
+                    class="px-4 py-2 text-on-surface-variant text-[0.65rem] font-bold font-mono uppercase hover:bg-surface-container-high transition-colors"
+                  >
+                    Dark
+                  </button>
+                </div>
+              </div>
+              <!-- Language -->
+              <div
+                class="bg-surface-container-lowest border border-outline-variant/10 p-6 flex items-center justify-between hover:border-outline-variant transition-colors"
+              >
+                <div>
+                  <h4 class="font-bold uppercase text-sm tracking-tight">
+                    System Language
+                  </h4>
+                  <p class="text-[0.75rem] text-on-surface-variant font-mono">
+                    Select primary architectural rendering language.
+                  </p>
+                </div>
+                <select
+                  class="bg-transparent border-b border-outline-variant/40 focus:border-primary focus:ring-0 font-mono text-xs uppercase py-1 pr-8"
+                >
+                  <option>English (US)</option>
+                  <option>Arabic (RTL)</option>
+                  <option>German (Technical)</option>
+                </select>
+              </div>
+              <!-- Reduce Visual Noise -->
+              <div
+                class="bg-surface-container-lowest border border-outline-variant/10 p-6 flex items-center justify-between hover:border-outline-variant transition-colors"
+              >
+                <div class="flex gap-4 items-start">
+                  <div class="pt-1">
+                    <input
+                      class="w-5 h-5 border-2 border-outline-variant text-primary focus:ring-0 rounded-none cursor-pointer"
+                      id="reduce-noise"
+                      type="checkbox"
+                    />
+                  </div>
+                  <label class="cursor-pointer" for="reduce-noise">
+                    <h4 class="font-bold uppercase text-sm tracking-tight">
+                      Reduce Visual Noise
+                    </h4>
+                    <p class="text-[0.75rem] text-on-surface-variant font-mono">
+                      Disables subtle dot-grid patterns and non-essential
+                      divider lines.
+                    </p>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+          <!-- Status Panel -->
+          <aside class="lg:col-span-4">
+            <div class="flex items-baseline gap-4 mb-8">
+              <span class="text-xs font-mono text-outline-variant">03/</span>
+              <h3 class="text-xl font-bold uppercase tracking-widest">
+                Status
+              </h3>
+            </div>
+            <div
+              class="bg-surface-container border border-outline-variant/20 p-6 space-y-6"
+            >
+              <div class="space-y-2">
+                <div
+                  class="flex justify-between text-[0.65rem] font-mono uppercase text-outline-variant"
+                >
+                  <span>Profile Completion</span>
+                  <span>85%</span>
+                </div>
+                <div class="h-1 bg-surface-container-highest w-full">
+                  <div class="h-full bg-primary w-[85%]"></div>
+                </div>
+              </div>
+              <div class="pt-4 border-t border-outline-variant/10">
+                <h5
+                  class="text-[0.65rem] font-mono uppercase text-outline-variant mb-3"
+                >
+                  Active Sessions
+                </h5>
+                <div class="space-y-3">
+                  <div class="flex items-center gap-3">
+                    <span class="w-1.5 h-1.5 bg-emerald-500"></span>
+                    <span class="text-[0.7rem] font-mono"
+                      >MACBOOK PRO • LONDON, UK</span
+                    >
+                  </div>
+                  <div class="flex items-center gap-3 opacity-40">
+                    <span class="w-1.5 h-1.5 bg-outline-variant"></span>
+                    <span class="text-[0.7rem] font-mono"
+                      >IPHONE 15 • LONDON, UK</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <!-- Sticky Footer -->
+      <div
+        class="sticky bottom-0 left-0 w-full bg-surface/80 backdrop-blur-md border-t border-outline-variant/20 px-6 py-4 z-40"
+      >
+        <div class="max-w-5xl mx-auto flex items-center justify-between">
+          <div
+            class="hidden sm:flex items-center gap-4 text-[0.65rem] font-mono text-outline-variant uppercase tracking-tighter"
+          >
+            <span class="material-symbols-outlined text-sm">info</span>
+            <span>All modifications are temporary until commitment</span>
+          </div>
+          <div class="flex gap-4 w-full sm:w-auto">
+            <button
+              class="flex-1 sm:flex-none px-8 py-3 bg-transparent border border-outline font-bold text-xs uppercase tracking-[0.2em] hover:bg-surface-container-high transition-colors"
+            >
+              Discard
+            </button>
+            <button
+              class="flex-1 sm:flex-none px-8 py-3 bg-primary text-white font-bold text-xs uppercase tracking-[0.2em] hover:bg-primary-dim transition-colors shadow-[4px_4px_0px_rgba(0,0,0,0.1)] active:translate-y-1 active:shadow-none"
+            >
+              Commit Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+    <!-- BottomNavBar (Mobile Only) -->
+    <nav
+      class="md:hidden fixed bottom-0 left-0 w-full bg-surface-container-lowest flex justify-around items-center h-16 border-t border-outline-variant/20 z-50"
+    >
+      <a
+        class="flex flex-col items-center gap-1 text-on-surface-variant"
+        href="#"
+      >
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="text-[0.6rem] font-mono uppercase">Dash</span>
+      </a>
+      <a
+        class="flex flex-col items-center gap-1 text-on-surface-variant"
+        href="#"
+      >
+        <span class="material-symbols-outlined">rate_review</span>
+        <span class="text-[0.6rem] font-mono uppercase">Reviews</span>
+      </a>
+      <a class="flex flex-col items-center gap-1 text-on-surface" href="#">
+        <span class="material-symbols-outlined font-bold">settings</span>
+        <span class="text-[0.6rem] font-mono uppercase font-bold">Setup</span>
+      </a>
+    </nav>
+  </body>
+</html>
