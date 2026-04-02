@@ -3,5 +3,6 @@ fastapi
 pydantic
 pydantic-settings
 psycopg[binary]
+pytest
 sqlalchemy
 uvicorn[standard]
