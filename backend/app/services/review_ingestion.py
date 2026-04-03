@@ -19,20 +19,29 @@ class ReviewIngestionService:
         self.review_service = review_service
         self.agent_run_repository = agent_run_repository
 
-    def import_reviews(self, payload: ReviewImportRequest) -> tuple[ReviewImportResult, str]:
+    def import_reviews(
+        self,
+        payload: ReviewImportRequest,
+        *,
+        input_reference_extra: dict | None = None,
+    ) -> tuple[ReviewImportResult, str]:
+        input_reference = {
+            "business_id": str(payload.business_id),
+            "review_source_id": str(payload.review_source_id)
+            if payload.review_source_id
+            else None,
+            "source": payload.source,
+            "review_count": len(payload.reviews),
+        }
+        if input_reference_extra:
+            input_reference.update(input_reference_extra)
+
         agent_run = AgentRun(
             business_id=payload.business_id,
             agent_name="review_ingestion",
             task_type="import_reviews",
             status="running",
-            input_reference={
-                "business_id": str(payload.business_id),
-                "review_source_id": str(payload.review_source_id)
-                if payload.review_source_id
-                else None,
-                "source": payload.source,
-                "review_count": len(payload.reviews),
-            },
+            input_reference=input_reference,
         )
 
         try:

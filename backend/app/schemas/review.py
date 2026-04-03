@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import Any, Literal
 from uuid import UUID
 
@@ -7,6 +8,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ReviewStatus = Literal["pending", "reviewed", "responded"]
 FacebookRecommendation = Literal["positive", "negative", "neutral"]
+
+
+class ReviewUploadFormat(str, Enum):
+    CSV = "csv"
+    XLSX = "xlsx"
+    JSON = "json"
+    TXT = "txt"
+    SQLITE = "sqlite"
 
 
 class ReviewListQuery(BaseModel):
@@ -108,6 +117,29 @@ class ReviewImportRequest(BaseModel):
         if not normalized:
             raise ValueError("Source must not be empty.")
         return normalized
+
+
+class ReviewUploadImportRequest(BaseModel):
+    business_id: UUID
+    review_source_id: UUID | None = None
+    source: str
+
+    @field_validator("source")
+    @classmethod
+    def normalize_source(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized:
+            raise ValueError("Source must not be empty.")
+        return normalized
+
+
+class ReviewUploadPreprocessingSummary(BaseModel):
+    original_filename: str
+    detected_format: ReviewUploadFormat
+    staged_format: Literal["csv"] = "csv"
+    source_row_count: int
+    mapped_columns: dict[str, str]
+    selected_source_name: str | None = None
 
 
 class ReviewSourceFetchOptions(BaseModel):

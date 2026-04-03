@@ -10,6 +10,7 @@ from backend.app.api.dependencies import (
     get_authorization_service,
     get_current_user,
     get_review_service,
+    get_review_upload_import_service,
     get_source_review_import_service,
 )
 from backend.app.core.exceptions import AppError
@@ -139,19 +140,57 @@ class FakeSourceReviewImportService:
         )
 
 
+class FakeReviewUploadImportService:
+    def __init__(self) -> None:
+        self.last_upload = None
+        self.last_filename: str | None = None
+        self.last_content_type: str | None = None
+        self.last_content: bytes | None = None
+
+    def import_reviews(self, *, upload, filename: str, content_type: str | None, content: bytes):
+        self.last_upload = upload
+        self.last_filename = filename
+        self.last_content_type = content_type
+        self.last_content = content
+        return ReviewImportResult(
+            source=upload.source,
+            business_id=upload.business_id,
+            review_source_id=upload.review_source_id,
+            requested_count=1,
+            imported_count=1,
+            duplicate_count=0,
+            processed_count=1,
+            imported_reviews=[],
+            duplicates=[],
+        )
+
+
 class FakeAuthorizationService:
     def ensure_business_access(self, user, business_id):
         return None
+
+
+class RejectingAuthorizationService:
+    def ensure_business_access(self, user, business_id):
+        raise AppError(
+            code="FORBIDDEN",
+            message="You do not have access to this business.",
+            status_code=403,
+        )
 
 
 class ReviewRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         self.fake_service = FakeReviewService()
         self.fake_source_service = FakeSourceReviewImportService()
+        self.fake_upload_service = FakeReviewUploadImportService()
         self.user = User(id=uuid4(), email="owner@example.com", role="owner")
         app.dependency_overrides[get_review_service] = lambda: self.fake_service
         app.dependency_overrides[get_source_review_import_service] = (
             lambda: self.fake_source_service
+        )
+        app.dependency_overrides[get_review_upload_import_service] = (
+            lambda: self.fake_upload_service
         )
         app.dependency_overrides[get_current_user] = lambda: self.user
         app.dependency_overrides[get_authorization_service] = (
@@ -341,6 +380,111 @@ class ReviewRouteTests(unittest.TestCase):
             "fb-page-1",
         )
         self.assertEqual(len(self.fake_source_service.last_facebook_payload.mock_reviews), 1)
+
+    def test_import_uploaded_reviews_returns_structured_result(self) -> None:
+        business_id = str(uuid4())
+        review_source_id = str(uuid4())
+
+        response = self.client.post(
+            "/reviews/import/upload",
+            data={
+                "business_id": business_id,
+                "review_source_id": review_source_id,
+                "source": "uploaded",
+            },
+            files={
+                "file": ("reviews.csv", b"review_id,comment\next-1,Great service\n", "text/csv")
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["data"]["source"], "uploaded")
+        self.assertIsNotNone(self.fake_upload_service.last_upload)
+        self.assertEqual(str(self.fake_upload_service.last_upload.business_id), business_id)
+        self.assertEqual(
+            str(self.fake_upload_service.last_upload.review_source_id),
+            review_source_id,
+        )
+        self.assertEqual(self.fake_upload_service.last_filename, "reviews.csv")
+        self.assertEqual(self.fake_upload_service.last_content_type, "text/csv")
+
+    def test_import_uploaded_reviews_requires_authentication(self) -> None:
+        app.dependency_overrides[get_current_user] = lambda: (_ for _ in ()).throw(
+            AppError(
+                code="AUTHENTICATION_REQUIRED",
+                message="Authentication is required for this endpoint.",
+                status_code=401,
+            )
+        )
+
+        response = self.client.post(
+            "/reviews/import/upload",
+            data={
+                "business_id": str(uuid4()),
+                "source": "uploaded",
+            },
+            files={
+                "file": ("reviews.csv", b"review_id,comment\next-1,Great service\n", "text/csv")
+            },
+        )
+
+        self.assertEqual(response.status_code, 401)
+        body = response.json()
+        self.assertFalse(body["success"])
+        self.assertEqual(body["error"]["code"], "AUTHENTICATION_REQUIRED")
+
+    def test_import_uploaded_reviews_rejects_forbidden_business_scope(self) -> None:
+        app.dependency_overrides[get_authorization_service] = (
+            lambda: RejectingAuthorizationService()
+        )
+
+        response = self.client.post(
+            "/reviews/import/upload",
+            data={
+                "business_id": str(uuid4()),
+                "source": "uploaded",
+            },
+            files={
+                "file": ("reviews.csv", b"review_id,comment\next-1,Great service\n", "text/csv")
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        body = response.json()
+        self.assertFalse(body["success"])
+        self.assertEqual(body["error"]["code"], "FORBIDDEN")
+
+    def test_import_uploaded_reviews_surfaces_unsupported_format_errors(self) -> None:
+        class UnsupportedUploadService:
+            def import_reviews(self, *, upload, filename: str, content_type: str | None, content: bytes):
+                del upload, filename, content_type, content
+                raise AppError(
+                    code="UNSUPPORTED_UPLOAD_FORMAT",
+                    message="Uploaded file format is not supported.",
+                    status_code=400,
+                )
+
+        app.dependency_overrides[get_review_upload_import_service] = (
+            lambda: UnsupportedUploadService()
+        )
+
+        response = self.client.post(
+            "/reviews/import/upload",
+            data={
+                "business_id": str(uuid4()),
+                "source": "uploaded",
+            },
+            files={
+                "file": ("reviews.unsupported", b"payload", "application/octet-stream")
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertFalse(body["success"])
+        self.assertEqual(body["error"]["code"], "UNSUPPORTED_UPLOAD_FORMAT")
 
 
 if __name__ == "__main__":

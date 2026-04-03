@@ -1205,3 +1205,59 @@ The backend handoff is only trustworthy if the repo docs describe the code that 
 - production auth is still blocked on replacing `X-User-Id` with real backend token or session verification
 - backend CORS is still not configured for browser cross-origin traffic
 - deployment to a target managed environment still needs real-secret connectivity validation and target-environment smoke checks
+
+## 2026-04-03 11:55 - CSV-first uploaded review ingestion boundary
+
+### Task
+Implement a backend file-upload review import path that accepts multiple upload formats, converts uploaded review rows into an internal CSV stage, and then reuses the existing shared review ingestion flow before any agent or downstream service sees the data.
+
+### Files Changed
+- `backend/app/api/dependencies.py`
+- `backend/app/api/routes/reviews.py`
+- `backend/app/main.py`
+- `backend/app/schemas/review.py`
+- `backend/app/services/__init__.py`
+- `backend/app/services/review_ingestion.py`
+- `backend/app/services/review_upload.py`
+- `backend/requirements.txt`
+- `backend/tests/test_review_routes.py`
+- `backend/tests/test_review_upload_service.py`
+- `AGENTS.md`
+- `API.md`
+- `ARCHITECTURE.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- added a protected `POST /reviews/import/upload` multipart endpoint that accepts `file`, `business_id`, `source`, and optional `review_source_id`
+- added upload-specific schemas for supported upload formats, multipart upload validation, and preprocessing trace summaries
+- implemented `ReviewUploadImportService` to:
+  - detect supported upload formats (`csv`, `xlsx`, `json`, `txt`, `db`, `sqlite`)
+  - parse and normalize uploaded rows by format
+  - auto-map common review column aliases into canonical review fields
+  - stage uploaded rows through an in-memory canonical CSV
+  - parse that staged CSV back into typed `ReviewImportItem` records
+  - delegate into the existing shared review ingestion service
+- kept Google/Facebook provider-backed import flows and orchestrator task types unchanged
+- extended review-ingestion trace metadata so upload imports record original filename, detected format, staged format, source row count, selected sheet or table when relevant, and mapped columns
+- added backend runtime dependencies for multipart upload handling and XLSX parsing
+- added focused service and route tests for CSV, TXT, XLSX, JSON, and SQLite upload flows plus error and auth cases
+- updated the required architecture, API, and agent docs to reflect the new backend upload contract
+
+### Why
+Uploaded review data can arrive in multiple formats, but the shared ingestion and orchestration layers should keep operating on one normalized contract. This change creates a backend preprocessing boundary for uploads so downstream services stay format-agnostic while still giving the API a practical multi-format import path.
+
+### Testing
+- `pytest backend/tests -q`
+- result: `79 passed`
+
+### Migrations / Env Changes
+- no schema migrations
+- backend runtime dependency changes: `openpyxl` and `python-multipart` added to `backend/requirements.txt`
+- backend API behavior changed by adding `POST /reviews/import/upload`
+- existing review, source-import, and orchestrator payloads remained unchanged
+- no UI behavior changed
+
+### Remaining Work / Notes
+- the upload route is backend-only for now; no frontend upload UI was added in this session
+- SQLite support is limited to SQLite database files and intentionally does not cover other database dump styles
+- `.txt` support is limited to delimited tabular text and does not attempt free-form review extraction

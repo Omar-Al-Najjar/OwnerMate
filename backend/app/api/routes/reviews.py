@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 
 from ...core.responses import success_response
 from ...models.user import User
@@ -10,17 +10,21 @@ from ...schemas.review import (
     GoogleReviewImportSourceRequest,
     ReviewBusinessScope,
     ReviewImportRequest,
+    ReviewUploadImportRequest,
     ReviewListQuery,
     ReviewStatusUpdateRequest,
 )
 from ...services.authorization import AuthorizationService
 from ...services.review import ReviewService
+from ...services.review_upload import ReviewUploadImportService
 from ...services.source_review_import import SourceReviewImportService
 from ..dependencies import (
     get_authorization_service,
     get_current_user,
     get_review_service,
+    get_review_upload_import_service,
     get_source_review_import_service,
+    parse_review_upload_import_request,
 )
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
@@ -58,6 +62,28 @@ async def import_reviews(
 ):
     authorization.ensure_business_access(current_user, payload.business_id)
     result = service.import_reviews(payload)
+    return success_response(result)
+
+
+@router.post(
+    "/import/upload",
+    response_model=SuccessResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_uploaded_reviews(
+    payload: ReviewUploadImportRequest = Depends(parse_review_upload_import_request),
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
+    service: ReviewUploadImportService = Depends(get_review_upload_import_service),
+):
+    authorization.ensure_business_access(current_user, payload.business_id)
+    result = service.import_reviews(
+        upload=payload,
+        filename=file.filename or "uploaded-file",
+        content_type=file.content_type,
+        content=await file.read(),
+    )
     return success_response(result)
 
 

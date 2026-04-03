@@ -148,8 +148,10 @@ The current backend includes an `app/agents/` package and a working orchestrator
 - direct frontend-oriented backend endpoints for reviews, sentiment, and content coexist with the orchestrator, while cross-service routing still stays behind the explicit orchestration boundary
 - agent run tracking is persisted for sentiment and content service executions
 - review ingestion and review summary orchestration now persist `agent_runs` as well
+- uploaded review files now flow through a backend preprocessing service that converts supported upload formats into an internal CSV stage before the shared review ingestion service runs
+- the new upload preprocessing path does not add a new agent task type; orchestrated imports still use `import_reviews`
 - direct backend endpoints now also exist for reviews, sentiment, and content while the orchestrator remains the explicit cross-service routing boundary
 - no model training or real provider-specific AI integration is implemented yet
 - current orchestrator result metadata uses persisted `agent_run_id` references rather than duration metrics
 - no forecasting, trend, or predictive task types are implemented under alternate names
-- no UI behavior changed in this backend step
+- backend API behavior changed by adding a protected file-upload review import route; no UI behavior changed in this backend step

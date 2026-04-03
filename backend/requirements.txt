@@ -1,8 +1,10 @@
 alembic
 fastapi
+openpyxl
 pydantic
 pydantic-settings
 psycopg[binary]
 pytest
+python-multipart
 sqlalchemy
 uvicorn[standard]

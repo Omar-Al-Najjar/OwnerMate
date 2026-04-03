@@ -69,8 +69,10 @@ Current implementation note:
 
 ### 4.2 Review Ingestion Flow
 * user triggers review import or sync
-* backend calls source-specific ingestion logic
-* raw source data is normalized
+* uploaded review files are parsed by format-specific preprocessing when the request comes from file upload
+* uploaded rows are converted into an internal canonical CSV stage before shared import validation runs
+* backend calls source-specific ingestion logic for provider-backed imports
+* raw source data is normalized into the shared review schema
 * validated review records are stored
 * ingestion status is returned to frontend
 
@@ -119,10 +121,12 @@ The current backend foundation keeps infrastructure and orchestration boundaries
 - `app/core/db.py` owns shared engine and session-factory creation for persistence
 - `app/services/` contains health/readiness checks and will remain the home for backend workflows
 - `app/services/review.py` now owns normalization, deduplication, and persistence orchestration for review APIs
+- `app/services/review_upload.py` now preprocesses supported uploaded file formats into an internal canonical CSV stage before delegating to shared review ingestion
 - `app/services/source_review_import.py` now keeps Google/Facebook source-fetch boundaries separate from the shared review persistence flow
 - `app/services/review_summary.py` now provides grounded review-intelligence summaries from stored reviews and stored sentiment results without introducing trend or forecasting behavior
 - `app/services/sentiment.py` and `app/services/content.py` now persist AI outputs through provider-agnostic service abstractions
 - `app/services/providers/` contains provider interfaces and mock/dev implementations for AI-backed capabilities and source-specific review ingestion stubs
+- uploaded file preprocessing stays behind the backend service boundary; agents and downstream services still receive typed review-import payloads rather than raw files
 - `app/models/` now defines the SQLAlchemy persistence schema for core backend entities
 - `app/repositories/` now contains review/business persistence access plus AI output and agent run persistence helpers
 - `app/agents/orchestrator.py` now validates supported agent tasks and delegates execution to specialized services

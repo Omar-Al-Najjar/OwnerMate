@@ -2,7 +2,8 @@ from collections.abc import Generator
 
 from uuid import UUID
 
-from fastapi import Depends, Header, status
+from fastapi import Depends, Form, Header, status
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from ..agents.orchestrator import OrchestratorAgent
@@ -28,9 +29,11 @@ from ..services.provider_factory import (
 from ..services.review import ReviewService
 from ..services.review_ingestion import ReviewIngestionService
 from ..services.review_summary import ReviewSummaryService
+from ..services.review_upload import ReviewUploadImportService
 from ..services.sentiment import SentimentAnalysisService
 from ..services.settings import SettingsService
 from ..services.source_review_import import SourceReviewImportService
+from ..schemas.review import ReviewUploadImportRequest
 
 
 def get_db_session() -> Generator[Session, None, None]:
@@ -123,6 +126,43 @@ def get_source_review_import_service(
         google_provider=get_google_review_provider(),
         facebook_provider=get_facebook_review_provider(),
     )
+
+
+def get_review_upload_import_service(
+    session: Session = Depends(get_db_session),
+) -> ReviewUploadImportService:
+    review_service = ReviewService(
+        review_repository=ReviewRepository(session),
+        business_repository=BusinessRepository(session),
+    )
+    return ReviewUploadImportService(
+        review_ingestion_service=ReviewIngestionService(
+            review_service=review_service,
+            agent_run_repository=AgentRunRepository(session),
+        )
+    )
+
+
+def parse_review_upload_import_request(
+    business_id: UUID = Form(...),
+    source: str = Form(...),
+    review_source_id: UUID | None = Form(default=None),
+) -> ReviewUploadImportRequest:
+    try:
+        return ReviewUploadImportRequest.model_validate(
+            {
+                "business_id": business_id,
+                "source": source,
+                "review_source_id": review_source_id,
+            }
+        )
+    except ValidationError as exc:
+        raise AppError(
+            code="VALIDATION_ERROR",
+            message="Invalid request payload",
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            details=exc.errors(),
+        ) from exc
 
 
 def get_review_summary_service(

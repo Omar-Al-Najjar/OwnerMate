@@ -146,6 +146,7 @@ Session example:
 - `GET /reviews`
 - `GET /reviews/{review_id}`
 - `POST /reviews/import`
+- `POST /reviews/import/upload`
 - `POST /reviews/import/google`
 - `POST /reviews/import/facebook`
 - `PATCH /reviews/{review_id}/status`
@@ -172,6 +173,18 @@ Normalization:
 - rejects already imported rows as `already_imported`
 - persists only new reviews
 - duplicate-conflict database failures return `409 REVIEW_IMPORT_CONFLICT`
+
+`POST /reviews/import/upload`:
+- accepts multipart form fields `business_id`, `source`, optional `review_source_id`, and `file`
+- requires `X-User-Id` and business access the same way as other review mutations
+- supports uploaded `.csv`, `.xlsx`, `.json`, `.txt`, `.db`, and `.sqlite` files
+- converts uploaded review data into an internal canonical CSV stage before shared review ingestion runs
+- keeps `business_id`, `review_source_id`, and `source` at the request level rather than per-row file columns
+- accepts `.json` as either a top-level array of objects or an object with a top-level `reviews` array
+- accepts `.txt` only as delimited tabular text, not free-form prose
+- accepts `.db` and `.sqlite` only for SQLite databases
+- auto-maps common review column aliases such as review id, reviewer, comment, rating, and created-at fields into the shared review schema
+- returns the same review import result shape as `POST /reviews/import`
 
 `POST /reviews/import/google` and `POST /reviews/import/facebook`:
 - accept source-specific fetch payloads
@@ -543,6 +556,10 @@ Request validation:
 
 Provider or persistence failures:
 - `409 REVIEW_IMPORT_CONFLICT`
+- `400 UNSUPPORTED_UPLOAD_FORMAT`
+- `422 UPLOAD_PARSE_ERROR`
+- `422 UPLOAD_COLUMN_MAPPING_ERROR`
+- `422 UPLOAD_SOURCE_SELECTION_ERROR`
 - `502 SENTIMENT_PROVIDER_ERROR`
 - `502 CONTENT_PROVIDER_ERROR`
 - `500 INTERNAL_SERVER_ERROR`
