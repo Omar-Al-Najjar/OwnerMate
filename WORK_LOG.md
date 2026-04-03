@@ -1984,3 +1984,30 @@ This completes the split-system cleanup. Auth and app data now live inside the s
 ### Remaining Work / Notes
 - the old local Docker Postgres container still exists as a fallback/dev artifact, but the live backend on port `8000` now uses Supabase Postgres
 - if more historical local-only data should be preserved, it can be selectively copied into Supabase later
+
+## 2026-04-04 10:10 - Removed tracked Python cache artifacts
+
+### Task
+Clean the git working tree by removing historically tracked Python cache files that kept showing up as modified after normal test and runtime commands.
+
+### Files Changed
+- `WORK_LOG.md`
+- tracked `__pycache__` and `*.pyc` artifacts across the repository were removed from git
+
+### What Was Done
+- removed tracked compiled Python cache files from the git index
+- deleted the local `__pycache__` directories generated during prior runs
+- kept the existing root ignore rules in place so those cache files stay untracked going forward
+
+### Why
+These files were pure runtime noise and kept making `git status` look dirty even when source code had not changed. Removing them from version control makes the branch easier to work with and reduces accidental junk commits.
+
+### Testing
+- verification: `git status --short`
+
+### Migrations / Env Changes
+- no schema changes
+- no env changes
+
+### Remaining Work / Notes
+- local untracked `demo-cookie.txt` was left alone because it appears to be a user-local artifact rather than repository source
