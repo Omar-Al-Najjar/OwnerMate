@@ -18,3 +18,9 @@ class BusinessRepository(Repository):
             .order_by(Business.created_at.asc())
         )
         return self.session.scalars(statement).all()
+
+    def add(self, business: Business) -> Business:
+        self.session.add(business)
+        self.session.flush()
+        self.session.refresh(business)
+        return business

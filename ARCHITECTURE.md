@@ -29,7 +29,7 @@ This architecture deliberately excludes forecasting and trend-analysis services.
 - orchestration layer for agent routing
 
 ### Data and Platform Services
-- Supabase-backed auth is planned, but the current backend request boundary still uses `X-User-Id`
+- Supabase-backed auth is now wired for verified bearer-token access
 - Supabase Postgres storage
 - Alembic migrations for managed schema evolution
 - SQLAlchemy ORM models for backend persistence boundaries
@@ -58,14 +58,15 @@ User
 
 ### 4.1 Authentication Flow
 * user opens the frontend
-* frontend requests auth state
-* current backend scaffold resolves the authenticated user from the `X-User-Id` request header
-* backend loads the stored user record and applies business-scoped authorization checks
+* frontend requests auth state through the Supabase session client
+* frontend sign-in and sign-up flows persist the authenticated Supabase session
+* backend verifies Supabase bearer tokens through the project JWKS flow and maps the verified identity onto the local `users` table
+* backend then applies the existing business-scoped authorization checks against the mapped local user
 * protected routes render only for authenticated users
 
 Current implementation note:
-- real Supabase token/session verification is not wired into the backend yet
-- the `X-User-Id` boundary is acceptable for scaffold/dev work only and remains a production blocker
+- Supabase bearer-token verification and local user mapping are now wired into the backend
+- first-time authenticated users are now provisioned with a default local business so the business-scoped backend surface remains usable after sign-up
 
 ### 4.2 Review Ingestion Flow
 * user triggers review import or sync

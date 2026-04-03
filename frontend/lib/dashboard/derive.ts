@@ -1,13 +1,21 @@
 import type {
   DashboardActivityItem,
+  DashboardCapabilities,
   DashboardDistributionBucket,
   DashboardFilters,
   DashboardMetric,
   DashboardPayload,
   DashboardPriorityReview,
+  DashboardSalesChannelBreakdown,
+  DashboardSalesProduct,
+  DashboardSalesSeriesPoint,
+  DashboardSalesView,
   DashboardTimeRange,
   DashboardTrendDirection,
   DashboardView,
+  SalesChannelId,
+  SalesProductCategory,
+  SalesRecord,
 } from "@/types/dashboard";
 import type { Review } from "@/types/review";
 
@@ -22,41 +30,68 @@ export const DEFAULT_DASHBOARD_FILTERS: DashboardFilters = {
 
 const DEFAULT_SPARKLINE = [0, 0, 0, 0, 0, 0];
 
-export function getDashboardPayload(reviews: Review[]): DashboardPayload {
+export function getDashboardPayload(
+  reviews: Review[],
+  salesRecords: SalesRecord[],
+  capabilities?: Partial<DashboardCapabilities>
+): DashboardPayload {
   const sortedReviews = sortReviews(reviews);
+  const sortedSales = sortSalesRecords(salesRecords);
+  const hasSalesData = sortedSales.length > 0;
 
   return {
     reviews: sortedReviews,
+    salesRecords: sortedSales,
+    capabilities: {
+      reviewDataAvailable: true,
+      salesDataAvailable: hasSalesData,
+      salesDataNote: hasSalesData
+        ? null
+        : "Sales metrics are not available in the backend yet.",
+      ...capabilities,
+    },
     filterOptions: {
       sources: Array.from(new Set(sortedReviews.map((review) => review.source))),
       languages: Array.from(new Set(sortedReviews.map((review) => review.language))),
       sentiments: ["positive", "neutral", "negative"],
       timeRanges: DASHBOARD_TIME_RANGES,
     },
-    view: getDashboardView(sortedReviews, DEFAULT_DASHBOARD_FILTERS),
+    view: getDashboardView(sortedReviews, sortedSales, DEFAULT_DASHBOARD_FILTERS),
   };
 }
 
 export function getDashboardView(
   reviews: Review[],
+  salesRecords: SalesRecord[],
   filters: DashboardFilters
 ): DashboardView {
   const allReviews = sortReviews(reviews);
+  const allSales = sortSalesRecords(salesRecords);
   const filteredReviews = filterReviews(allReviews, filters);
   const previousWindowReviews = getPreviousWindowReviews(allReviews, filters);
+  const filteredSales = filterSalesRecords(allSales, filters.range);
+  const previousWindowSales = getPreviousWindowSalesRecords(allSales, filters.range);
 
   return {
-    metrics: buildMetrics(filteredReviews, previousWindowReviews, filters.range),
-    distributions: {
-      sentiment: buildSentimentDistribution(filteredReviews),
-      ratings: buildRatingDistribution(filteredReviews),
-      sources: buildSourceDistribution(filteredReviews),
-      languages: buildLanguageDistribution(filteredReviews),
+    review: {
+      distributions: {
+        sentiment: buildSentimentDistribution(filteredReviews),
+        ratings: buildRatingDistribution(filteredReviews),
+        sources: buildSourceDistribution(filteredReviews),
+        languages: buildLanguageDistribution(filteredReviews),
+      },
+      recentReviews: filteredReviews.slice(0, 4),
+      priorityReviews: buildPriorityReviews(filteredReviews),
+      activityFeed: buildActivityFeed(filteredReviews),
+      reviewCount: filteredReviews.length,
     },
-    recentReviews: filteredReviews.slice(0, 4),
-    priorityReviews: buildPriorityReviews(filteredReviews),
-    activityFeed: buildActivityFeed(filteredReviews),
-    reviewCount: filteredReviews.length,
+    sales: buildSalesView(
+      filteredSales,
+      previousWindowSales,
+      filteredReviews,
+      previousWindowReviews,
+      filters.range
+    ),
   };
 }
 
@@ -65,6 +100,12 @@ function sortReviews(reviews: Review[]): Review[] {
     (left, right) =>
       new Date(right.reviewCreatedAt).getTime() -
       new Date(left.reviewCreatedAt).getTime()
+  );
+}
+
+function sortSalesRecords(salesRecords: SalesRecord[]): SalesRecord[] {
+  return [...salesRecords].sort(
+    (left, right) => new Date(left.date).getTime() - new Date(right.date).getTime()
   );
 }
 
@@ -87,6 +128,23 @@ function filterReviews(reviews: Review[], filters: DashboardFilters): Review[] {
 
     return rangeMatch && sourceMatch && languageMatch && sentimentMatch;
   });
+}
+
+function filterSalesRecords(
+  salesRecords: SalesRecord[],
+  range: DashboardTimeRange
+): SalesRecord[] {
+  if (range === "all") {
+    return salesRecords;
+  }
+
+  const latestDate = getLatestSalesDate(salesRecords);
+  if (!latestDate) {
+    return [];
+  }
+
+  const rangeStart = getRangeStart(latestDate, range);
+  return salesRecords.filter((record) => new Date(record.date) >= rangeStart);
 }
 
 function getPreviousWindowReviews(
@@ -122,6 +180,30 @@ function getPreviousWindowReviews(
   });
 }
 
+function getPreviousWindowSalesRecords(
+  salesRecords: SalesRecord[],
+  range: DashboardTimeRange
+): SalesRecord[] {
+  if (range === "all") {
+    return [];
+  }
+
+  const latestDate = getLatestSalesDate(salesRecords);
+  if (!latestDate) {
+    return [];
+  }
+
+  const currentRangeStart = getRangeStart(latestDate, range);
+  const windowMs = latestDate.getTime() - currentRangeStart.getTime();
+  const previousRangeEnd = new Date(currentRangeStart.getTime() - 1);
+  const previousRangeStart = new Date(previousRangeEnd.getTime() - windowMs);
+
+  return salesRecords.filter((record) => {
+    const createdAt = new Date(record.date);
+    return createdAt >= previousRangeStart && createdAt <= previousRangeEnd;
+  });
+}
+
 function getLatestReviewDate(reviews: Review[]): Date | null {
   if (reviews.length === 0) {
     return null;
@@ -135,6 +217,14 @@ function getLatestReviewDate(reviews: Review[]): Date | null {
   );
 }
 
+function getLatestSalesDate(salesRecords: SalesRecord[]): Date | null {
+  if (salesRecords.length === 0) {
+    return null;
+  }
+
+  return new Date(salesRecords[salesRecords.length - 1].date);
+}
+
 function getRangeStart(latestDate: Date, range: Exclude<DashboardTimeRange, "all">): Date {
   const dayCount = range === "7d" ? 7 : 30;
   const start = new Date(latestDate);
@@ -142,96 +232,140 @@ function getRangeStart(latestDate: Date, range: Exclude<DashboardTimeRange, "all
   return start;
 }
 
-function buildMetrics(
+function buildSalesView(
+  salesRecords: SalesRecord[],
+  previousSalesRecords: SalesRecord[],
   reviews: Review[],
-  previousWindowReviews: Review[],
+  previousReviews: Review[],
   range: DashboardTimeRange
-): DashboardMetric[] {
+): DashboardSalesView {
+  const totalRevenue = sumBy(salesRecords, (record) => record.revenue);
+  const totalOrders = sumBy(salesRecords, (record) => record.orders);
+  const refundCount = sumBy(salesRecords, (record) => record.refundCount);
+  const refundValue = sumBy(salesRecords, (record) => record.refundValue);
+  const averageOrderValue = totalOrders ? totalRevenue / totalOrders : 0;
+  const refundRate = totalOrders ? (refundCount / totalOrders) * 100 : 0;
   const reviewCount = reviews.length;
-  const newReviewCount = reviews.filter((review) => review.status === "new").length;
-  const positiveCount = reviews.filter(
+  const positiveReviewCount = reviews.filter(
     (review) => review.sentiment.label === "positive"
   ).length;
-  const activeSourceCount = new Set(reviews.map((review) => review.source)).size;
-  const averageRating = reviewCount
-    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
-    : 0;
-  const positiveShare = reviewCount ? (positiveCount / reviewCount) * 100 : 0;
+  const positiveShare = reviewCount ? (positiveReviewCount / reviewCount) * 100 : 0;
 
-  return [
-    {
-      id: "total_reviews",
-      value: reviewCount,
-      displayValue: String(reviewCount),
-      context: { kind: "new_reviews", value: newReviewCount },
-      sparkline: buildSparkline(reviews, "count", range),
-      trend: buildTrend(reviewCount, previousWindowReviews.length, range, false),
+  const previousRevenue = sumBy(previousSalesRecords, (record) => record.revenue);
+  const previousOrders = sumBy(previousSalesRecords, (record) => record.orders);
+  const previousRefundCount = sumBy(
+    previousSalesRecords,
+    (record) => record.refundCount
+  );
+  const previousRefundValue = sumBy(
+    previousSalesRecords,
+    (record) => record.refundValue
+  );
+  const previousAverageOrderValue = previousOrders
+    ? previousRevenue / previousOrders
+    : 0;
+  const previousRefundRate = previousOrders
+    ? (previousRefundCount / previousOrders) * 100
+    : 0;
+  const previousReviewCount = previousReviews.length;
+  const previousPositiveShare = previousReviewCount
+    ? (previousReviews.filter((review) => review.sentiment.label === "positive").length /
+        previousReviewCount) *
+      100
+    : 0;
+
+  const channelMix = buildChannelMix(salesRecords);
+  const bestChannel = channelMix[0] ?? null;
+
+  return {
+    executiveMetrics: [
+      {
+        id: "total_revenue",
+        value: totalRevenue,
+        displayValue: formatCurrencyCompact(totalRevenue),
+        context: bestChannel
+          ? {
+              kind: "best_channel",
+              label: bestChannel.id,
+              value: bestChannel.revenue,
+            }
+          : undefined,
+        tone: "positive",
+        sparkline: buildSalesSparkline(salesRecords, "revenue", range),
+        trend: buildTrend(totalRevenue, previousRevenue, range, false, "$"),
+      },
+      {
+        id: "total_orders",
+        value: totalOrders,
+        displayValue: String(totalOrders),
+        context: { kind: "refund_value", value: refundValue },
+        sparkline: buildSalesSparkline(salesRecords, "orders", range),
+        trend: buildTrend(totalOrders, previousOrders, range, false),
+      },
+      {
+        id: "average_order_value",
+        value: averageOrderValue,
+        displayValue: formatCurrency(averageOrderValue),
+        context: { kind: "order_count", value: totalOrders },
+        sparkline: buildSalesSparkline(salesRecords, "average-order-value", range),
+        trend: buildTrend(
+          averageOrderValue,
+          previousAverageOrderValue,
+          range,
+          true,
+          "$"
+        ),
+      },
+      {
+        id: "refund_rate",
+        value: refundRate,
+        displayValue: `${refundRate.toFixed(1)}%`,
+        context: { kind: "refund_value", value: refundValue },
+        tone: refundRate > 4 ? "warning" : "default",
+        sparkline: buildSalesSparkline(salesRecords, "refund-rate", range),
+        trend: buildTrend(refundRate, previousRefundRate, range, true, "%"),
+      },
+      {
+        id: "total_reviews",
+        value: reviewCount,
+        displayValue: String(reviewCount),
+        context: {
+          kind: "new_reviews",
+          value: reviews.filter((review) => review.status === "new").length,
+        },
+        sparkline: buildReviewSparkline(reviews, "count", range),
+        trend: buildTrend(reviewCount, previousReviewCount, range, false),
+      },
+      {
+        id: "positive_share",
+        value: positiveShare,
+        displayValue: `${Math.round(positiveShare)}%`,
+        context: { kind: "positive_reviews", value: positiveReviewCount },
+        tone: "positive",
+        sparkline: buildReviewSparkline(reviews, "positive-share", range),
+        trend: buildTrend(
+          positiveShare,
+          previousPositiveShare,
+          range,
+          false,
+          "%"
+        ),
+      },
+    ],
+    summary: {
+      totalRevenue,
+      totalOrders,
+      averageOrderValue,
+      refundCount,
+      refundValue,
+      refundRate,
+      bestChannel: bestChannel?.id ?? null,
     },
-    {
-      id: "average_rating",
-      value: averageRating,
-      displayValue: averageRating ? averageRating.toFixed(1) : "0.0",
-      context: { kind: "source_count", value: activeSourceCount },
-      sparkline: buildSparkline(reviews, "rating", range),
-      trend: buildTrend(
-        averageRating,
-        previousWindowReviews.length
-          ? previousWindowReviews.reduce((sum, review) => sum + review.rating, 0) /
-              previousWindowReviews.length
-          : 0,
-        range,
-        true
-      ),
-    },
-    {
-      id: "positive_share",
-      value: positiveShare,
-      displayValue: `${Math.round(positiveShare)}%`,
-      context: { kind: "positive_reviews", value: positiveCount },
-      tone: "positive",
-      sparkline: buildSparkline(reviews, "positive-share", range),
-      trend: buildTrend(
-        positiveShare,
-        previousWindowReviews.length
-          ? (previousWindowReviews.filter(
-              (review) => review.sentiment.label === "positive"
-            ).length /
-              previousWindowReviews.length) *
-              100
-          : 0,
-        range,
-        false,
-        "%"
-      ),
-    },
-    {
-      id: "new_reviews",
-      value: newReviewCount,
-      displayValue: String(newReviewCount),
-      context: { kind: "review_count", value: reviewCount },
-      tone: newReviewCount > 0 ? "warning" : "default",
-      sparkline: buildSparkline(reviews, "new-count", range),
-      trend: buildTrend(
-        newReviewCount,
-        previousWindowReviews.filter((review) => review.status === "new").length,
-        range,
-        false
-      ),
-    },
-    {
-      id: "active_sources",
-      value: activeSourceCount,
-      displayValue: String(activeSourceCount),
-      context: { kind: "review_count", value: reviewCount },
-      sparkline: buildSparkline(reviews, "source-count", range),
-      trend: buildTrend(
-        activeSourceCount,
-        new Set(previousWindowReviews.map((review) => review.source)).size,
-        range,
-        false
-      ),
-    },
-  ];
+    revenueSeries: buildSalesSeries(salesRecords),
+    refundSeries: buildSalesSeries(salesRecords),
+    channelMix,
+    topProducts: buildTopProducts(salesRecords),
+  };
 }
 
 function buildTrend(
@@ -263,14 +397,44 @@ function buildTrend(
   };
 }
 
-function buildSparkline(
+function buildSalesSparkline(
+  salesRecords: SalesRecord[],
+  metric: "revenue" | "orders" | "average-order-value" | "refund-rate",
+  range: DashboardTimeRange
+): number[] {
+  if (salesRecords.length === 0) {
+    return DEFAULT_SPARKLINE;
+  }
+
+  const records = range === "all" ? salesRecords.slice(-30) : salesRecords;
+  const bins = chunkRecords(records, 6);
+
+  return bins.map((bucket) => {
+    if (bucket.length === 0) {
+      return 0;
+    }
+
+    if (metric === "revenue") {
+      return sumBy(bucket, (record) => record.revenue);
+    }
+    if (metric === "orders") {
+      return sumBy(bucket, (record) => record.orders);
+    }
+    if (metric === "average-order-value") {
+      const revenue = sumBy(bucket, (record) => record.revenue);
+      const orders = sumBy(bucket, (record) => record.orders);
+      return orders ? revenue / orders : 0;
+    }
+
+    const refundCount = sumBy(bucket, (record) => record.refundCount);
+    const orders = sumBy(bucket, (record) => record.orders);
+    return orders ? (refundCount / orders) * 100 : 0;
+  });
+}
+
+function buildReviewSparkline(
   reviews: Review[],
-  metric:
-    | "count"
-    | "rating"
-    | "positive-share"
-    | "new-count"
-    | "source-count",
+  metric: "count" | "positive-share",
   range: DashboardTimeRange
 ): number[] {
   if (reviews.length === 0) {
@@ -302,11 +466,6 @@ function buildSparkline(
     if (bucket.length === 0) {
       return 0;
     }
-    if (metric === "rating") {
-      return (
-        bucket.reduce((sum, review) => sum + review.rating, 0) / bucket.length
-      );
-    }
     if (metric === "positive-share") {
       return (
         (bucket.filter((review) => review.sentiment.label === "positive").length /
@@ -314,14 +473,96 @@ function buildSparkline(
         100
       );
     }
-    if (metric === "new-count") {
-      return bucket.filter((review) => review.status === "new").length;
-    }
-    if (metric === "source-count") {
-      return new Set(bucket.map((review) => review.source)).size;
-    }
     return bucket.length;
   });
+}
+
+function buildSalesSeries(salesRecords: SalesRecord[]): DashboardSalesSeriesPoint[] {
+  return salesRecords.map((record) => ({
+    date: record.date,
+    label: formatSeriesLabel(record.date),
+    revenue: record.revenue,
+    orders: record.orders,
+    refundValue: record.refundValue,
+  }));
+}
+
+function buildChannelMix(
+  salesRecords: SalesRecord[]
+): DashboardSalesChannelBreakdown[] {
+  const totals = salesRecords.reduce(
+    (accumulator, record) => {
+      (Object.keys(record.channelRevenue) as SalesChannelId[]).forEach((channelId) => {
+        accumulator[channelId].revenue += record.channelRevenue[channelId];
+      });
+      accumulator.walk_in.orders += Math.round(record.orders * 0.3);
+      accumulator.delivery_app.orders += Math.round(record.orders * 0.34);
+      accumulator.instagram_dm.orders += Math.round(record.orders * 0.17);
+      accumulator.whatsapp.orders += Math.max(
+        0,
+        record.orders -
+          Math.round(record.orders * 0.3) -
+          Math.round(record.orders * 0.34) -
+          Math.round(record.orders * 0.17)
+      );
+      return accumulator;
+    },
+    {
+      walk_in: { revenue: 0, orders: 0 },
+      delivery_app: { revenue: 0, orders: 0 },
+      instagram_dm: { revenue: 0, orders: 0 },
+      whatsapp: { revenue: 0, orders: 0 },
+    } as Record<SalesChannelId, { revenue: number; orders: number }>
+  );
+
+  const totalRevenue = sumBy(Object.values(totals), (item) => item.revenue);
+
+  return (Object.keys(totals) as SalesChannelId[])
+    .map((channelId) => ({
+      id: channelId,
+      revenue: totals[channelId].revenue,
+      orders: totals[channelId].orders,
+      share: totalRevenue ? totals[channelId].revenue / totalRevenue : 0,
+    }))
+    .sort((left, right) => right.revenue - left.revenue);
+}
+
+function buildTopProducts(salesRecords: SalesRecord[]): DashboardSalesProduct[] {
+  const aggregate = new Map<
+    string,
+    { label: string; category: SalesProductCategory; revenue: number; units: number }
+  >();
+
+  for (const record of salesRecords) {
+    for (const product of record.products) {
+      const current = aggregate.get(product.id);
+      if (current) {
+        current.revenue += product.revenue;
+        current.units += product.units;
+      } else {
+        aggregate.set(product.id, {
+          label: product.label,
+          category: product.category,
+          revenue: product.revenue,
+          units: product.units,
+        });
+      }
+    }
+  }
+
+  const totalRevenue = sumBy(Array.from(aggregate.values()), (item) => item.revenue);
+
+  return Array.from(aggregate.entries())
+    .map(([id, value]) => ({
+      id,
+      label: value.label,
+      category: value.category,
+      revenue: value.revenue,
+      units: value.units,
+      share: totalRevenue ? value.revenue / totalRevenue : 0,
+    }))
+    .sort((left, right) => right.revenue - left.revenue)
+    .slice(0, 4);
 }
 
 function buildSentimentDistribution(reviews: Review[]): DashboardDistributionBucket[] {
@@ -491,4 +732,48 @@ function getActivityType(review: Review): DashboardActivityItem["type"] {
     return "positive_signal";
   }
   return "review_resolved";
+}
+
+function sumBy<T>(items: T[], resolver: (item: T) => number): number {
+  return items.reduce((sum, item) => sum + resolver(item), 0);
+}
+
+function chunkRecords<T>(records: T[], chunkCount: number): T[][] {
+  if (records.length === 0) {
+    return Array.from({ length: chunkCount }, () => []);
+  }
+
+  const chunks = Array.from({ length: chunkCount }, () => [] as T[]);
+  const size = Math.max(1, Math.ceil(records.length / chunkCount));
+
+  records.forEach((record, index) => {
+    const chunkIndex = Math.min(chunkCount - 1, Math.floor(index / size));
+    chunks[chunkIndex].push(record);
+  });
+
+  return chunks;
+}
+
+function formatSeriesLabel(value: string): string {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
+function formatCurrencyCompact(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: value >= 1000 ? "compact" : "standard",
+    maximumFractionDigits: value >= 1000 ? 1 : 0,
+  }).format(value);
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
 }

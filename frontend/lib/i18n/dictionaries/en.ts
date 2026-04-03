@@ -69,6 +69,12 @@
     fullName: "Full name",
     signInButton: "Sign in",
     signUpButton: "Create an account",
+    signOutButton: "Sign out",
+    authActionPending: "Working...",
+    signInErrorFallback: "Sign-in failed. Check your credentials and try again.",
+    signUpErrorFallback: "Account creation failed. Try again in a moment.",
+    signUpSuccessNotice:
+      "Account created. Check your email to confirm your sign-up if required.",
   },
   dashboard: {
     title: "Dashboard",
@@ -160,6 +166,53 @@
     jumpToReviewsAction: "Go to Reviews",
     jumpToContentAction: "Go to AI Content",
     activeNow: "Active now",
+    salesPerformance: "Sales performance",
+    salesPerformanceDescription:
+      "Revenue, order flow, refunds, and channel momentum for the selected time range.",
+    revenueTrend: "Revenue trend",
+    revenueTrendDescription:
+      "A day-by-day revenue curve to spot stronger trading windows and softer periods.",
+    ordersRevenueView: "Orders vs revenue",
+    ordersRevenueDescription:
+      "A compact comparison of order volume and revenue output across the latest periods.",
+    channelMix: "Channel mix",
+    channelMixDescription:
+      "Which sales channels are contributing the most revenue and order volume.",
+    topProducts: "Top products",
+    topProductsDescription:
+      "The strongest products in the current window, ranked by revenue contribution.",
+    refundTrend: "Refund trend",
+    refundTrendDescription:
+      "Refund exposure across the active period so operational issues stay visible.",
+    reviewInsights: "Review insights",
+    reviewInsightsDescription:
+      "Customer sentiment and source mix remain visible alongside the sales story.",
+    totalRevenue: "Total revenue",
+    totalOrders: "Total orders",
+    averageOrderValue: "Average order value",
+    refundRate: "Refund rate",
+    refundValue: "Refund value",
+    refundCount: "Refund count",
+    ordersLabel: "orders",
+    unitsLabel: "units",
+    refundValueHelper: "refund exposure",
+    leadingChannelHelper: "leading channel",
+    productSnapshot: "Category snapshot",
+    noSalesDataTitle: "No sales data in this view",
+    noSalesDataDescription:
+      "Sales panels are hidden until real backend sales data is available.",
+    salesChannels: {
+      walk_in: "Walk-in",
+      delivery_app: "Delivery app",
+      instagram_dm: "Instagram DM",
+      whatsapp: "WhatsApp",
+    },
+    productCategories: {
+      signature_drinks: "Signature drinks",
+      desserts: "Desserts",
+      breakfast: "Breakfast",
+      bundles: "Bundles",
+    },
   },
   reviews: {
     title: "Reviews",
@@ -221,8 +274,8 @@
     errorTitle: "Required input missing",
     errorDescription: "Add the required context before generating content.",
     saveDescription:
-      "Saving remains a typed placeholder in this frontend phase.",
-    copiedDescription: "Copied state is simulated for the frontend scaffold.",
+      "Generated drafts can be edited and saved to your workspace.",
+    copiedDescription: "Saved drafts stay linked to your workspace.",
     imageLabel: "Product image",
     imageHint: "Upload an optional image that describes the product or offer.",
     imageEmpty: "No image selected yet.",
@@ -254,8 +307,8 @@
     systemLanguageDescription:
       "Choose the primary interface language for this frontend workspace.",
     discardButton: "Discard",
-    temporaryNote: "All modifications remain local to this frontend session.",
-    updatedLabel: "Frontend-only account placeholder",
+    temporaryNote: "Account changes are saved when the connected service supports them.",
+    updatedLabel: "Changes saved",
     passwordSection: "Password",
     passwordDescription:
       "Enter your current password before setting a new one.",
@@ -263,9 +316,25 @@
     newPasswordLabel: "New password",
     passwordAction: "Update password",
     emailReadOnlyHint:
-      "Email is visible here, but editing it is disabled in this frontend phase.",
+      "Email is managed by authentication and cannot be changed from this screen.",
     passwordPlaceholderHint:
       "Enter both the current and new password to continue.",
+    salesSection: "Sales records",
+    salesDescription:
+      "Enter daily sales numbers here to populate the persisted backend sales dashboard.",
+    salesDateLabel: "Record date",
+    salesRevenueLabel: "Revenue",
+    salesOrdersLabel: "Orders",
+    salesRefundCountLabel: "Refund count",
+    salesRefundValueLabel: "Refund value",
+    salesWalkInLabel: "Walk-in revenue",
+    salesDeliveryLabel: "Delivery app revenue",
+    salesInstagramLabel: "Instagram DM revenue",
+    salesWhatsappLabel: "WhatsApp revenue",
+    salesSaveButton: "Save sales record",
+    salesUpdatedLabel: "Sales record saved",
+    salesRecentTitle: "Recent sales records",
+    salesEmptyLabel: "No sales records saved yet.",
   },
   languageNames: {
     en: "English",

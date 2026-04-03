@@ -9,6 +9,7 @@ This document describes the current implemented backend API surface.
 
 Included:
 - auth-aware backend endpoints
+- dashboard summary retrieval
 - review ingestion and retrieval
 - sentiment analysis
 - content generation
@@ -30,9 +31,9 @@ Excluded:
 - validation failures return `422 VALIDATION_ERROR`
 
 Current backend auth boundary:
-- all protected routes require `X-User-Id: <user-uuid>`
-- the backend validates that the header is a UUID and that the user exists
-- this is a temporary backend auth boundary; token or session verification is not implemented yet
+- protected routes accept `Authorization: Bearer <supabase-access-token>`
+- the backend verifies Supabase access tokens through the project JWKS endpoint, rejects invalid or expired tokens, and maps the verified identity onto the local `users` table
+- the backend no longer accepts `X-User-Id`
 
 Current frontend integration limitation:
 - no CORS middleware is configured in `backend/app/main.py`
@@ -106,11 +107,12 @@ Implemented readiness success example:
 - `POST /auth/logout`
 
 `GET /auth/me`:
-- requires `X-User-Id`
+- requires a verified bearer token
 - returns the authenticated user plus businesses owned by that user
+- creates or reuses a default local business for the authenticated user when no local business exists yet
 
 `POST /auth/logout`:
-- requires `X-User-Id`
+- requires a verified bearer token
 - returns a signed-out payload
 - clears `sb-access-token`, `sb-refresh-token`, `access_token`, and `refresh_token` cookies on the response
 
@@ -141,6 +143,45 @@ Session example:
 }
 ```
 
+### Dashboard
+
+- `GET /dashboard/overview`
+
+`GET /dashboard/overview`:
+- requires a verified bearer token
+- requires query parameter `business_id`
+- accepts optional query parameters `limit`, `recent_limit`, `priority_limit`, and `activity_limit`
+- returns review- and sentiment-focused dashboard data only
+- explicitly reports `sales_data_available: false` because the backend does not own commerce metrics yet
+- is intended as a backend preparation surface for future dashboard integration without inventing sales APIs
+
+Dashboard overview example:
+
+```json
+{
+  "success": true,
+  "data": {
+    "business_id": "uuid",
+    "generated_at": "2026-04-03T14:05:00Z",
+    "metrics": {
+      "total_reviews": 8,
+      "average_rating": 4.1,
+      "positive_share": 62.5,
+      "negative_share": 12.5,
+      "pending_reviews": 2,
+      "reviewed_reviews": 4,
+      "responded_reviews": 2,
+      "active_sources": 3
+    },
+    "capabilities": {
+      "review_data_available": true,
+      "sales_data_available": false,
+      "sales_data_note": "Sales metrics are not available in the backend yet."
+    }
+  }
+}
+```
+
 ### Reviews
 
 - `GET /reviews`
@@ -152,7 +193,7 @@ Session example:
 - `PATCH /reviews/{review_id}/status`
 
 All review routes:
-- require `X-User-Id`
+- require a verified bearer token
 - enforce business ownership or admin access before reading or mutating data
 
 `GET /reviews` query parameters:
@@ -176,7 +217,7 @@ Normalization:
 
 `POST /reviews/import/upload`:
 - accepts multipart form fields `business_id`, `source`, optional `review_source_id`, and `file`
-- requires `X-User-Id` and business access the same way as other review mutations
+- requires authenticated access and business access the same way as other review mutations
 - supports uploaded `.csv`, `.xlsx`, `.json`, `.txt`, `.db`, and `.sqlite` files
 - converts uploaded review data into an internal canonical CSV stage before shared review ingestion runs
 - keeps `business_id`, `review_source_id`, and `source` at the request level rather than per-row file columns
@@ -252,7 +293,7 @@ Review import response example:
 - `GET /sentiment/reviews/{review_id}`
 
 All sentiment routes:
-- require `X-User-Id`
+- require a verified bearer token
 - enforce access to the target review business scope
 
 `POST /sentiment/analyze`:
@@ -346,7 +387,7 @@ Batch sentiment success example:
 - `GET /content/{content_id}`
 
 All content routes:
-- require `X-User-Id`
+- require a verified bearer token
 - enforce business ownership or generated-content ownership scope through backend authorization
 
 `POST /content/generate/reply`:
@@ -442,7 +483,7 @@ Save content example:
 - `GET /agents/runs/{run_id}`
 
 All agent routes:
-- require `X-User-Id`
+- require a verified bearer token
 - enforce business, review, or run ownership before execution or lookup
 
 Supported tasks only:
@@ -507,7 +548,7 @@ Invalid orchestrated payloads:
 - `PATCH /settings/language`
 
 All settings routes:
-- require `X-User-Id`
+- require a verified bearer token
 
 `GET /settings`:
 - returns the authenticated user's stored preferences
@@ -536,7 +577,8 @@ Settings example:
 
 Auth and identity:
 - `401 AUTHENTICATION_REQUIRED`
-- `401 INVALID_AUTHENTICATED_USER`
+- `401 AUTHENTICATION_FAILED`
+- `401 AUTHENTICATION_TOKEN_EXPIRED`
 - `404 AUTHENTICATED_USER_NOT_FOUND`
 
 Authorization and scoping:

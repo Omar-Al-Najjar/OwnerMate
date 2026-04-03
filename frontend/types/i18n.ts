@@ -41,6 +41,27 @@ export type SentimentLabelsDictionary = {
   negative: string;
 };
 
+export type AuthDictionary = {
+  signIn: string;
+  signUp: string;
+  signInDescription: string;
+  signUpDescription: string;
+  signUpLink: string;
+  signInLink: string;
+  noAccount: string;
+  haveAccount: string;
+  email: string;
+  password: string;
+  fullName: string;
+  signInButton: string;
+  signUpButton: string;
+  signOutButton: string;
+  authActionPending: string;
+  signInErrorFallback: string;
+  signUpErrorFallback: string;
+  signUpSuccessNotice: string;
+};
+
 export type DashboardDictionary = {
   title: string;
   description: string;

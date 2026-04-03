@@ -5,6 +5,7 @@ from ..models.user import User
 from ..repositories.user import UserRepository
 from ..schemas.settings import (
     LanguagePreferenceUpdateRequest,
+    ProfileUpdateRequest,
     SettingsRead,
     ThemePreferenceUpdateRequest,
 )
@@ -32,6 +33,15 @@ class SettingsService:
     ) -> SettingsRead:
         stored_user = self._get_user_or_raise(user.id)
         stored_user.language_preference = payload.language_preference
+        self.user_repository.save()
+        self.user_repository.refresh(stored_user)
+        return self._to_settings_read(stored_user)
+
+    def update_profile(
+        self, user: User, payload: ProfileUpdateRequest
+    ) -> SettingsRead:
+        stored_user = self._get_user_or_raise(user.id)
+        stored_user.full_name = payload.full_name
         self.user_repository.save()
         self.user_repository.refresh(stored_user)
         return self._to_settings_read(stored_user)

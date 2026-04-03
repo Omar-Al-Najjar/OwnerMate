@@ -11,11 +11,13 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, UpdatedAtMixin, Base):
             "role IN ('owner', 'manager', 'admin', 'staff')",
             name="users_role_allowed",
         ),
+        Index("ix_users_supabase_user_id", "supabase_user_id"),
         Index("ix_users_role", "role"),
         Index("ix_users_language_preference", "language_preference"),
     )
 
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    supabase_user_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String, nullable=False)
     language_preference: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -40,3 +40,15 @@ class LanguagePreferenceUpdateRequest(BaseModel):
         if not normalized:
             raise ValueError("Language preference must not be empty.")
         return normalized
+
+
+class ProfileUpdateRequest(BaseModel):
+    full_name: str | None = None
+
+    @field_validator("full_name", mode="before")
+    @classmethod
+    def normalize_full_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None

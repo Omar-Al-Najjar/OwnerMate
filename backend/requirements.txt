@@ -1,6 +1,7 @@
 alembic
 fastapi
 openpyxl
+pyjwt[crypto]
 pydantic
 pydantic-settings
 psycopg[binary]

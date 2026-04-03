@@ -23,6 +23,10 @@ export function ProfileProvider({
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
 
   useEffect(() => {
+    setProfile(initialProfile);
+  }, [initialProfile]);
+
+  useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
 
     if (!stored) {
@@ -31,11 +35,24 @@ export function ProfileProvider({
 
     try {
       const parsed = JSON.parse(stored) as Partial<UserProfile>;
-      setProfile((current) => ({ ...current, ...parsed }));
+      const sameIdentity =
+        typeof parsed.email === "string" && parsed.email === initialProfile.email;
+
+      setProfile({
+        ...initialProfile,
+        fullName:
+          sameIdentity && typeof parsed.fullName === "string"
+            ? parsed.fullName
+            : initialProfile.fullName,
+        avatarUrl:
+          typeof parsed.avatarUrl === "string"
+            ? parsed.avatarUrl
+            : initialProfile.avatarUrl,
+      });
     } catch {
       window.localStorage.removeItem(STORAGE_KEY);
     }
-  }, []);
+  }, [initialProfile]);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));

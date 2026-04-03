@@ -8,6 +8,7 @@ from backend.app.core.exceptions import AppError
 from backend.app.models.user import User
 from backend.app.schemas.settings import (
     LanguagePreferenceUpdateRequest,
+    ProfileUpdateRequest,
     ThemePreferenceUpdateRequest,
 )
 from backend.app.services.settings import SettingsService
@@ -65,6 +66,16 @@ class SettingsServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(result.language_preference, "ar")
+        self.assertTrue(self.repository.saved)
+
+    def test_update_profile_updates_authenticated_user(self) -> None:
+        result = self.service.update_profile(
+            self.user,
+            ProfileUpdateRequest(full_name="Owner Mate"),
+        )
+
+        self.assertEqual(self.user.full_name, "Owner Mate")
+        self.assertEqual(result.user_id, self.user_id)
         self.assertTrue(self.repository.saved)
 
     def test_missing_authenticated_user_raises(self) -> None:

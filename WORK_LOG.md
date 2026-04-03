@@ -1309,3 +1309,678 @@ The original dashboard was too limited for an admin-facing demo. This refactor k
 - the dashboard remains mock-backed in this phase
 - no new charting dependency was introduced; visualizations use existing Tailwind and inline SVG/CSS only
 - reviews, AI content, and settings routes were left behaviorally unchanged
+
+## 2026-04-03 13:10 - Temporary demo sign-in flow
+
+### Task
+Make the sign-in page usable for local testing by adding a clearly temporary demo login flow that bridges the frontend form to the backend without pretending production auth is complete.
+
+### Files Changed
+- `backend/app/api/dependencies.py`
+- `backend/app/api/routes/auth.py`
+- `backend/app/repositories/business.py`
+- `backend/app/repositories/user.py`
+- `backend/app/schemas/auth.py`
+- `backend/app/services/auth.py`
+- `backend/tests/test_auth_routes.py`
+- `frontend/app/[locale]/(app)/layout.tsx`
+- `frontend/app/[locale]/(auth)/sign-in/page.tsx`
+- `frontend/app/[locale]/layout.tsx`
+- `frontend/app/[locale]/page.tsx`
+- `frontend/app/api/auth/demo-login/route.ts`
+- `frontend/app/page.tsx`
+- `frontend/components/auth/demo-sign-in-form.tsx`
+- `frontend/lib/auth/session.ts`
+- `frontend/lib/i18n/dictionaries/ar.ts`
+- `frontend/lib/i18n/dictionaries/en.ts`
+- `frontend/types/i18n.ts`
+- `API.md`
+- `AGENTS.md`
+- `frontend/FRONTEND_HANDOFF.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- added backend `POST /auth/demo-login` with fixed demo credentials `demo@ownermate.local` and `demo-pass-123`
+- made the backend create or reuse a stable demo owner user and demo business so local auth testing no longer depends on manual seeding
+- kept protected backend routes on the existing `X-User-Id` boundary while exposing the demo login only as a temporary session bootstrap helper
+- added a frontend route handler that proxies demo login to the backend and stores a temporary HTTP-only cookie
+- replaced the sign-in page's presentational-only form with an interactive demo sign-in form that shows the demo credentials and submits them
+- added frontend route guards so the authenticated app shell redirects to sign-in when the demo session cookie is missing
+- updated the locale-level profile bootstrap so signed-in demo sessions show the demo account identity in the frontend shell
+- updated API, agent, and frontend handoff docs so the temporary auth behavior is documented explicitly
+
+### Why
+The repo was runnable but not actually enterable through the sign-in screen. This gives you a testable local login path while keeping the code honest that real Supabase-backed auth and token verification are still unfinished.
+
+### Testing
+- `python -m pytest backend\\tests\\test_auth_routes.py`
+- `cd frontend && npm run lint`
+- `cd frontend && npm run build`
+- verified live `POST http://127.0.0.1:8000/auth/demo-login` returns the demo session payload
+- verified the running Next.js dev server compiled and served `POST /api/auth/demo-login`
+
+### Migrations / Env Changes
+- no schema migrations
+- no new required env vars
+- backend API behavior changed by adding `POST /auth/demo-login`
+- frontend UI behavior changed by turning `/{locale}/sign-in` into a working demo login flow and by gating the app shell behind the demo session cookie
+
+### Remaining Work / Notes
+- this is intentionally demo-only and does not implement real password security, token verification, or user registration
+- protected backend API routes still rely on `X-User-Id`, so full production auth integration remains a blocker
+- the rest of the product data flows are still mostly mock-backed on the frontend
+
+## 2026-04-03 14:00 - Mock dashboard sales and visual expansion
+
+### Task
+Expand the mock dashboard into a more complete business control center by adding sales metrics and stronger visuals while keeping the implementation fully frontend-only and mock-backed.
+
+### Files Changed
+- `frontend/components/dashboard/dashboard-workspace.tsx`
+- `frontend/lib/dashboard/derive.ts`
+- `frontend/lib/i18n/dictionaries/ar.ts`
+- `frontend/lib/i18n/dictionaries/en.ts`
+- `frontend/lib/mock/data.ts`
+- `frontend/types/dashboard.ts`
+- `frontend/FRONTEND_HANDOFF.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- extended the dashboard data contract to include mock daily sales records, channel revenue, refund data, and product performance
+- rebuilt the dashboard derivation layer so time-range filtering now also drives sales metrics, series, channel mix, refunds, and top-product summaries
+- replaced the review-only dashboard KPI row with a mixed executive summary covering revenue, orders, average order value, refund rate, review count, and positive-share metrics
+- added new sales-focused visual panels for revenue trend, orders vs revenue, channel mix, refund trend, and top products
+- kept the review and sentiment panels, priority queue, recent reviews, and activity feed as a second major section so the page stays balanced instead of becoming sales-only
+- updated English and Arabic dictionaries with the sales labels, helper copy, channel names, product category names, and empty states required by the new layout
+- updated the frontend handoff doc to describe the dashboard as a combined sales and review workspace instead of a review-only admin summary
+
+### Why
+The earlier dashboard looked polished but still felt narrow because it only described review health. This change makes the mock product feel more like a real SMB operating dashboard without touching backend integration or auth boundaries.
+
+### Testing
+- `cd frontend && npm run lint`
+- `cd frontend && npm run build`
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+- no backend API changes
+- frontend UI behavior changed on `/{locale}/dashboard`
+
+### Remaining Work / Notes
+- dashboard sales data is still fully mock-generated and not connected to any backend source
+- source, language, and sentiment filters still affect only review data; sales panels respond only to the selected time range
+- no charting library was added; the visuals use inline SVG and existing Tailwind styling only
+
+## 2026-04-03 14:18 - Backend dashboard preparation
+
+### Task
+Prepare a backend dashboard endpoint that the frontend can integrate later without pretending the backend already owns sales metrics.
+
+### Files Changed
+- `backend/app/api/dependencies.py`
+- `backend/app/api/router.py`
+- `backend/app/api/routes/dashboard.py`
+- `backend/app/schemas/dashboard.py`
+- `backend/app/services/__init__.py`
+- `backend/app/services/dashboard.py`
+- `backend/tests/test_dashboard_routes.py`
+- `API.md`
+- `AGENTS.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- added a new protected backend route `GET /dashboard/overview`
+- added dashboard schemas for review metrics, distributions, recent reviews, priority reviews, activity feed, and capability flags
+- implemented a backend dashboard service that aggregates existing review and sentiment data already stored by the backend
+- kept the backend honest by returning `sales_data_available: false` with an explicit note instead of inventing unsupported commerce data
+- reused the existing business authorization boundary so dashboard access follows the same owner/admin access rules as review endpoints
+- added route tests covering the success envelope and forbidden business access handling
+- documented the new dashboard API behavior in the API and agent docs
+
+### Why
+The frontend dashboard now includes sales-heavy mock visuals, but the backend currently owns only review and sentiment data. This step prepares a real backend dashboard surface for the data the backend actually has today and makes the sales gap explicit instead of hiding it.
+
+### Testing
+- `python -m pytest backend\\tests\\test_dashboard_routes.py`
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+- backend API behavior changed by adding `GET /dashboard/overview`
+- no frontend UI behavior changed in this backend step
+
+### Remaining Work / Notes
+- the new backend dashboard route is review-focused only and does not provide sales, orders, or revenue data
+- frontend dashboard integration is still pending; the UI continues using mock dashboard payloads today
+- if the backend later adds commerce data, the dashboard contract should be extended rather than silently overloading the current review-only shape
+
+## 2026-04-03 14:28 - Production blocker plan document
+
+### Task
+Create a standalone markdown document that captures the implementation sequence for fixing the current production blockers around authentication and dashboard data truthfulness.
+
+### Files Changed
+- `PRODUCTION_BLOCKERS_PLAN.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- added a root-level markdown plan covering the two primary blockers: temporary auth and mock-backed dashboard data
+- documented the target state, implementation sequence, recommended order, milestones, testing expectations, and definition of done
+- kept the document focused on the actual current repo state, including the temporary demo auth flow and the review-only backend dashboard route
+
+### Why
+The blocker discussion was useful but transient. Putting it in a dedicated markdown file makes the implementation path easy to reference during future backend and frontend integration work.
+
+### Testing
+- documentation-only change; no code execution required
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+- no API behavior changes
+- no UI behavior changes
+
+### Remaining Work / Notes
+- the new markdown file is a planning artifact only
+- implementation of the blocker fixes is still pending
+
+## 2026-04-03 13:57 - Supabase auth rollout started
+
+### Task
+Start the production-blocker implementation by replacing the frontend demo-cookie auth flow with real Supabase auth and by teaching the backend to accept verified Supabase bearer tokens while preserving local authorization rules.
+
+### Files Changed
+- `AGENTS.md`
+- `API.md`
+- `ARCHITECTURE.md`
+- `DATABASE_SCHEMA.md`
+- `FRONTEND_INTEGRATION_HANDOFF.md`
+- `PRODUCTION_BLOCKERS_PLAN.md`
+- `WORK_LOG.md`
+- `backend/app/api/dependencies.py`
+- `backend/app/core/config.py`
+- `backend/app/models/user.py`
+- `backend/app/repositories/user.py`
+- `backend/app/services/auth.py`
+- `backend/app/services/token_verifier.py`
+- `backend/migrations/versions/20260403_1515_add_supabase_user_id_to_users.py`
+- `backend/requirements.txt`
+- `backend/tests/test_auth_routes.py`
+- `frontend/FRONTEND_HANDOFF.md`
+- `frontend/app/[locale]/(app)/layout.tsx`
+- `frontend/app/[locale]/(auth)/sign-in/page.tsx`
+- `frontend/app/[locale]/(auth)/sign-up/page.tsx`
+- `frontend/app/[locale]/layout.tsx`
+- `frontend/app/[locale]/page.tsx`
+- `frontend/app/api/auth/logout/route.ts`
+- `frontend/app/auth/callback/route.ts`
+- `frontend/app/page.tsx`
+- `frontend/components/auth/auth-form.tsx`
+- `frontend/components/auth/sign-out-button.tsx`
+- `frontend/components/layout/app-shell.tsx`
+- `frontend/components/layout/header.tsx`
+- `frontend/lib/auth/session.ts`
+- `frontend/lib/auth/supabase-browser.ts`
+- `frontend/lib/auth/supabase-server.ts`
+- `frontend/lib/i18n/dictionaries/ar.ts`
+- `frontend/lib/i18n/dictionaries/en.ts`
+- `frontend/package-lock.json`
+- `frontend/package.json`
+- `frontend/types/i18n.ts`
+
+### What Was Done
+- replaced the frontend demo-cookie sign-in flow with real Supabase sign-in and sign-up forms
+- added Supabase-backed session guards for localized app routes plus a real sign-out route and auth callback handler
+- added backend bearer-token verification against the Supabase JWKS endpoint
+- added local user mapping for verified Supabase identities and persisted the new mapping through `users.supabase_user_id`
+- kept the legacy `X-User-Id` path available only as a temporary rollout fallback so existing local and test flows still work
+- updated backend auth tests to cover valid bearer tokens, malformed bearer headers, and expired-token failures
+- updated the required docs and blocker plan to reflect that authentication rollout has started and what remains unfinished
+
+### Why
+The production blocker plan starts with identity. This change moves the repo off the temporary frontend demo session path and establishes a real backend authentication boundary that can be completed in later slices without rewriting business authorization.
+
+### Testing
+- unit test: `python -m pytest backend\\tests -q`
+- manual/build verification: `cd frontend && npm run lint`
+- manual/build verification: `cd frontend && npm run build`
+
+### Migrations / Env Changes
+- added Alembic migration `20260403_1515` for `users.supabase_user_id`
+- backend runtime dependency change: added `pyjwt[crypto]`
+- frontend runtime dependency changes: added `@supabase/ssr` and `@supabase/supabase-js`
+- frontend env now requires `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for live auth behavior
+- backend API behavior changed: protected routes now accept verified Supabase bearer tokens in addition to the temporary legacy header
+- frontend UI behavior changed: sign-in, sign-up, route guarding, and sign-out now use real Supabase sessions instead of the demo-cookie flow
+
+### Remaining Work / Notes
+- the backend demo helper route still exists and should be removed in a later cleanup slice
+- the legacy `X-User-Id` fallback still exists and must be retired before production auth is complete
+- the frontend API client is not yet forwarding Supabase bearer tokens to protected backend routes because dashboard and review integration remains a separate blocker slice
+
+## 2026-04-03 14:18 - Frontend bearer-token wiring started and health checked
+
+### Task
+Start the frontend-to-backend bearer-token path after the Supabase auth rollout and verify the currently running backend health surfaces.
+
+### Files Changed
+- `WORK_LOG.md`
+- `backend/app/services/health.py`
+- `backend/tests/test_health_service.py`
+- `frontend/app/[locale]/(app)/settings/page.tsx`
+- `frontend/lib/api/client.ts`
+- `frontend/lib/api/contracts.ts`
+
+### What Was Done
+- added server-side backend request helpers in the frontend API client
+- wired the frontend settings page to fetch backend settings with the authenticated Supabase bearer token when a real session is present
+- kept safe fallback behavior to the existing mock settings payload when no bearer token is available yet
+- added reusable frontend health and readiness API client methods for backend checks
+- updated backend readiness metadata so the auth-boundary check reflects JWKS-verified bearer-token support plus the temporary legacy-header fallback
+- verified the currently running backend process by calling `/health` and `/ready`
+
+### Why
+The frontend auth shell was already using real Supabase sessions, but protected backend requests still needed a real token-forwarding path. Starting with the settings page gives the repo a small, testable integration slice without mixing in the larger dashboard migration yet.
+
+### Testing
+- unit test: `python -m pytest backend\\tests -q`
+- manual/build verification: `cd frontend && npm run lint`
+- manual/build verification: `cd frontend && npm run build`
+- live check: `GET http://127.0.0.1:8000/health`
+- live check: `GET http://127.0.0.1:8000/ready`
+
+### Migrations / Env Changes
+- no schema migrations
+- no new env vars in this slice
+- no backend route shape changes
+- frontend UI behavior changed on `/{locale}/settings` when a real authenticated session exists and backend access is available
+
+### Remaining Work / Notes
+- the currently running backend process returned healthy and ready responses, but its live readiness payload still showed the older auth-boundary text, which means the running server should be restarted to pick up the latest code
+- dashboard and review pages are still not using the bearer-token backend path yet
+
+## 2026-04-03 14:35 - Backend stack rebuilt, migrated, and restarted
+
+### Task
+Rebuild the running backend container from the latest code, apply the pending Alembic migration, restart the live backend service, and verify that health and readiness reflect the new auth boundary.
+
+### Files Changed
+- `WORK_LOG.md`
+
+### What Was Done
+- rebuilt the backend Docker image from the current repository state
+- ran `alembic upgrade head` inside the compose-backed backend environment
+- confirmed the database revision advanced to `20260403_1515`
+- restarted the live backend container on port `8000`
+- verified `/health` and `/ready` on the running service after restart
+- confirmed the live readiness payload now reports the new Supabase bearer-token auth boundary instead of the old header-only text
+
+### Why
+The code changes on disk were ahead of the running backend process and the database schema. Rebuilding, migrating, and restarting closes that gap so the live service matches the current implementation.
+
+### Testing
+- operational check: `docker compose -f backend/docker-compose.smoke.yml build backend`
+- migration check: `docker compose -f backend/docker-compose.smoke.yml run --rm backend python -m alembic -c alembic.ini upgrade head`
+- revision check: `docker compose -f backend/docker-compose.smoke.yml run --rm backend python -m alembic -c alembic.ini current`
+- live check: `GET http://127.0.0.1:8000/health`
+- live check: `GET http://127.0.0.1:8000/ready`
+
+### Migrations / Env Changes
+- no new schema files in this step; applied existing migration `20260403_1515`
+- no env var changes
+- no API contract changes
+- no UI behavior changes
+
+### Remaining Work / Notes
+- backend health is green and the database is at head
+- the temporary legacy `X-User-Id` fallback still exists by design and remains future cleanup work
+
+## 2026-04-03 14:35 - Legacy auth cleanup completed and dashboard review data moved onto the live backend path
+
+### Task
+Remove the remaining legacy auth boundary pieces, verify the running backend no longer serves the demo auth path, and wire more authenticated frontend pages to the bearer-token backend flow.
+
+### Files Changed
+- `PRODUCTION_BLOCKERS_PLAN.md`
+- `WORK_LOG.md`
+- `backend/app/api/dependencies.py`
+- `backend/app/api/routes/auth.py`
+- `backend/app/core/config.py`
+- `backend/app/schemas/auth.py`
+- `backend/app/services/auth.py`
+- `backend/app/services/health.py`
+- `backend/scripts/smoke_test.py`
+- `backend/tests/test_auth_routes.py`
+- `backend/tests/test_settings_routes.py`
+- `frontend/app/[locale]/(app)/reviews/[reviewId]/page.tsx`
+- `frontend/app/[locale]/(app)/reviews/page.tsx`
+- `frontend/lib/api/adapters.ts`
+- `frontend/lib/api/client.ts`
+
+### What Was Done
+- removed the backend `X-User-Id` fallback so protected routes now depend only on verified Supabase bearer tokens
+- removed the temporary backend demo auth helper route from the live API surface
+- updated backend auth/session services and smoke tooling to use the bearer-token-only boundary
+- confirmed the running Docker backend now serves the new auth readiness payload and returns `404` for `POST /auth/demo-login`
+- wired the frontend reviews pages and dashboard page to use the authenticated backend request path
+- switched the dashboard away from seeded mock review data by building the dashboard payload from live backend reviews while leaving sales data as a separate follow-up concern
+
+### Why
+This closes the original production auth blocker instead of leaving the old header and demo route available behind the scenes. It also extends the real authenticated backend path into the dashboard and review surfaces so the app shell reflects actual stored review data once a user signs in.
+
+### Testing
+- unit test: `python -m pytest backend\\tests -q`
+- manual/build verification: `cd frontend && npm run lint`
+- manual/build verification: `cd frontend && npm run build`
+- live check: `GET http://127.0.0.1:8000/ready`
+- live check: `POST http://127.0.0.1:8000/auth/demo-login`
+
+### Migrations / Env Changes
+- no new schema migrations in this slice
+- no new env vars
+- backend API behavior changed by removing the temporary `POST /auth/demo-login` path and the legacy `X-User-Id` request fallback
+- frontend UI behavior changed so the dashboard and reviews pages now load backend review data when a real authenticated session exists
+
+### Remaining Work / Notes
+- auth cleanup is complete in the live backend path
+- dashboard review data is now backend-driven, but the sales panels still need an explicit production decision: hide them until real sales data exists or implement real sales persistence
+
+## 2026-04-03 15:05 - Dashboard sales panels hidden until real backend sales data exists
+
+### Task
+Finish the remaining production-truthfulness slice by removing misleading sales visuals from the authenticated dashboard when no real backend sales data is available.
+
+### Files Changed
+- `PRODUCTION_BLOCKERS_PLAN.md`
+- `WORK_LOG.md`
+- `frontend/components/dashboard/dashboard-workspace.tsx`
+- `frontend/lib/api/client.ts`
+- `frontend/lib/dashboard/derive.ts`
+- `frontend/lib/i18n/dictionaries/ar.ts`
+- `frontend/lib/i18n/dictionaries/en.ts`
+- `frontend/types/dashboard.ts`
+
+### What Was Done
+- added typed dashboard capabilities so the frontend can distinguish between review data availability and sales data availability
+- carried backend dashboard capability metadata into the frontend dashboard payload
+- changed the dashboard hero, executive summary, and sales section to stop presenting zero-value sales metrics as if they were real business numbers
+- replaced the sales chart area with an explicit empty state when the backend reports that sales data is unavailable
+- updated English and Arabic copy so the dashboard explains that sales panels are intentionally hidden until real backend sales support exists
+
+### Why
+The dashboard was already using live backend review data, but it still risked implying that revenue, orders, and refund numbers were genuine when they were not backed by backend sales persistence. Hiding those panels closes the remaining production truthfulness gap without blocking the rest of the review-focused product.
+
+### Testing
+- manual/build verification: `cd frontend && npm run lint`
+- manual/build verification: `cd frontend && npm run build`
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+- no backend API route changes
+- frontend UI behavior changed so the dashboard now shows an explicit sales-unavailable state instead of fake sales panels when real sales data is missing
+
+### Remaining Work / Notes
+- the production blocker plan is effectively complete for the current review-focused scope
+- real sales persistence and sales-backed dashboard panels remain optional future product work rather than a launch-truthfulness blocker
+
+## 2026-04-03 16:30 - Settings, AI content, logout polish, e2e smoke coverage, and sales persistence added
+
+### Task
+Implement the remaining post-blocker hardening work: make settings and AI content use real actions, clear stale local profile state on logout, add browser-level smoke coverage, and add a real backend sales persistence path for dashboard commerce analytics.
+
+### Files Changed
+- `PRODUCTION_BLOCKERS_PLAN.md`
+- `WORK_LOG.md`
+- `backend/app/api/dependencies.py`
+- `backend/app/api/router.py`
+- `backend/app/api/routes/sales.py`
+- `backend/app/api/routes/settings.py`
+- `backend/app/models/__init__.py`
+- `backend/app/models/business.py`
+- `backend/app/models/sales_record.py`
+- `backend/app/repositories/__init__.py`
+- `backend/app/repositories/sales_record.py`
+- `backend/app/schemas/dashboard.py`
+- `backend/app/schemas/sales.py`
+- `backend/app/schemas/settings.py`
+- `backend/app/services/__init__.py`
+- `backend/app/services/dashboard.py`
+- `backend/app/services/sales.py`
+- `backend/app/services/settings.py`
+- `backend/migrations/versions/20260403_1630_add_sales_records.py`
+- `backend/tests/test_sales_routes.py`
+- `backend/tests/test_settings_routes.py`
+- `backend/tests/test_settings_service.py`
+- `frontend/app/api/account/password/route.ts`
+- `frontend/app/api/content/marketing/route.ts`
+- `frontend/app/api/content/save/route.ts`
+- `frontend/app/api/settings/route.ts`
+- `frontend/components/auth/sign-out-button.tsx`
+- `frontend/components/content/content-workspace.tsx`
+- `frontend/components/settings/settings-workspace.tsx`
+- `frontend/lib/api/client.ts`
+- `frontend/lib/api/server.ts`
+- `frontend/lib/dashboard/derive.ts`
+- `frontend/lib/i18n/dictionaries/ar.ts`
+- `frontend/lib/i18n/dictionaries/en.ts`
+- `frontend/package-lock.json`
+- `frontend/package.json`
+- `frontend/playwright.config.ts`
+- `frontend/tests/e2e/smoke.spec.ts`
+- `frontend/types/dashboard.ts`
+
+### What Was Done
+- added backend profile persistence for settings through `PATCH /settings/profile`
+- wired the frontend settings screen to save full name, theme, and language through authenticated server-side route handlers instead of keeping those changes local-only
+- replaced the AI content screen’s local fake generation/save path with authenticated backend marketing-copy generation and generated-content save requests
+- cleared the locally cached profile data on logout so one account’s sidebar/profile details do not leak into the next session
+- added Playwright smoke coverage for the public sign-in page and an authenticated path that runs when `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` are provided
+- added persisted backend daily sales records, protected sales routes, and dashboard sales-record exposure so the dashboard can render real sales panels when stored sales data exists
+- applied the new sales migration and updated the live backend container to the latest code
+
+### Why
+These changes move more of the app out of scaffold mode and into a release-shaped workflow. Settings and content now perform real actions, logout behaves more safely across accounts, smoke coverage exercises the browser shell, and the dashboard has a real persistence path for sales instead of treating commerce analytics as permanently unavailable.
+
+### Testing
+- unit test: `python -m pytest backend\\tests -q`
+- manual/build verification: `cd frontend && npm install`
+- manual/build verification: `cd frontend && npm run lint`
+- manual/build verification: `cd frontend && npm run build`
+- browser smoke verification: `cd frontend && npm run test:e2e`
+- operational check: `docker compose -f backend/docker-compose.smoke.yml build backend`
+- migration check: `docker exec backend-backend-1 python -m alembic -c alembic.ini upgrade head`
+- revision check: `docker exec backend-backend-1 python -m alembic -c alembic.ini current`
+- live check: `GET http://127.0.0.1:8000/ready`
+
+### Migrations / Env Changes
+- added schema migration `20260403_1630_add_sales_records`
+- frontend test tooling now includes `@playwright/test`
+- backend API behavior changed by adding protected sales persistence routes and a profile update route
+- backend dashboard payload behavior changed by exposing persisted `sales_records` when they exist
+- frontend UI behavior changed in settings, AI content, logout, and dashboard sales rendering
+
+### Remaining Work / Notes
+- password changes are now real through the authenticated Supabase session path in the frontend server route, but the live Docker backend still uses a placeholder `SUPABASE_SERVICE_ROLE_KEY`, so password change is intentionally not proxied through the backend container
+- authenticated Playwright smoke coverage is implemented and ready, but it will skip unless `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` are set in the environment where the test runs
+
+## 2026-04-03 16:55 - Sales entry UI added to settings
+
+### Task
+Add a simple in-app way to create persisted sales records so the sales dashboard can be populated without manually calling backend APIs.
+
+### Files Changed
+- `WORK_LOG.md`
+- `frontend/app/api/sales/route.ts`
+- `frontend/components/settings/settings-workspace.tsx`
+- `frontend/lib/i18n/dictionaries/ar.ts`
+- `frontend/lib/i18n/dictionaries/en.ts`
+
+### What Was Done
+- added a frontend server route that reads and writes authenticated sales records through the backend sales API
+- added a sales record form in the settings screen for daily revenue, orders, refunds, and channel revenue
+- added a recent-sales list under that form so saved records are visible immediately in the app
+- generated a default product mix in the server route so newly entered sales records can light up the existing product and channel dashboard panels
+
+### Why
+The backend sales persistence path already existed, but there was no friendly way to populate it from the app. This small admin surface closes that usability gap and makes the restored sales dashboard path practical for day-to-day use.
+
+### Testing
+- manual/build verification: `cd frontend && npm run lint`
+- manual/build verification: `cd frontend && npm run build`
+- unit test: `python -m pytest backend\\tests -q`
+
+### Migrations / Env Changes
+- no new migrations
+- no env var changes
+- frontend UI behavior changed by adding a settings-based sales entry workflow
+
+### Remaining Work / Notes
+- saved sales records should now allow the dashboard sales panels to reappear automatically for the authenticated business
+
+## 2026-04-03 18:20 - Live Supabase session sync fixed and sales seeded for the real account
+
+### Task
+Resolve the last backend auth handoff bug so the real Supabase session creates the local user and business row, then seed initial sales data into that live business for dashboard verification.
+
+### Files Changed
+- `WORK_LOG.md`
+- `backend/app/services/token_verifier.py`
+
+### What Was Done
+- added targeted backend verifier logging so the final Supabase bearer-token handoff could be traced safely
+- rebuilt and restarted the backend container with the live Supabase config and verifier updates
+- confirmed the frontend session sync route now completes successfully with `POST /api/auth/session 200`
+- confirmed the backend now returns `200` for `GET /auth/me`, `GET /dashboard/overview`, and `GET /reviews` for the authenticated real user session
+- verified the real local user `gaithdiabat11@gmail.com` and its business row were created through the backend auth service
+- seeded 7 daily sales records into business `4500b7a7-1964-4702-aa01-9762bd410505` so the dashboard sales panels have real persisted data to render
+
+### Why
+This clears the last auth-integration gap that was preventing real end-to-end usage. With the local user/business row now created from the Supabase identity, persisted sales data can be attached to the correct business and the dashboard can move beyond the unavailable placeholder state.
+
+### Testing
+- operational check: frontend dev log confirmed `POST /api/auth/session 200`
+- operational check: backend container log confirmed `GET /auth/me 200`
+- operational check: backend container log confirmed `GET /dashboard/overview?business_id=4500b7a7-1964-4702-aa01-9762bd410505 200`
+- operational check: backend container log confirmed `GET /reviews?business_id=4500b7a7-1964-4702-aa01-9762bd410505&limit=100 200`
+- operational check: backend app session confirmed 7 persisted `sales_records` for the real business
+
+### Migrations / Env Changes
+- no new migrations
+- no new env vars
+- backend auth observability changed by adding safer verifier-path logging during Supabase token verification
+
+### Remaining Work / Notes
+- the real dashboard should now show sales data after a refresh while signed into the seeded account
+
+## 2026-04-03 18:45 - Supabase Postgres cutover plan and hosted runtime scaffolding
+
+### Task
+Create a concrete markdown migration plan for moving app data into Supabase Postgres and execute the repo-level preparation work needed for that cutover.
+
+### Files Changed
+- `.gitignore`
+- `WORK_LOG.md`
+- `README.md`
+- `DEPLOYMENT.md`
+- `SUPABASE_DATA_CUTOVER_PLAN.md`
+- `backend/.env.supabase.example`
+- `backend/docker-compose.supabase.yml`
+- `backend/scripts/run_supabase_migrations.ps1`
+
+### What Was Done
+- added a dedicated root-level migration plan that explains why the app currently stores data outside Supabase and how to unify auth and data in the same hosted project
+- added `backend/.env.supabase.example` as the backend env template for hosted Supabase Postgres runtime
+- added `backend/docker-compose.supabase.yml` so the backend can run against Supabase Postgres without the local Docker `db` container
+- added a PowerShell helper script to run Alembic migrations against `backend/.env.supabase`
+- updated repo documentation so the hosted-database path is first-class and the auth documentation reflects the current real Supabase bearer-token flow
+
+### Why
+The project had already completed the main auth and dashboard blockers, but the data layer was still split between Supabase auth and local Docker Postgres. This prep work turns the Supabase data cutover into a defined, executable migration instead of an informal future idea.
+
+### Testing
+- manual verification: reviewed current local compose assumptions and confirmed the backend smoke stack still points at the local Docker Postgres database
+- config verification: added a dedicated hosted compose/runtime path for Supabase Postgres
+
+### Migrations / Env Changes
+- added `backend/.env.supabase.example`
+- added hosted runtime config via `backend/docker-compose.supabase.yml`
+- no schema migration was added in this step
+- full hosted cutover still requires the real Supabase Postgres `DATABASE_URL`
+
+### Remaining Work / Notes
+- the actual Supabase Postgres connection string still needs to be provided from the Supabase dashboard before migrations and runtime cutover can be executed end to end
+
+## 2026-04-03 19:55 - Supabase hosted migration attempt reached real connection phase
+
+### Task
+Finish the hosted Supabase Postgres cutover using the provided service-role key and database connection string.
+
+### Files Changed
+- `WORK_LOG.md`
+- `backend/.env.supabase`
+- `backend/migrations/env.py`
+
+### What Was Done
+- filled the local ignored `backend/.env.supabase` with the live Supabase URL, anon key, service-role key, and a normalized SQLAlchemy-style database URL
+- fixed Alembic's migration bootstrap so percent-encoded passwords in `DATABASE_URL` no longer break config parsing
+- rebuilt the backend image and reran the hosted migration flow through Docker
+- advanced the cutover from local config validation to a real outbound connection attempt against the supplied Supabase database host
+
+### Why
+The cutover had already been prepared in repo config, but the final step needed the real secrets and a real connection attempt to reveal the next blocker. That blocker is now narrowed to the supplied database host string rather than the app configuration itself.
+
+### Testing
+- operational verification: `powershell -ExecutionPolicy Bypass -File backend/scripts/run_supabase_migrations.ps1`
+- operational verification: `docker compose -f backend/docker-compose.supabase.yml build backend`
+
+### Migrations / Env Changes
+- local ignored env file `backend/.env.supabase` now contains the live auth values and a provisional hosted `DATABASE_URL`
+- no new schema migration was added
+
+### Remaining Work / Notes
+- the provided database host `db.yzffmemazflnrdbgsziz.supabase.co:5432` did not resolve from the Dockerized migration runtime
+- the next required input is the Supabase `Session pooler` or `Transaction pooler` connection string from the `Connect` dialog, which typically uses a host like `aws-0-<region>.pooler.supabase.com:6543`
+
+## 2026-04-03 20:05 - Supabase Postgres cutover completed
+
+### Task
+Finish the app-data cutover from local Docker Postgres to Supabase Postgres and make sure the hosted database contains the real account data needed for the dashboard.
+
+### Files Changed
+- `WORK_LOG.md`
+- `SUPABASE_DATA_CUTOVER_PLAN.md`
+- `backend/.env.supabase.example`
+- `backend/docker-compose.supabase.yml`
+- `backend/migrations/env.py`
+- `backend/scripts/run_supabase_migrations.ps1`
+
+### What Was Done
+- updated the hosted runtime shape to support both pooled runtime access through `DATABASE_URL` and direct migration access through `DIRECT_URL`
+- fixed Alembic config bootstrapping so percent-encoded passwords in hosted Postgres URLs work correctly
+- fixed the hosted Docker Compose file so it actually uses `backend/.env.supabase` instead of overriding it with blank shell variables
+- ran `alembic upgrade head` successfully against Supabase Postgres
+- verified the live backend container now runs against Supabase-hosted Postgres and reports readiness successfully
+- copied the real account row, business row, and 7 seeded sales records into Supabase Postgres so the Supabase dashboard immediately shows meaningful app data
+
+### Why
+This completes the split-system cleanup. Auth and app data now live inside the same Supabase project, which makes the deployment shape more production-like and makes the Supabase dashboard reflect the real app tables instead of showing auth-only data.
+
+### Testing
+- migration execution: `powershell -ExecutionPolicy Bypass -File backend/scripts/run_supabase_migrations.ps1`
+- container rebuild: `docker compose -f backend/docker-compose.supabase.yml build backend`
+- hosted backend startup: `docker compose -f backend/docker-compose.supabase.yml up -d --build --force-recreate backend`
+- migration verification: `docker exec backend-backend-1 python -m alembic -c alembic.ini current`
+- readiness verification: `GET http://127.0.0.1:8000/health`
+- readiness verification: `GET http://127.0.0.1:8000/ready`
+- hosted data verification: backend app session confirmed `users=1`, `businesses=1`, `sales_records=7`
+
+### Migrations / Env Changes
+- added support for `DIRECT_URL` in the hosted backend env flow for migration-only direct connections
+- hosted runtime now uses Supabase Postgres pooler connectivity with SSL
+- no new schema migration was added in this step beyond applying the existing migrations to Supabase
+
+### Remaining Work / Notes
+- the old local Docker Postgres container still exists as a fallback/dev artifact, but the live backend on port `8000` now uses Supabase Postgres
+- if more historical local-only data should be preserved, it can be selectively copied into Supabase later

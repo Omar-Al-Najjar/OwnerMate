@@ -24,8 +24,13 @@ import type {
   DashboardMetric,
   DashboardPayload,
   DashboardPriorityReview,
+  DashboardSalesChannelBreakdown,
+  DashboardSalesProduct,
+  DashboardSalesSeriesPoint,
   DashboardTimeRange,
   DashboardView,
+  SalesChannelId,
+  SalesProductCategory,
 } from "@/types/dashboard";
 
 type DashboardWorkspaceProps = {
@@ -56,6 +61,13 @@ const BUCKET_BAR_STYLES: Record<
   neutral: "bg-slate-400",
   negative: "bg-red-500",
   warning: "bg-amber-500",
+};
+
+const CHANNEL_TONE_STYLES: Record<SalesChannelId, string> = {
+  walk_in: "bg-sky-500",
+  delivery_app: "bg-emerald-500",
+  instagram_dm: "bg-amber-500",
+  whatsapp: "bg-primary",
 };
 
 const ACTIVITY_TONE_STYLES: Record<DashboardActivityItem["type"], string> = {
@@ -168,7 +180,7 @@ export function DashboardWorkspace({
       return null;
     }
 
-    return getDashboardView(data.reviews, filters);
+    return getDashboardView(data.reviews, data.salesRecords, filters);
   }, [data, filters]);
 
   const activeFilterCount = [
@@ -201,6 +213,14 @@ export function DashboardWorkspace({
   }
 
   const rangeLabel = getRangeLabel(filters.range, dictionary);
+  const hasSalesData =
+    data.capabilities.salesDataAvailable && data.salesRecords.length > 0;
+  const executiveMetrics = hasSalesData
+    ? view.sales.executiveMetrics
+    : view.sales.executiveMetrics.filter(
+        (metric) =>
+          metric.id === "total_reviews" || metric.id === "positive_share"
+      );
   const sourceLabel =
     filters.source === "all" ? dictionary.dashboard.allSources : filters.source;
   const languageLabel =
@@ -221,8 +241,9 @@ export function DashboardWorkspace({
       />
 
       <section className="soft-panel relative overflow-hidden p-6 sm:p-8">
-        <div className="absolute -top-8 end-8 h-32 w-32 rounded-full bg-primary/15 blur-3xl" />
-        <div className="absolute bottom-0 start-10 h-24 w-24 rounded-full bg-emerald-400/15 blur-3xl" />
+        <div className="absolute -top-8 end-8 h-40 w-40 rounded-full bg-primary/15 blur-3xl" />
+        <div className="absolute bottom-0 start-10 h-28 w-28 rounded-full bg-emerald-400/15 blur-3xl" />
+        <div className="absolute end-1/3 top-1/2 h-24 w-24 rounded-full bg-amber-300/15 blur-3xl" />
         <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div className="space-y-5">
             <div className="space-y-3 text-start">
@@ -244,30 +265,57 @@ export function DashboardWorkspace({
               <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
                 {dictionary.dashboard.focusWindow}: {rangeLabel}
               </span>
+              {hasSalesData ? (
+                <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
+                  {dictionary.dashboard.totalRevenue}:{" "}
+                  {formatCurrencyCompact(view.sales.summary.totalRevenue)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+                  {data.capabilities.salesDataNote ??
+                    dictionary.dashboard.noSalesDataTitle}
+                </span>
+              )}
               <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
-                {view.reviewCount} {dictionary.dashboard.reviewsInScope}
+                {view.review.reviewCount} {dictionary.dashboard.reviewsInScope}
               </span>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
+            {hasSalesData ? (
+              <HeroSummaryCard
+                helper={dictionary.dashboard.salesPerformanceDescription}
+                label={dictionary.dashboard.totalRevenue}
+                value={formatCurrencyCompact(view.sales.summary.totalRevenue)}
+              />
+            ) : (
+              <HeroSummaryCard
+                helper={data.capabilities.salesDataNote ?? dictionary.dashboard.noSalesDataDescription}
+                label={dictionary.dashboard.salesPerformance}
+                value={dictionary.dashboard.noSalesDataTitle}
+              />
+            )}
             <HeroSummaryCard
-              helper={`${dictionary.dashboard.reviewsInScope}: ${view.reviewCount}`}
-              label={dictionary.dashboard.filterSummary}
-              value={`${activeFilterCount}`}
-            />
-            <HeroSummaryCard
-              helper={dictionary.dashboard.vsPreviousWindow}
+              helper={dictionary.dashboard.reviewVolume}
               label={dictionary.dashboard.focusWindow}
               value={rangeLabel}
             />
+            {hasSalesData ? (
+              <HeroSummaryCard
+                helper={dictionary.dashboard.filterSummary}
+                label={dictionary.dashboard.totalOrders}
+                value={String(view.sales.summary.totalOrders)}
+              />
+            ) : (
+              <HeroSummaryCard
+                helper={dictionary.dashboard.reviewVolume}
+                label={dictionary.dashboard.totalReviews}
+                value={String(view.review.reviewCount)}
+              />
+            )}
             <HeroSummaryCard
-              helper={dictionary.dashboard.reviewVolume}
-              label={dictionary.dashboard.sourceFilter}
-              value={sourceLabel}
-            />
-            <HeroSummaryCard
-              helper={languageLabel}
+              helper={`${sourceLabel} | ${languageLabel}`}
               label={dictionary.dashboard.sentimentFilter}
               value={sentimentLabel}
             />
@@ -282,7 +330,7 @@ export function DashboardWorkspace({
               {dictionary.dashboard.filterSummary}
             </p>
             <p className="text-sm text-muted">
-              {dictionary.dashboard.reviewsInScope}: {view.reviewCount}
+              {dictionary.dashboard.reviewsInScope}: {view.review.reviewCount}
             </p>
             <div className="flex flex-wrap gap-2">
               {data.filterOptions.timeRanges.map((range) => {
@@ -383,7 +431,67 @@ export function DashboardWorkspace({
         </div>
       </section>
 
-      {view.reviewCount === 0 ? (
+      <section className="space-y-4">
+        <SectionLead
+          description={dictionary.dashboard.executiveSummaryDescription}
+          title={dictionary.dashboard.executiveSummary}
+        />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {executiveMetrics.map((metric) => (
+            <MetricCard dictionary={dictionary} key={metric.id} metric={metric} />
+          ))}
+        </div>
+      </section>
+
+      {hasSalesData ? (
+        <section className="space-y-4">
+          <SectionLead
+            description={dictionary.dashboard.salesPerformanceDescription}
+            title={dictionary.dashboard.salesPerformance}
+          />
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <RevenueTrendPanel
+              dictionary={dictionary}
+              points={view.sales.revenueSeries}
+            />
+            <ChannelMixPanel
+              channels={view.sales.channelMix}
+              dictionary={dictionary}
+            />
+          </div>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <OrdersRevenuePanel
+              dictionary={dictionary}
+              points={view.sales.revenueSeries}
+            />
+            <RefundPanel
+              dictionary={dictionary}
+              points={view.sales.refundSeries}
+              summary={view.sales.summary}
+            />
+          </div>
+          <TopProductsPanel
+            dictionary={dictionary}
+            products={view.sales.topProducts}
+          />
+        </section>
+      ) : (
+        <section className="space-y-4">
+          <SectionLead
+            description={dictionary.dashboard.salesPerformanceDescription}
+            title={dictionary.dashboard.salesPerformance}
+          />
+          <EmptyState
+            description={
+              data.capabilities.salesDataNote ??
+              dictionary.dashboard.noSalesDataDescription
+            }
+            title={dictionary.dashboard.noSalesDataTitle}
+          />
+        </section>
+      )}
+
+      {view.review.reviewCount === 0 ? (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
           <EmptyState
             description={dictionary.dashboard.noReviewsInViewDescription}
@@ -395,40 +503,31 @@ export function DashboardWorkspace({
         <>
           <section className="space-y-4">
             <SectionLead
-              description={dictionary.dashboard.executiveSummaryDescription}
-              title={dictionary.dashboard.executiveSummary}
+              description={dictionary.dashboard.reviewInsightsDescription}
+              title={dictionary.dashboard.reviewInsights}
             />
-            <div className="grid gap-4 xl:grid-cols-5">
-              {view.metrics.map((metric) => (
-                <MetricCard
-                  dictionary={dictionary}
-                  key={metric.id}
-                  metric={metric}
-                />
-              ))}
-            </div>
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
               <SentimentPanel
-                buckets={view.distributions.sentiment}
+                buckets={view.review.distributions.sentiment}
                 dictionary={dictionary}
               />
               <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
                 <DistributionPanel
-                  buckets={view.distributions.ratings}
+                  buckets={view.review.distributions.ratings}
                   description={dictionary.dashboard.sentimentHelper}
                   dictionary={dictionary}
                   title={dictionary.dashboard.ratingMix}
                   variant="rating"
                 />
                 <DistributionPanel
-                  buckets={view.distributions.sources}
+                  buckets={view.review.distributions.sources}
                   description={dictionary.dashboard.sourcesHelper}
                   dictionary={dictionary}
                   title={dictionary.dashboard.sourceMix}
                   variant="source"
                 />
                 <DistributionPanel
-                  buckets={view.distributions.languages}
+                  buckets={view.review.distributions.languages}
                   description={dictionary.common.language}
                   dictionary={dictionary}
                   title={dictionary.dashboard.languageMix}
@@ -447,11 +546,11 @@ export function DashboardWorkspace({
               <PriorityQueuePanel
                 dictionary={dictionary}
                 locale={locale}
-                reviews={view.priorityReviews}
+                reviews={view.review.priorityReviews}
               />
               <ActivityFeedPanel
                 dictionary={dictionary}
-                items={view.activityFeed}
+                items={view.review.activityFeed}
                 locale={locale}
               />
             </div>
@@ -471,7 +570,7 @@ export function DashboardWorkspace({
                 detailLabel={dictionary.reviews.openReview}
                 labels={reviewLabels}
                 locale={locale}
-                reviews={view.recentReviews}
+                reviews={view.review.recentReviews}
               />
             </section>
             <QuickActionsPanel dictionary={dictionary} locale={locale} />
@@ -599,6 +698,341 @@ function Sparkline({ values }: { values: number[] }) {
         strokeWidth="3"
       />
     </svg>
+  );
+}
+
+function RevenueTrendPanel({
+  points,
+  dictionary,
+}: {
+  points: DashboardSalesSeriesPoint[];
+  dictionary: Dictionary;
+}) {
+  return (
+    <section className="panel p-6">
+      <div className="space-y-1 text-start">
+        <h3 className="text-lg font-semibold text-foreground">
+          {dictionary.dashboard.revenueTrend}
+        </h3>
+        <p className="text-sm text-muted">
+          {dictionary.dashboard.revenueTrendDescription}
+        </p>
+      </div>
+      {points.length === 0 ? (
+        <div className="mt-5">
+          <EmptyState
+            description={dictionary.dashboard.noSalesDataDescription}
+            title={dictionary.dashboard.noSalesDataTitle}
+          />
+        </div>
+      ) : (
+        <div className="mt-5 space-y-4">
+          <LineAreaChart
+            colorClass="text-primary"
+            points={points}
+            valueSelector={(point) => point.revenue}
+          />
+          <div className="flex items-center justify-between gap-3 text-xs text-muted">
+            <span>{points[0]?.label}</span>
+            <span>{points[Math.floor(points.length / 2)]?.label}</span>
+            <span>{points[points.length - 1]?.label}</span>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function OrdersRevenuePanel({
+  points,
+  dictionary,
+}: {
+  points: DashboardSalesSeriesPoint[];
+  dictionary: Dictionary;
+}) {
+  return (
+    <section className="panel p-6">
+      <div className="space-y-1 text-start">
+        <h3 className="text-lg font-semibold text-foreground">
+          {dictionary.dashboard.ordersRevenueView}
+        </h3>
+        <p className="text-sm text-muted">
+          {dictionary.dashboard.ordersRevenueDescription}
+        </p>
+      </div>
+      {points.length === 0 ? (
+        <div className="mt-5">
+          <EmptyState
+            description={dictionary.dashboard.noSalesDataDescription}
+            title={dictionary.dashboard.noSalesDataTitle}
+          />
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <RevenueOrdersComboChart points={points} />
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            {points.slice(-3).map((point) => (
+              <div
+                className="rounded-2xl border border-border bg-background p-4 text-start"
+                key={point.date}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                  {point.label}
+                </p>
+                <p className="mt-3 text-lg font-semibold text-foreground">
+                  {formatCurrency(point.revenue)}
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  {point.orders} {dictionary.dashboard.ordersLabel}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ChannelMixPanel({
+  channels,
+  dictionary,
+}: {
+  channels: DashboardSalesChannelBreakdown[];
+  dictionary: Dictionary;
+}) {
+  return (
+    <section className="panel p-6">
+      <div className="space-y-1 text-start">
+        <h3 className="text-lg font-semibold text-foreground">
+          {dictionary.dashboard.channelMix}
+        </h3>
+        <p className="text-sm text-muted">
+          {dictionary.dashboard.channelMixDescription}
+        </p>
+      </div>
+
+      {channels.length === 0 ? (
+        <div className="mt-5">
+          <EmptyState
+            description={dictionary.dashboard.noSalesDataDescription}
+            title={dictionary.dashboard.noSalesDataTitle}
+          />
+        </div>
+      ) : (
+        <div className="mt-5 space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            {channels.map((channel) => (
+              <div
+                className="rounded-2xl border border-border bg-background p-4 text-start"
+                key={channel.id}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "h-2.5 w-2.5 rounded-full",
+                      CHANNEL_TONE_STYLES[channel.id]
+                    )}
+                  />
+                  <p className="text-sm font-medium text-foreground">
+                    {dictionary.dashboard.salesChannels[channel.id]}
+                  </p>
+                </div>
+                <p className="mt-3 text-xl font-semibold text-foreground">
+                  {Math.round(channel.share * 100)}%
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  {formatCurrency(channel.revenue)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            {channels.map((channel) => (
+              <div className="space-y-2" key={channel.id}>
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <span className="font-medium text-foreground">
+                    {dictionary.dashboard.salesChannels[channel.id]}
+                  </span>
+                  <span className="text-muted">
+                    {channel.orders} {dictionary.dashboard.ordersLabel}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-surface">
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      CHANNEL_TONE_STYLES[channel.id]
+                    )}
+                    style={{ width: `${Math.max(channel.share * 100, 0)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RefundPanel({
+  points,
+  summary,
+  dictionary,
+}: {
+  points: DashboardSalesSeriesPoint[];
+  summary: DashboardView["sales"]["summary"];
+  dictionary: Dictionary;
+}) {
+  return (
+    <section className="panel p-6">
+      <div className="space-y-1 text-start">
+        <h3 className="text-lg font-semibold text-foreground">
+          {dictionary.dashboard.refundTrend}
+        </h3>
+        <p className="text-sm text-muted">
+          {dictionary.dashboard.refundTrendDescription}
+        </p>
+      </div>
+      {points.length === 0 ? (
+        <div className="mt-5">
+          <EmptyState
+            description={dictionary.dashboard.noSalesDataDescription}
+            title={dictionary.dashboard.noSalesDataTitle}
+          />
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+          <LineAreaChart
+            colorClass="text-amber-500"
+            points={points}
+            valueSelector={(point) => point.refundValue}
+          />
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <RefundStatCard
+              label={dictionary.dashboard.refundValue}
+              value={formatCurrency(summary.refundValue)}
+            />
+            <RefundStatCard
+              label={dictionary.dashboard.refundRate}
+              value={`${summary.refundRate.toFixed(1)}%`}
+            />
+            <RefundStatCard
+              label={dictionary.dashboard.refundCount}
+              value={String(summary.refundCount)}
+            />
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RefundStatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background p-4 text-start">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+      <p className="mt-3 text-xl font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function TopProductsPanel({
+  products,
+  dictionary,
+}: {
+  products: DashboardSalesProduct[];
+  dictionary: Dictionary;
+}) {
+  return (
+    <section className="panel p-6">
+      <div className="space-y-1 text-start">
+        <h3 className="text-lg font-semibold text-foreground">
+          {dictionary.dashboard.topProducts}
+        </h3>
+        <p className="text-sm text-muted">
+          {dictionary.dashboard.topProductsDescription}
+        </p>
+      </div>
+      {products.length === 0 ? (
+        <div className="mt-5">
+          <EmptyState
+            description={dictionary.dashboard.noSalesDataDescription}
+            title={dictionary.dashboard.noSalesDataTitle}
+          />
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div className="space-y-3">
+            {products.map((product, index) => (
+              <div
+                className="rounded-2xl border border-border bg-background p-4"
+                key={product.id}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1 text-start">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                        {index + 1}
+                      </span>
+                      <p className="text-sm font-semibold text-foreground">
+                        {product.label}
+                      </p>
+                    </div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-muted">
+                      {dictionary.dashboard.productCategories[product.category]}
+                    </p>
+                  </div>
+                  <div className="text-end">
+                    <p className="text-sm font-semibold text-foreground">
+                      {formatCurrency(product.revenue)}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {product.units} {dictionary.dashboard.unitsLabel}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${Math.max(product.share * 100, 0)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-3xl border border-border bg-background px-5 py-6">
+            <p className="text-sm font-semibold text-foreground">
+              {dictionary.dashboard.productSnapshot}
+            </p>
+            <div className="mt-5 space-y-4">
+              {aggregateProductCategories(products).map((category) => (
+                <div className="space-y-2" key={category.id}>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-foreground">
+                      {dictionary.dashboard.productCategories[category.id]}
+                    </span>
+                    <span className="text-muted">
+                      {formatCurrency(category.revenue)}
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-surface">
+                    <div
+                      className="h-full rounded-full bg-emerald-500"
+                      style={{ width: `${Math.max(category.share * 100, 0)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -911,6 +1345,85 @@ function QuickActionsPanel({
   );
 }
 
+function RevenueOrdersComboChart({
+  points,
+}: {
+  points: DashboardSalesSeriesPoint[];
+}) {
+  const bars = points.slice(-8);
+  const maxRevenue = Math.max(...bars.map((point) => point.revenue), 1);
+  const maxOrders = Math.max(...bars.map((point) => point.orders), 1);
+
+  return (
+    <div className="rounded-3xl border border-border bg-background p-5">
+      <div className="flex h-56 items-end gap-3">
+        {bars.map((point) => (
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-2" key={point.date}>
+            <div className="flex h-44 w-full items-end justify-center gap-1">
+              <div
+                className="w-3 rounded-full bg-primary/85"
+                style={{ height: `${(point.revenue / maxRevenue) * 100}%` }}
+              />
+              <div
+                className="w-3 rounded-full bg-emerald-500/85"
+                style={{ height: `${(point.orders / maxOrders) * 100}%` }}
+              />
+            </div>
+            <span className="text-[11px] text-muted">{point.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LineAreaChart({
+  points,
+  valueSelector,
+  colorClass,
+}: {
+  points: DashboardSalesSeriesPoint[];
+  valueSelector: (point: DashboardSalesSeriesPoint) => number;
+  colorClass: string;
+}) {
+  const values = points.map(valueSelector);
+  const maxValue = Math.max(...values, 1);
+  const minValue = Math.min(...values, 0);
+  const range = maxValue - minValue || 1;
+  const polylinePoints = points
+    .map((point, index) => {
+      const x = points.length === 1 ? 50 : (index / (points.length - 1)) * 100;
+      const y = 90 - ((valueSelector(point) - minValue) / range) * 72;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const areaPath = `M0,90 ${polylinePoints} 100,90 Z`;
+
+  return (
+    <div className="rounded-3xl border border-border bg-background p-5">
+      <svg
+        aria-hidden="true"
+        className={cn("h-60 w-full", colorClass)}
+        fill="none"
+        viewBox="0 0 100 90"
+        preserveAspectRatio="none"
+      >
+        <path d="M0 90H100" stroke="currentColor" strokeOpacity="0.14" />
+        <path d="M0 60H100" stroke="currentColor" strokeOpacity="0.08" />
+        <path d="M0 30H100" stroke="currentColor" strokeOpacity="0.08" />
+        <path d={areaPath} fill="currentColor" fillOpacity="0.12" />
+        <polyline
+          points={polylinePoints}
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2.5"
+        />
+      </svg>
+    </div>
+  );
+}
+
 function getRangeLabel(range: DashboardTimeRange, dictionary: Dictionary) {
   if (range === "7d") {
     return dictionary.dashboard.last7Days;
@@ -926,11 +1439,12 @@ function getMetricLabel(
   dictionary: Dictionary
 ) {
   const labels: Record<DashboardMetric["id"], string> = {
+    total_revenue: dictionary.dashboard.totalRevenue,
+    total_orders: dictionary.dashboard.totalOrders,
+    average_order_value: dictionary.dashboard.averageOrderValue,
+    refund_rate: dictionary.dashboard.refundRate,
     total_reviews: dictionary.dashboard.totalReviews,
-    average_rating: dictionary.dashboard.averageRating,
     positive_share: dictionary.dashboard.positiveShare,
-    new_reviews: dictionary.dashboard.newReviews,
-    active_sources: dictionary.dashboard.activeSources,
   };
 
   return labels[metricId];
@@ -944,13 +1458,19 @@ function getMetricContextLabel(metric: DashboardMetric, dictionary: Dictionary) 
   if (metric.context.kind === "new_reviews") {
     return `${metric.context.value} ${dictionary.dashboard.newReviewsHelper}`;
   }
-  if (metric.context.kind === "source_count") {
-    return `${metric.context.value} ${dictionary.dashboard.sourcesHelper}`;
-  }
   if (metric.context.kind === "positive_reviews") {
     return `${metric.context.value} ${dictionary.dashboard.positiveReviewsHelper}`;
   }
-  return `${metric.context.value} ${dictionary.dashboard.reviewsInScope}`;
+  if (metric.context.kind === "order_count") {
+    return `${metric.context.value} ${dictionary.dashboard.ordersLabel}`;
+  }
+  if (metric.context.kind === "refund_value") {
+    return `${formatCurrency(metric.context.value)} ${dictionary.dashboard.refundValueHelper}`;
+  }
+  if (metric.context.kind === "best_channel") {
+    return `${dictionary.dashboard.salesChannels[metric.context.label]} ${dictionary.dashboard.leadingChannelHelper} ${formatCurrencyCompact(metric.context.value)}`;
+  }
+  return dictionary.dashboard.datasetBaseline;
 }
 
 function getBucketLabel(
@@ -1011,4 +1531,53 @@ function getActivityTypeLabel(
   };
 
   return labels[type];
+}
+
+function aggregateProductCategories(products: DashboardSalesProduct[]) {
+  const totals = new Map<
+    SalesProductCategory,
+    { revenue: number; units: number }
+  >();
+
+  products.forEach((product) => {
+    const current = totals.get(product.category);
+    if (current) {
+      current.revenue += product.revenue;
+      current.units += product.units;
+    } else {
+      totals.set(product.category, {
+        revenue: product.revenue,
+        units: product.units,
+      });
+    }
+  });
+
+  const totalRevenue = Array.from(totals.values()).reduce(
+    (sum, item) => sum + item.revenue,
+    0
+  );
+
+  return Array.from(totals.entries()).map(([id, value]) => ({
+    id,
+    revenue: value.revenue,
+    units: value.units,
+    share: totalRevenue ? value.revenue / totalRevenue : 0,
+  }));
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatCurrencyCompact(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: value >= 1000 ? "compact" : "standard",
+    maximumFractionDigits: value >= 1000 ? 1 : 0,
+  }).format(value);
 }

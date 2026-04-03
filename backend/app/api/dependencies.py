@@ -1,4 +1,4 @@
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 from uuid import UUID
 
@@ -8,17 +8,20 @@ from sqlalchemy.orm import Session
 
 from ..agents.orchestrator import OrchestratorAgent
 from ..core.db import get_session_factory
+from ..core.config import get_settings
 from ..core.exceptions import AppError
 from ..repositories.agent_run import AgentRunRepository
 from ..repositories.business import BusinessRepository
 from ..repositories.generated_content import GeneratedContentRepository
 from ..repositories.review import ReviewRepository
+from ..repositories.sales_record import SalesRecordRepository
 from ..repositories.sentiment_result import SentimentResultRepository
 from ..repositories.user import UserRepository
 from ..models.user import User
 from ..services.auth import AuthService
 from ..services.authorization import AuthorizationService
 from ..services.content import ContentGenerationService
+from ..services.dashboard import DashboardService
 from ..services.provider_factory import (
     get_content_provider,
     get_facebook_review_provider,
@@ -30,9 +33,11 @@ from ..services.review import ReviewService
 from ..services.review_ingestion import ReviewIngestionService
 from ..services.review_summary import ReviewSummaryService
 from ..services.review_upload import ReviewUploadImportService
+from ..services.sales import SalesService
 from ..services.sentiment import SentimentAnalysisService
 from ..services.settings import SettingsService
 from ..services.source_review_import import SourceReviewImportService
+from ..services.token_verifier import SupabaseTokenVerifier
 from ..schemas.review import ReviewUploadImportRequest
 
 
@@ -44,35 +49,12 @@ def get_db_session() -> Generator[Session, None, None]:
         session.close()
 
 
-def get_current_user(
-    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
-    session: Session = Depends(get_db_session),
-) -> User:
-    if x_user_id is None:
-        raise AppError(
-            code="AUTHENTICATION_REQUIRED",
-            message="Authentication is required for this endpoint.",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        )
+def get_token_verifier() -> SupabaseTokenVerifier:
+    return SupabaseTokenVerifier(get_settings())
 
-    try:
-        user_id = UUID(x_user_id)
-    except ValueError as exc:
-        raise AppError(
-            code="INVALID_AUTHENTICATED_USER",
-            message="Authenticated user id is invalid.",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            details={"header": "X-User-Id"},
-        ) from exc
 
-    user = UserRepository(session).get_by_id(user_id)
-    if user is None:
-        raise AppError(
-            code="AUTHENTICATED_USER_NOT_FOUND",
-            message="Authenticated user not found.",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    return user
+def get_token_verifier_factory() -> Callable[[], SupabaseTokenVerifier]:
+    return get_token_verifier
 
 
 def get_review_service(
@@ -87,7 +69,36 @@ def get_review_service(
 def get_auth_service(
     session: Session = Depends(get_db_session),
 ) -> AuthService:
-    return AuthService(business_repository=BusinessRepository(session))
+    return AuthService(
+        business_repository=BusinessRepository(session),
+        user_repository=UserRepository(session),
+    )
+
+
+def get_current_user(
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    auth_service: AuthService = Depends(get_auth_service),
+    token_verifier_factory: Callable[[], SupabaseTokenVerifier] = Depends(
+        get_token_verifier_factory
+    ),
+) -> User:
+    if authorization is None:
+        raise AppError(
+            code="AUTHENTICATION_REQUIRED",
+            message="Authentication is required for this endpoint.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise AppError(
+            code="AUTHENTICATION_FAILED",
+            message="Authorization header must use the Bearer scheme.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    identity = token_verifier_factory().verify_access_token(token.strip())
+    return auth_service.get_or_create_user_for_identity(identity)
 
 
 def get_authorization_service(
@@ -204,6 +215,25 @@ def get_settings_service(
     session: Session = Depends(get_db_session),
 ) -> SettingsService:
     return SettingsService(user_repository=UserRepository(session))
+
+
+def get_dashboard_service(
+    session: Session = Depends(get_db_session),
+) -> DashboardService:
+    return DashboardService(
+        review_repository=ReviewRepository(session),
+        sales_record_repository=SalesRecordRepository(session),
+        sentiment_result_repository=SentimentResultRepository(session),
+    )
+
+
+def get_sales_service(
+    session: Session = Depends(get_db_session),
+) -> SalesService:
+    return SalesService(
+        business_repository=BusinessRepository(session),
+        sales_record_repository=SalesRecordRepository(session),
+    )
 
 
 def get_orchestrator_agent(

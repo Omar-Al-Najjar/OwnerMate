@@ -10,9 +10,9 @@ Base URLs and local ports:
 - disposable smoke Postgres port: `54329`
 
 Auth requirement today:
-- every protected backend request must send `X-User-Id: <user-uuid>`
-- the UUID must match a stored backend user
-- this is temporary scaffolding, not final production auth
+- preferred: send `Authorization: Bearer <supabase-access-token>` on every protected backend request
+- the backend verifies the Supabase token and maps the verified identity onto the local `users` table
+- the backend no longer accepts `X-User-Id`
 
 Current browser limitation:
 - the backend does not configure CORS middleware yet
@@ -71,7 +71,6 @@ Error envelope:
 
 Frontend-relevant status and error codes:
 - `401 AUTHENTICATION_REQUIRED`
-- `401 INVALID_AUTHENTICATED_USER`
 - `404 AUTHENTICATED_USER_NOT_FOUND`
 - `403 FORBIDDEN`
 - `400 REVIEW_BUSINESS_SCOPE_MISMATCH`
@@ -228,22 +227,22 @@ Directly relevant to frontend integration:
 - `CONTENT_PROVIDER`
 
 Important clarification:
-- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` exist in backend config, but the current backend request auth boundary still does not verify Supabase tokens
+- `SUPABASE_URL` is now used by the backend bearer-token verifier
 - `SUPABASE_ANON_KEY` is not a backend env var in this repo's current server implementation
 
 ## 7. Known Limitations
 
-- auth is still the temporary `X-User-Id` header boundary
+- dashboard and AI-content pages are not fully on the live backend path yet
 - no backend CORS middleware is configured
 - provider-backed AI output is mock-generated
 - Google and Facebook source import routes are not live platform integrations yet
-- true production rollout remains blocked until backend token or session verification replaces the temporary auth boundary
+- true production rollout still needs broader frontend page integration plus removal of remaining mock-backed views
 
 ## 8. Integration Support Priorities
 
 When frontend integration starts, the most likely backend follow-ups are:
 - add or configure CORS for the actual frontend origin
-- replace the temporary auth boundary with real backend token or session verification
+- continue moving dashboard and AI-content pages onto the bearer-token backend path
 - tighten error-code handling if the UI needs more specific states
 - adjust request or response shapes only if the frontend proves a real contract mismatch
 - rerun smoke checks after any integration-driven contract change

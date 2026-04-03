@@ -5,6 +5,7 @@ from ...models.user import User
 from ...schemas.common import SuccessResponse
 from ...schemas.settings import (
     LanguagePreferenceUpdateRequest,
+    ProfileUpdateRequest,
     ThemePreferenceUpdateRequest,
 )
 from ...services.settings import SettingsService
@@ -37,3 +38,12 @@ async def update_language_preference(
     service: SettingsService = Depends(get_settings_service),
 ):
     return success_response(service.update_language(current_user, payload))
+
+
+@router.patch("/profile", response_model=SuccessResponse)
+async def update_profile(
+    payload: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    service: SettingsService = Depends(get_settings_service),
+):
+    return success_response(service.update_profile(current_user, payload))

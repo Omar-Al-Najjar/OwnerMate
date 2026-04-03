@@ -51,8 +51,8 @@ class HealthService:
                 status="configured",
                 configured=True,
                 details={
-                    "mode": "x_user_id_header",
-                    "session_verification": "temporary_backend_header_boundary",
+                    "mode": "supabase_bearer_token",
+                    "session_verification": "jwks_verified_bearer_token",
                 },
             ),
             ReadinessDependency(

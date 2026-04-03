@@ -11,11 +11,12 @@ export type DashboardFilters = {
 };
 
 export type DashboardMetricId =
+  | "total_revenue"
+  | "total_orders"
+  | "average_order_value"
+  | "refund_rate"
   | "total_reviews"
-  | "average_rating"
-  | "positive_share"
-  | "new_reviews"
-  | "active_sources";
+  | "positive_share";
 
 export type DashboardMetricTone = "default" | "positive" | "warning" | "negative";
 export type DashboardTrendDirection = "up" | "down" | "stable";
@@ -24,10 +25,16 @@ export type DashboardMetric = {
   id: DashboardMetricId;
   value: number;
   displayValue: string;
-  context?: {
-    kind: "new_reviews" | "review_count" | "positive_reviews" | "source_count";
-    value: number;
-  };
+  context?:
+    | {
+        kind: "new_reviews" | "positive_reviews" | "order_count" | "refund_value";
+        value: number;
+      }
+    | {
+        kind: "best_channel";
+        label: SalesChannelId;
+        value: number;
+      };
   tone?: DashboardMetricTone;
   trend?: {
     direction: DashboardTrendDirection;
@@ -93,8 +100,78 @@ export type DashboardActivityItem = {
   reviewerName: string;
 };
 
-export type DashboardView = {
-  metrics: DashboardMetric[];
+export type SalesChannelId =
+  | "walk_in"
+  | "delivery_app"
+  | "instagram_dm"
+  | "whatsapp";
+
+export type SalesProductCategory =
+  | "signature_drinks"
+  | "desserts"
+  | "breakfast"
+  | "bundles";
+
+export type SalesProductSnapshot = {
+  id: string;
+  label: string;
+  category: SalesProductCategory;
+  revenue: number;
+  units: number;
+};
+
+export type SalesRecord = {
+  date: string;
+  revenue: number;
+  orders: number;
+  refundCount: number;
+  refundValue: number;
+  channelRevenue: Record<SalesChannelId, number>;
+  products: SalesProductSnapshot[];
+};
+
+export type DashboardSalesSeriesPoint = {
+  date: string;
+  label: string;
+  revenue: number;
+  orders: number;
+  refundValue: number;
+};
+
+export type DashboardSalesChannelBreakdown = {
+  id: SalesChannelId;
+  revenue: number;
+  orders: number;
+  share: number;
+};
+
+export type DashboardSalesProduct = {
+  id: string;
+  label: string;
+  category: SalesProductCategory;
+  revenue: number;
+  units: number;
+  share: number;
+};
+
+export type DashboardSalesView = {
+  executiveMetrics: DashboardMetric[];
+  summary: {
+    totalRevenue: number;
+    totalOrders: number;
+    averageOrderValue: number;
+    refundCount: number;
+    refundValue: number;
+    refundRate: number;
+    bestChannel: SalesChannelId | null;
+  };
+  revenueSeries: DashboardSalesSeriesPoint[];
+  refundSeries: DashboardSalesSeriesPoint[];
+  channelMix: DashboardSalesChannelBreakdown[];
+  topProducts: DashboardSalesProduct[];
+};
+
+export type DashboardReviewView = {
   distributions: {
     sentiment: DashboardDistributionBucket[];
     ratings: DashboardDistributionBucket[];
@@ -107,8 +184,21 @@ export type DashboardView = {
   reviewCount: number;
 };
 
+export type DashboardView = {
+  review: DashboardReviewView;
+  sales: DashboardSalesView;
+};
+
+export type DashboardCapabilities = {
+  reviewDataAvailable: boolean;
+  salesDataAvailable: boolean;
+  salesDataNote: string | null;
+};
+
 export type DashboardPayload = {
   reviews: Review[];
+  salesRecords: SalesRecord[];
+  capabilities: DashboardCapabilities;
   filterOptions: {
     sources: string[];
     languages: ReviewLanguage[];

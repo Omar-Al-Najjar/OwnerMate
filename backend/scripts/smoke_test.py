@@ -57,9 +57,8 @@ def assert_success(status_code: int, body: dict, context: str) -> None:
 
 def main() -> None:
     base_url = os.environ.get("SMOKE_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-    user_id = os.environ["SMOKE_USER_ID"]
-    business_id = os.environ["SMOKE_BUSINESS_ID"]
-    headers = {"X-User-Id": user_id}
+    access_token = os.environ["SMOKE_ACCESS_TOKEN"]
+    headers = {"Authorization": f"Bearer {access_token}"}
 
     wait_for_ready(base_url)
 
@@ -68,6 +67,10 @@ def main() -> None:
 
     status_code, body = request_json("GET", f"{base_url}/auth/me", headers=headers)
     assert_success(status_code, body, "auth/me")
+    businesses = body["data"].get("businesses") or []
+    if not businesses:
+        raise AssertionError(f"auth/me returned no businesses: {body}")
+    business_id = businesses[0]["id"]
 
     status_code, body = request_json(
         "POST",

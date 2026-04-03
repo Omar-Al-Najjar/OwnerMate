@@ -155,3 +155,7 @@ The current backend includes an `app/agents/` package and a working orchestrator
 - current orchestrator result metadata uses persisted `agent_run_id` references rather than duration metrics
 - no forecasting, trend, or predictive task types are implemented under alternate names
 - backend API behavior changed by adding a protected file-upload review import route; no UI behavior changed in this backend step
+- backend auth now requires verified Supabase bearer tokens, maps Supabase identities onto local `users` records, and provisions a default local business for first-time authenticated users so the existing business-scoped product flows remain usable
+- frontend UI behavior now uses real Supabase sign-in, sign-up, session-backed app-shell guards, and real session logout instead of the temporary demo-cookie flow
+- frontend settings, reviews, and review-detail pages now use the live bearer-token backend path instead of mock-only auth assumptions
+- backend API behavior now also includes a protected `GET /dashboard/overview` route that exposes only review- and sentiment-based dashboard data and explicitly reports sales metrics as unavailable; no new orchestration task type was added

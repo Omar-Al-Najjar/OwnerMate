@@ -146,6 +146,7 @@ If a task changes architecture, API behavior, database schema, agent workflow, o
 - backend-only smoke/deployment rehearsal: `cd backend && docker compose -f docker-compose.smoke.yml build backend && docker compose -f docker-compose.smoke.yml up -d db`
 - run migrations explicitly before backend startup, then bring up the backend service
 - use `backend/.env.example` as the starting point for backend env configuration
+- use `backend/.env.supabase.example` plus `backend/docker-compose.supabase.yml` when cutting the backend over to Supabase-hosted Postgres
 
 ### Required Environment Variables
 
@@ -172,6 +173,7 @@ At minimum, the project will likely need:
 - DATABASE_SCHEMA.md
 - CODING_RULES.md
 - WORK_LOG.md
+- SUPABASE_DATA_CUTOVER_PLAN.md
 
 ### Implementation Rules for Coding Agents
 

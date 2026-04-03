@@ -26,5 +26,6 @@ class Business(UUIDPrimaryKeyMixin, TimestampMixin, UpdatedAtMixin, Base):
 
     owner = relationship("User", back_populates="businesses")
     reviews = relationship("Review", back_populates="business")
+    sales_records = relationship("SalesRecord", back_populates="business")
     generated_contents = relationship("GeneratedContent", back_populates="business")
     agent_runs = relationship("AgentRun", back_populates="business")

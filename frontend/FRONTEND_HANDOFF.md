@@ -6,7 +6,7 @@ Workspace: `C:\graduation project\frontend`
 
 ## 1. Project Snapshot
 
-OwnerMate is a bilingual frontend dashboard for small business owners. The current repository is a frontend-only implementation built with mock data and typed placeholder contracts.
+OwnerMate is a bilingual frontend dashboard for small business owners. The current repository still includes some mock-backed views, but it now uses real Supabase-backed frontend authentication and live backend integration on the settings and reviews surfaces.
 
 The UI currently focuses on:
 
@@ -16,7 +16,7 @@ The UI currently focuses on:
 - generating short marketing content
 - managing profile and workspace preferences
 
-No real backend, authentication service, or AI API is connected in the current project state.
+The dashboard and AI-content experiences remain mock-backed, while sign-in, sign-up, settings, reviews, and review detail now use the real Supabase-plus-backend auth path.
 
 ## 2. Current Tech Stack
 
@@ -65,7 +65,7 @@ Implemented route groups:
 Routing notes:
 
 - unsupported locales are normalized through `resolveLocale()`
-- `app/[locale]/page.tsx` redirects to `/{locale}/dashboard`
+- `app/[locale]/page.tsx` redirects to `/{locale}/sign-in` when no authenticated Supabase session exists and to `/{locale}/dashboard` when one does
 - the authenticated area is wrapped by `AppShell`
 
 ## 5. Localization and RTL
@@ -124,25 +124,26 @@ Current provider behavior:
 
 ### 8.1 Sign In
 
-Implemented as a localized form screen using `AuthCard`.
+Implemented as a localized form screen backed by Supabase password authentication.
 
 Current behavior:
 
 - email and password fields
 - localized labels and descriptions
 - navigation link to sign up
-- UI only, no auth submission logic
+- signs in through the Supabase browser client
+- persists the authenticated Supabase session for the app shell
 
 ### 8.2 Sign Up
 
-Implemented as a localized form screen using `AuthCard`.
+Implemented as a localized form screen backed by Supabase sign-up.
 
 Current behavior:
 
 - full name, email, and password fields
 - localized labels and descriptions
 - navigation link to sign in
-- UI only, no account creation logic
+- creates a Supabase account and supports email-confirmation flows through `/auth/callback`
 
 ### 8.3 Dashboard
 
@@ -150,8 +151,11 @@ Implemented as an interactive admin-style dashboard workspace.
 
 Current content:
 
-- executive hero with current filter context
-- KPI cards for total reviews, average rating, positive share, new reviews, and active sources
+- executive hero with current filter context and sales snapshot
+- mixed KPI cards for revenue, orders, average order value, refund rate, review volume, and positive share
+- revenue trend and orders-vs-revenue visual panels
+- channel mix and top-product sales panels
+- refund trend and refund summary panel
 - URL-synced filters for time range, source, language, and sentiment
 - sentiment, rating, source, and language distribution panels
 - priority review queue and recent activity feed
@@ -167,8 +171,9 @@ Data source:
 Notes:
 
 - the page now uses the shared frontend API contract rather than computing metrics inline
-- the richer dashboard payload is still mock-backed and shaped for later backend replacement
+- the richer dashboard payload is still mock-backed and now combines review and commerce-oriented mock data
 - filter state is synchronized to the URL and restored on reload
+- sales visuals follow the selected time range, while source/language/sentiment filters remain review-specific
 - the route remains `/{locale}/dashboard`
 
 ### 8.4 Reviews Page
@@ -313,6 +318,7 @@ Mocked domains include:
 
 - reviews
 - dashboard data and derived admin dashboard views
+- mock daily sales records, channel mix, refunds, and top products
 - generated content draft
 - settings profile
 
@@ -337,17 +343,18 @@ Implemented:
 - theme switching
 - responsive shell
 - auth screen UI
+- real frontend Supabase auth wiring
 - interactive admin dashboard UI
 - reviews filtering and pagination
 - review detail page
+- live backend-backed settings retrieval
+- live backend-backed reviews list and review detail retrieval
 - marketing content generator UI
 - local profile/settings behavior
 - mock API contract layer
 
 Not implemented yet:
 
-- real backend integration
-- real authentication
 - server persistence
 - real AI generation
 - automated tests

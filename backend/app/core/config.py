@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     @field_validator("debug", mode="before")
     @classmethod
     def parse_debug(cls, value: object) -> bool:
+        return cls._parse_bool(value)
+
+    @classmethod
+    def _parse_bool(cls, value: object) -> bool:
         if isinstance(value, bool):
             return value
         if isinstance(value, str):

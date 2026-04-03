@@ -37,6 +37,7 @@ Current backend deployment assumptions:
 
 ### Auth / Platform
 - `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
 ### Optional Runtime Tuning
@@ -62,20 +63,20 @@ Routing note:
 Exact current runtime behavior:
 - `DATABASE_URL` is the only environment variable required for DB-backed readiness
 - `APP_ENV` and the runtime tuning variables have safe defaults
-- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are read by config and surfaced in readiness, but they are not required for startup or readiness today
+- `SUPABASE_URL` and `SUPABASE_ANON_KEY` are required for live bearer-token verification to succeed in production-shaped auth flows
+- `SUPABASE_SERVICE_ROLE_KEY` is not required for startup, but remains the expected backend-only secret for future admin-side Supabase operations
 - all provider settings currently only support `mock`
 
 ## 4. Current Auth Assumption
 
-The current backend auth/session boundary is not yet fully Supabase-token-verified.
+The current backend auth/session boundary is now Supabase-token-verified.
 
 Current implementation status:
-- protected backend routes require an authenticated backend user
-- the current backend request boundary still uses `X-User-Id`
-- readiness reports this explicitly through the `auth_boundary` check
-- this is acceptable for scaffold/dev deployment validation, but it remains a production blocker until real session verification is wired in
-- frontend or API clients must currently send `X-User-Id` on protected requests until the real backend session boundary is implemented
-- no backend CORS middleware is configured yet, so browser-based cross-origin deployments need a same-origin proxy or an explicit backend CORS change
+- protected backend routes require a bearer token
+- the backend verifies Supabase user identity before resolving the local app user
+- the local `users` and `businesses` tables are created or updated after verified identity mapping
+- the old `X-User-Id` boundary is no longer the normal production path
+- no backend CORS middleware is configured yet, so browser-based cross-origin deployments still need a same-origin proxy or an explicit backend CORS change
 
 ## 5. Docker Build
 
@@ -187,6 +188,23 @@ Recommended local verification flow:
 7. run `python scripts/smoke_test.py` with `SMOKE_BASE_URL`, `SMOKE_USER_ID`, and `SMOKE_BUSINESS_ID`
 8. `docker compose -f docker-compose.smoke.yml down -v`
 
+## 11. Supabase-Hosted Data Runtime
+
+The repository now also supports running the backend against Supabase-hosted Postgres instead of the disposable local `db` container.
+
+Files:
+- `backend/.env.supabase.example`
+- `backend/docker-compose.supabase.yml`
+- `backend/scripts/run_supabase_migrations.ps1`
+- `SUPABASE_DATA_CUTOVER_PLAN.md`
+
+Recommended hosted cutover flow:
+1. copy `backend/.env.supabase.example` to `backend/.env.supabase`
+2. fill in the real Supabase `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`
+3. run `powershell -ExecutionPolicy Bypass -File backend/scripts/run_supabase_migrations.ps1`
+4. run `docker compose -f backend/docker-compose.supabase.yml up -d --build backend`
+5. verify `GET /ready`
+
 Smoke coverage currently verifies:
 - `GET /health`
 - `GET /ready`
@@ -202,7 +220,7 @@ Smoke coverage currently verifies:
 - `GET /content/{content_id}`
 - `POST /content/generate/marketing`
 
-## 11. Deployment Validation Checklist
+## 12. Deployment Validation Checklist
 
 - backend image builds successfully
 - required env vars are present in the runtime environment
@@ -215,9 +233,10 @@ Smoke coverage currently verifies:
 For operator-facing rollout order, preflight checks, and rollback steps, use:
 - `PRODUCTION_ROLLOUT_RUNBOOK.md`
 
-## 12. Current Production Blockers
+## 13. Current Production Blockers
 
-- real Supabase-backed session verification is not implemented yet; auth still relies on the temporary `X-User-Id` backend boundary
+- no major auth blocker remains in the current app scope
+- Supabase-hosted Postgres cutover is still pending if the goal is to unify auth and app data inside the same Supabase project
 - no deployment-level proof was captured here for a real managed Postgres/Supabase database connection; current verification covers local/containerized Postgres-backed behavior
 - no end-to-end release job or orchestrator manifest exists yet for automatically sequencing migration job then app rollout
 

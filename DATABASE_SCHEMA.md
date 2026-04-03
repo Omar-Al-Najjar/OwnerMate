@@ -37,6 +37,7 @@ All schema changes must be made through Alembic migrations.
 ### 1. users
 - `id` uuid primary key
 - `email` text unique not null
+- `supabase_user_id` text unique nullable
 - `full_name` text nullable
 - `role` text not null
 - `language_preference` text nullable
@@ -141,6 +142,7 @@ Implementation note:
 - this table is documented as an optional future structure
 - the current backend does not implement `user_settings`
 - current settings endpoints persist `language_preference` and `theme_preference` directly on `users`
+- Supabase-backed auth rollout now also maps verified identities onto `users.supabase_user_id`
 
 ## Recommended Enums or Controlled Values
 

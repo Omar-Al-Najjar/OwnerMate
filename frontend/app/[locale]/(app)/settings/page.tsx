@@ -1,5 +1,6 @@
-﻿import { SectionHeader } from "@/components/common/section-header";
+import { SectionHeader } from "@/components/common/section-header";
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
+import { apiClient } from "@/lib/api/client";
 import { resolveLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { settingsProfile } from "@/lib/mock/settings";
@@ -9,6 +10,11 @@ export default async function SettingsPage({ params }: LocaleParams) {
   const { locale } = await params;
   const safeLocale = resolveLocale(locale);
   const dictionary = getDictionary(safeLocale);
+  const settingsResponse = await apiClient.getSettings();
+  const settings =
+    settingsResponse.status === "success" && settingsResponse.data
+      ? settingsResponse.data
+      : settingsProfile;
 
   return (
     <section className="space-y-8">
@@ -17,7 +23,7 @@ export default async function SettingsPage({ params }: LocaleParams) {
         eyebrow={dictionary.navigation.settings}
         title={dictionary.settings.title}
       />
-      <SettingsWorkspace dictionary={dictionary} settings={settingsProfile} />
+      <SettingsWorkspace dictionary={dictionary} settings={settings} />
     </section>
   );
 }
