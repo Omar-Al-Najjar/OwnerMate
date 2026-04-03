@@ -1,5 +1,6 @@
-﻿import type { GeneratedContentDraft, GenerationMode } from "@/types/content";
-import type { DashboardMetric } from "@/types/dashboard";
+import { getDashboardPayload } from "@/lib/dashboard/derive";
+import type { GeneratedContentDraft, GenerationMode } from "@/types/content";
+import type { DashboardPayload } from "@/types/dashboard";
 import type { Review } from "@/types/review";
 import type { SettingsPayload } from "@/types/settings";
 
@@ -148,40 +149,13 @@ export function getRecentReviews(limit = 4): Review[] {
   return getReviews().slice(0, limit);
 }
 
-export function getDashboardMetrics(): DashboardMetric[] {
-  const items = getReviews();
-  const totalReviews = items.length || 1;
-  const positiveCount = items.filter(
-    (review) => review.sentiment.label === "positive"
-  ).length;
-  const averageRating =
-    items.reduce((sum, review) => sum + review.rating, 0) / totalReviews;
-
-  return [
-    {
-      id: "total-reviews",
-      label: "Total reviews",
-      value: String(items.length),
-      helper: `${items.filter((review) => review.status === "new").length} new`,
-    },
-    {
-      id: "avg-rating",
-      label: "Average rating",
-      value: averageRating.toFixed(1),
-      helper: `${items.length} reviews`,
-    },
-    {
-      id: "positive-share",
-      label: "Positive sentiment",
-      value: `${Math.round((positiveCount / totalReviews) * 100)}%`,
-      helper: `${positiveCount} positive`,
-    },
-  ];
-}
-
 export const reviews: Review[] = getReviews();
-export const dashboardMetrics: DashboardMetric[] = getDashboardMetrics();
 export const recentReviews: Review[] = getRecentReviews();
+export const dashboardData: DashboardPayload = getDashboardPayload(reviews);
+
+export function getDashboardData(): DashboardPayload {
+  return getDashboardPayload(getReviews());
+}
 
 export const contentModes: Array<{ label: string; value: GenerationMode }> = [
   { label: "Marketing content generation", value: "marketing_content" },

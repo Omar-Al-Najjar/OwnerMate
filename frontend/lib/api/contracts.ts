@@ -1,4 +1,4 @@
-﻿import type { DashboardMetric } from "@/types/dashboard";
+import type { DashboardPayload } from "@/types/dashboard";
 import type { GeneratedContentDraft, GenerationMode } from "@/types/content";
 import type { Review } from "@/types/review";
 import type { Locale, ThemePreference, UserProfile } from "@/types/settings";
@@ -31,10 +31,7 @@ export type ReviewsListResponse = ApiResult<{
 
 export type ReviewDetailResponse = ApiResult<Review>;
 
-export type DashboardResponse = ApiResult<{
-  metrics: DashboardMetric[];
-  recentReviews: Review[];
-}>;
+export type DashboardResponse = ApiResult<DashboardPayload>;
 
 export type GenerateContentRequest = {
   mode: GenerationMode;

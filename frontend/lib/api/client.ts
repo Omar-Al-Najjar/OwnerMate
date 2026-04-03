@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   DashboardResponse,
   GenerateContentRequest,
   GenerateContentResponse,
@@ -9,8 +9,7 @@
 } from "@/lib/api/contracts";
 import {
   generatedDraft,
-  getDashboardMetrics,
-  getRecentReviews,
+  getDashboardData,
   getReviewById,
   getReviews,
   settingsProfile,
@@ -29,10 +28,7 @@ function success<T>(data: T) {
 
 export const apiClient = {
   async getDashboard(): Promise<DashboardResponse> {
-    return success({
-      metrics: getDashboardMetrics(),
-      recentReviews: getRecentReviews(),
-    });
+    return success(getDashboardData());
   },
   async getReviews(request?: ReviewsListRequest): Promise<ReviewsListResponse> {
     const filtered = getReviews().filter((review) => {

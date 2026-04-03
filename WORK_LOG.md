@@ -1261,3 +1261,51 @@ Uploaded review data can arrive in multiple formats, but the shared ingestion an
 - the upload route is backend-only for now; no frontend upload UI was added in this session
 - SQLite support is limited to SQLite database files and intentionally does not cover other database dump styles
 - `.txt` support is limited to delimited tabular text and does not attempt free-form review extraction
+
+## 2026-04-03 12:42 - Interactive admin dashboard upgrade
+
+### Task
+Upgrade the existing localized dashboard route into a more professional admin-style workspace with stronger KPI coverage, filterable views, lightweight visualizations, and operational panels while keeping the implementation frontend-only.
+
+### Files Changed
+- `frontend/app/[locale]/(app)/dashboard/page.tsx`
+- `frontend/components/common/section-header.tsx`
+- `frontend/components/dashboard/dashboard-workspace.tsx`
+- `frontend/lib/api/client.ts`
+- `frontend/lib/api/contracts.ts`
+- `frontend/lib/dashboard/derive.ts`
+- `frontend/lib/i18n/dictionaries/en.ts`
+- `frontend/lib/i18n/dictionaries/ar.ts`
+- `frontend/lib/i18n/get-dictionary.ts`
+- `frontend/lib/mock/dashboard.ts`
+- `frontend/lib/mock/data.ts`
+- `frontend/types/dashboard.ts`
+- `frontend/types/i18n.ts`
+- `frontend/FRONTEND_HANDOFF.md`
+- `WORK_LOG.md`
+
+### What Was Done
+- replaced the old inline dashboard page with a thin loader that resolves locale, dictionary, and dashboard data through the shared frontend API layer
+- restored `SectionHeader` so shared app pages render their header content again
+- added a new client-side `DashboardWorkspace` with URL-synced filters, a hero summary area, KPI cards with trend context and sparklines, distribution panels, a priority review queue, a recent activity feed, and recent review plus quick-action panels
+- expanded the frontend dashboard types and mock API contract from simple metrics to a richer dashboard payload and derived filtered views
+- updated English and Arabic dashboard dictionary entries for the new admin dashboard labels and panel copy
+- updated the frontend handoff doc so it describes the new dashboard behavior instead of the old minimal inline summary
+
+### Why
+The original dashboard was too limited for an admin-facing demo. This refactor keeps the route and frontend-only scope intact while making the page feel like a real executive plus operations workspace and aligning the data contract for eventual backend replacement.
+
+### Testing
+- `cd frontend && npm run lint`
+- `cd frontend && npm run build`
+
+### Migrations / Env Changes
+- no schema migrations
+- no env var changes
+- no backend API changes
+- frontend UI behavior changed on `/{locale}/dashboard`
+
+### Remaining Work / Notes
+- the dashboard remains mock-backed in this phase
+- no new charting dependency was introduced; visualizations use existing Tailwind and inline SVG/CSS only
+- reviews, AI content, and settings routes were left behaviorally unchanged

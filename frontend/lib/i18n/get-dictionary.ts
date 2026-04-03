@@ -7,6 +7,8 @@ const dictionaries = {
   ar,
 } as const;
 
+export type Dictionary = (typeof dictionaries)[keyof typeof dictionaries];
+
 export function getDictionary(locale: Locale) {
   return dictionaries[locale];
 }

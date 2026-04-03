@@ -146,25 +146,30 @@ Current behavior:
 
 ### 8.3 Dashboard
 
-Implemented with data derived from mock reviews.
+Implemented as an interactive admin-style dashboard workspace.
 
 Current content:
 
-- total reviews card
-- average rating card
-- sentiment progress summary
+- executive hero with current filter context
+- KPI cards for total reviews, average rating, positive share, new reviews, and active sources
+- URL-synced filters for time range, source, language, and sentiment
+- sentiment, rating, source, and language distribution panels
+- priority review queue and recent activity feed
 - recent reviews panel
-- quick action buttons
-- sentiment overview panel
+- quick actions linking into reviews and AI content flows
 
 Data source:
 
-- `lib/mock/data.ts`
+- `lib/api/client.ts`
+- `lib/dashboard/derive.ts`
+- mock review data from `lib/mock/data.ts`
 
 Notes:
 
-- dashboard metrics are calculated from local mock reviews
-- the page does not currently render dedicated loading or error branches
+- the page now uses the shared frontend API contract rather than computing metrics inline
+- the richer dashboard payload is still mock-backed and shaped for later backend replacement
+- filter state is synchronized to the URL and restored on reload
+- the route remains `/{locale}/dashboard`
 
 ### 8.4 Reviews Page
 
@@ -307,7 +312,7 @@ The repository uses local typed mock data as the current source of truth.
 Mocked domains include:
 
 - reviews
-- dashboard metrics
+- dashboard data and derived admin dashboard views
 - generated content draft
 - settings profile
 
@@ -320,6 +325,7 @@ Current status of this layer:
 
 - returns mock data only
 - includes typed success and error shapes
+- now returns a richer dashboard payload with KPI, distribution, activity, and action-oriented sections
 - prepares the project for future real API integration
 
 ## 11. What Is Actually Implemented vs Not Implemented
@@ -331,7 +337,7 @@ Implemented:
 - theme switching
 - responsive shell
 - auth screen UI
-- dashboard UI
+- interactive admin dashboard UI
 - reviews filtering and pagination
 - review detail page
 - marketing content generator UI
