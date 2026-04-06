@@ -97,3 +97,32 @@ The project needs stable documentation before implementation begins so coding ag
 ### Remaining Work / Notes
 * tailor these docs further once the repository structure is finalized
 * update API and architecture docs as implementation becomes concrete
+
+## 2026-04-06 20:34 - Sync frontend folder from backend branch
+
+### Task
+Move the `frontend/` implementation that exists on the `backend` branch into the `frontend` branch.
+
+### Files Changed
+- `WORK_LOG.md`
+- `frontend/`
+
+### What Was Done
+- checked the `frontend/` tree on both `backend` and `frontend`
+- copied the `frontend/` directory from `backend` into the `frontend` branch worktree
+- preserved the branch-local result as staged/modified files on `frontend`
+
+### Why
+The requested frontend implementation existed on the `backend` branch and needed to be placed onto the dedicated `frontend` branch.
+
+### Testing
+- manual test: compared branch file lists and verified the resulting staged diff on `frontend`
+- not tested yet: app runtime, build, and automated tests were not executed
+
+### Migrations / Env Changes
+- none
+
+### Remaining Work / Notes
+- review and commit the synced files on the `frontend` branch
+- push `frontend` after validation if you want the remote branch updated
+- this change affects UI files and frontend-side API route files under `frontend/`

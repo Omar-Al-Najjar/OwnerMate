@@ -1,1 +1,1 @@
-﻿export { dashboardMetrics, recentReviews } from "@/lib/mock/data";
+export { dashboardData, getDashboardData, recentReviews } from "@/lib/mock/data";

@@ -1,24 +1,29 @@
-﻿import { ErrorState } from "@/components/feedback/error-state";
+import { ErrorState } from "@/components/feedback/error-state";
 import { RatingStars } from "@/components/reviews/rating-stars";
 import { SectionHeader } from "@/components/common/section-header";
 import { SentimentBadge } from "@/components/reviews/sentiment-badge";
 import { StatusBadge } from "@/components/reviews/status-badge";
+import { apiClient } from "@/lib/api/client";
 import { formatDate } from "@/lib/utils/formatters";
 import { resolveLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { getReviewById } from "@/lib/mock/data";
 import type { ReviewDetailParams } from "@/types/i18n";
 
 export default async function ReviewDetailPage({ params }: ReviewDetailParams) {
   const { locale, reviewId } = await params;
   const safeLocale = resolveLocale(locale);
   const dictionary = getDictionary(safeLocale);
-  const review = getReviewById(reviewId);
+  const reviewResponse = await apiClient.getReviewById(reviewId);
+  const review = reviewResponse.status === "success" ? reviewResponse.data : null;
 
   if (!review) {
     return (
       <ErrorState
-        description={dictionary.reviewDetail.missingDescription}
+        description={
+          reviewResponse.status === "error"
+            ? reviewResponse.error?.message ?? dictionary.reviewDetail.missingDescription
+            : dictionary.reviewDetail.missingDescription
+        }
         title={dictionary.reviewDetail.missingTitle}
       />
     );

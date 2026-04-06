@@ -14,6 +14,7 @@ type HeaderProps = {
     title: string;
     description: string;
   };
+  signOutAction: React.ReactNode;
 };
 
 export function Header({
@@ -23,6 +24,7 @@ export function Header({
   locale,
   onOpenNavigation,
   pageContext,
+  signOutAction,
 }: HeaderProps) {
   const alignClass = isRtl ? "text-right" : "text-left";
 
@@ -64,6 +66,7 @@ export function Header({
           <div className="rounded-2xl border border-border bg-card p-1 shadow-sm">
             <ThemeToggle common={common} />
           </div>
+          {signOutAction}
         </div>
       </div>
     </header>

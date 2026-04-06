@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Header } from "@/components/layout/header";
 import { PageContainer } from "@/components/layout/page-container";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -19,6 +20,8 @@ type AppShellProps = {
   locale: Locale;
   navigation: NavigationDictionary;
   shell: ShellDictionary;
+  signOutLabel: string;
+  signOutPendingLabel: string;
 };
 
 type SectionKey = "dashboard" | "reviews" | "ai-content" | "settings";
@@ -36,6 +39,8 @@ export function AppShell({
   locale,
   navigation,
   shell,
+  signOutLabel,
+  signOutPendingLabel,
 }: AppShellProps) {
   const pathname = usePathname();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -130,6 +135,13 @@ export function AppShell({
           locale={locale}
           onOpenNavigation={() => setIsMobileNavOpen((value) => !value)}
           pageContext={pageContext}
+          signOutAction={
+            <SignOutButton
+              label={signOutLabel}
+              locale={locale}
+              pendingLabel={signOutPendingLabel}
+            />
+          }
         />
         <PageContainer>{children}</PageContainer>
       </div>

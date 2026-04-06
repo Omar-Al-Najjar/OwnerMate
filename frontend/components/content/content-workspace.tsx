@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/forms/button";
 import { GeneratedContentBox } from "@/components/content/generated-content-box";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -45,34 +45,68 @@ export function ContentWorkspace({
 }: ContentWorkspaceProps) {
   const [marketingInput, setMarketingInput] = useState("");
   const [generated, setGenerated] = useState("");
+  const [editableText, setEditableText] = useState("");
+  const [generatedContentId, setGeneratedContentId] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [status, setStatus] = useState<
     "idle" | "loading" | "error" | "success"
   >("idle");
+  const [notice, setNotice] = useState("");
 
-  const generatedContent = useMemo(() => {
-    const imageNote = imagePreview
-      ? locale === "ar"
-        ? " تم إرفاق صورة مرجعية للمنتج ضمن هذا الطلب."
-        : " A product reference image was included with this request."
-      : "";
-
-    return locale === "ar"
-      ? `اكتشف حلا عمليا يساعدك على إدارة المراجعات وصناعة محتوى واضح. السياق الحالي: ${marketingInput}.${imageNote} ابدأ الآن برسالة قصيرة ومباشرة مناسبة للنشر.`
-      : `Discover a practical workspace that helps you manage reviews and create clear content. Current context: ${marketingInput}.${imageNote} Start with a short, publish-ready message.`;
-  }, [imagePreview, locale, marketingInput]);
-
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!marketingInput.trim()) {
       setStatus("error");
       return;
     }
 
     setStatus("loading");
-    window.setTimeout(() => {
-      setGenerated(generatedContent);
+    setNotice("");
+
+    const imageNote = imagePreview
+      ? locale === "ar"
+        ? " تم إرفاق صورة مرجعية للمنتج ضمن هذا الطلب."
+        : " A product reference image was included with this request."
+      : "";
+
+    try {
+      const response = await fetch("/api/content/marketing", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          language: locale,
+          businessContext: `${marketingInput}${imageNote}`,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | {
+            success?: boolean;
+            data?: {
+              id: string;
+              generatedText: string;
+              editableText: string;
+            };
+            error?: {
+              message?: string;
+            };
+          }
+        | null;
+
+      if (!response.ok || !body?.success || !body.data) {
+        setStatus("error");
+        setNotice(body?.error?.message ?? dictionary.aiContent.errorDescription);
+        return;
+      }
+
+      setGeneratedContentId(body.data.id);
+      setGenerated(body.data.generatedText);
+      setEditableText(body.data.editableText);
       setStatus("success");
-    }, 450);
+    } catch {
+      setStatus("error");
+      setNotice(dictionary.aiContent.errorDescription);
+    }
   };
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,6 +124,43 @@ export function ContentWorkspace({
     };
     reader.readAsDataURL(file);
     event.target.value = "";
+  };
+
+  const handleSave = async () => {
+    if (!generatedContentId || !editableText.trim()) {
+      return;
+    }
+
+    const response = await fetch("/api/content/save", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contentId: generatedContentId,
+        editedText: editableText,
+      }),
+    });
+
+    const body = (await response.json().catch(() => null)) as
+      | {
+          success?: boolean;
+          data?: {
+            editableText: string;
+          };
+          error?: {
+            message?: string;
+          };
+        }
+      | null;
+
+    if (!response.ok || !body?.success) {
+      setNotice(body?.error?.message ?? dictionary.aiContent.saveDescription);
+      return;
+    }
+
+    setEditableText(body.data?.editableText ?? editableText);
+    setNotice(dictionary.aiContent.copiedDescription);
   };
 
   return (
@@ -173,6 +244,8 @@ export function ContentWorkspace({
 
             <Button
               className="bg-surface text-foreground hover:bg-slate-200 dark:hover:bg-slate-700"
+              disabled={!generatedContentId || !editableText.trim()}
+              onClick={handleSave}
               type="button"
             >
               {dictionary.common.save}
@@ -198,18 +271,30 @@ export function ContentWorkspace({
         {status === "loading" ? <LoadingSkeleton /> : null}
         {status === "error" ? (
           <ErrorState
-            description={dictionary.aiContent.errorDescription}
+            description={notice || dictionary.aiContent.errorDescription}
             title={dictionary.aiContent.errorTitle}
           />
         ) : null}
         {status === "success" ? (
-          <GeneratedContentBox
-            content={generated}
-            title={dictionary.aiContent.marketingOutputTitle}
-          />
+          <div className="space-y-4">
+            <GeneratedContentBox
+              content={generated}
+              title={dictionary.aiContent.marketingOutputTitle}
+            />
+            <label className="block space-y-2 text-start">
+              <span className="text-sm font-medium text-foreground">
+                {dictionary.common.save}
+              </span>
+              <textarea
+                className="min-h-[220px] w-full resize-none rounded-2xl border border-border bg-surface px-4 py-4 text-base text-foreground outline-none transition placeholder:text-muted focus:border-primary"
+                onChange={(event) => setEditableText(event.target.value)}
+                value={editableText}
+              />
+            </label>
+          </div>
         ) : null}
         <div className="panel p-5 text-sm text-muted">
-          <p>{dictionary.aiContent.saveDescription}</p>
+          <p>{notice || dictionary.aiContent.saveDescription}</p>
           <p className="mt-2">{dictionary.aiContent.copiedDescription}</p>
         </div>
       </section>

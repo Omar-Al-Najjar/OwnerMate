@@ -1,9 +1,10 @@
-﻿import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ProfileProvider } from "@/components/providers/profile-provider";
-import { settingsProfile } from "@/lib/mock/settings";
-import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { getDirection } from "@/lib/utils/direction";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { getAppSession } from "@/lib/auth/session";
 import { resolveLocale } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { settingsProfile } from "@/lib/mock/settings";
+import { getDirection } from "@/lib/utils/direction";
 
 export default async function LocaleLayout({
   children,
@@ -14,7 +15,15 @@ export default async function LocaleLayout({
 }>) {
   const { locale } = await params;
   const safeLocale = resolveLocale(locale);
+  const session = await getAppSession();
   const dictionary = getDictionary(safeLocale);
+  const initialProfile = session
+    ? {
+        fullName: session.fullName ?? "OwnerMate User",
+        email: session.email,
+        role: session.role.charAt(0).toUpperCase() + session.role.slice(1),
+      }
+    : settingsProfile.profile;
 
   return (
     <ThemeProvider
@@ -23,7 +32,7 @@ export default async function LocaleLayout({
       dir={getDirection(safeLocale)}
       locale={safeLocale}
     >
-      <ProfileProvider initialProfile={settingsProfile.profile}>
+      <ProfileProvider initialProfile={initialProfile}>
         {children}
       </ProfileProvider>
     </ThemeProvider>
