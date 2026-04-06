@@ -41,7 +41,7 @@ export function AuthForm({ dictionary, locale, mode }: AuthFormProps) {
         return;
       }
 
-      await fetch("/api/auth/session", {
+      const sessionResponse = await fetch("/api/auth/session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -51,6 +51,22 @@ export function AuthForm({ dictionary, locale, mode }: AuthFormProps) {
           refresh_token: session.refresh_token,
         }),
       });
+
+      const sessionBody = (await sessionResponse.json().catch(() => null)) as
+        | {
+            success?: boolean;
+            error?: {
+              message?: string;
+            };
+          }
+        | null;
+
+      if (!sessionResponse.ok || !sessionBody?.success) {
+        if (!cancelled) {
+          setError(sessionBody?.error?.message ?? dictionary.signInErrorFallback);
+        }
+        return;
+      }
 
       if (!cancelled) {
         startTransition(() => {
@@ -65,7 +81,7 @@ export function AuthForm({ dictionary, locale, mode }: AuthFormProps) {
     return () => {
       cancelled = true;
     };
-  }, [locale, mode, router]);
+  }, [dictionary.signInErrorFallback, locale, mode, router]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

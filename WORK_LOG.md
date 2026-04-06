@@ -126,3 +126,31 @@ The requested frontend implementation existed on the `backend` branch and needed
 - review and commit the synced files on the `frontend` branch
 - push `frontend` after validation if you want the remote branch updated
 - this change affects UI files and frontend-side API route files under `frontend/`
+
+## 2026-04-06 22:18 - Resync frontend folder from latest backend branch
+
+### Task
+Bring the latest `frontend/` changes from the updated `backend` branch back into the dedicated `frontend` branch.
+
+### Files Changed
+- `WORK_LOG.md`
+- `frontend/`
+
+### What Was Done
+- fetched the latest remote branch state from `origin/backend`
+- restored local test-only edits from prior validation work
+- replaced the `frontend/` directory on the `frontend` branch with the latest version from `origin/backend`
+
+### Why
+The backend branch received new frontend updates and the frontend branch needed to be brought back in sync with that latest source of truth.
+
+### Testing
+- manual verification: confirmed the new diff now matches the latest `origin/backend` frontend changes
+- not tested yet: runtime/frontend build checks were not rerun in this sync step
+
+### Migrations / Env Changes
+- none
+
+### Remaining Work / Notes
+- commit and push the refreshed frontend sync if you want the remote `frontend` branch updated
+- this sync updates UI/frontend code only

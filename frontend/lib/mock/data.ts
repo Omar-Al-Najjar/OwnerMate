@@ -307,8 +307,8 @@ export const settingsProfile: SettingsPayload = {
   locale: "en",
   theme: "system",
   profile: {
-    fullName: "OwnerMate Admin",
-    email: "admin@ownermate.local",
+    fullName: "OwnerMate User",
+    email: "user@ownermate.local",
     role: "Business Owner",
   },
 };

@@ -1,4 +1,5 @@
 import { ProfileProvider } from "@/components/providers/profile-provider";
+import { getDisplayName } from "@/lib/auth/profile-display";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { getAppSession } from "@/lib/auth/session";
 import { resolveLocale } from "@/lib/i18n/config";
@@ -19,7 +20,7 @@ export default async function LocaleLayout({
   const dictionary = getDictionary(safeLocale);
   const initialProfile = session
     ? {
-        fullName: session.fullName ?? "OwnerMate User",
+        fullName: getDisplayName(session.fullName, session.email),
         email: session.email,
         role: session.role.charAt(0).toUpperCase() + session.role.slice(1),
       }

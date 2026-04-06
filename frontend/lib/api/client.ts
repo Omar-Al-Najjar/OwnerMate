@@ -12,6 +12,7 @@ import type {
   SettingsResponse,
 } from "@/lib/api/contracts";
 import { toFrontendReview } from "@/lib/api/adapters";
+import { getDisplayName } from "@/lib/auth/profile-display";
 import { getAppSession } from "@/lib/auth/session";
 import { getDashboardPayload } from "@/lib/dashboard/derive";
 import {
@@ -489,8 +490,11 @@ export const apiClient = {
         locale: response.data.language_preference ?? settingsProfile.locale,
         theme: response.data.theme_preference ?? settingsProfile.theme,
         profile: {
-          fullName:
-            authContext.session.fullName ?? settingsProfile.profile.fullName,
+          fullName: getDisplayName(
+            authContext.session.fullName,
+            authContext.session.email,
+            settingsProfile.profile.fullName
+          ),
           email: authContext.session.email,
           role:
             authContext.session.role.charAt(0).toUpperCase() +
