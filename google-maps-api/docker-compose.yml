@@ -1,0 +1,34 @@
+services:
+  scraper:
+    image: gosom/google-maps-scraper:latest
+    command: ["-web", "-addr", ":8080", "-data-folder", "/gmapsdata", "-c", "4"]
+    volumes:
+      - gmapsdata:/gmapsdata
+    networks:
+      - internal
+    restart: unless-stopped
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SCRAPER_BASE_URL=http://scraper:8080
+    depends_on:
+      - scraper
+    networks:
+      - internal
+    restart: unless-stopped
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --timeout-keep-alive 800
+      --timeout-graceful-shutdown 900
+
+networks:
+  internal:
+
+volumes:
+  gmapsdata:
