@@ -184,3 +184,65 @@ When an endpoint is added, removed, or behavior changes, the agent must:
 * Update this file (`API.md`).
 * Record the change in `WORK_LOG.md`.
 * Note whether frontend consumers were updated too.
+
+## 10. Current Prototype Contract
+
+The repository currently includes a frontend handoff prototype in `Agent prototype/`.
+This prototype is not yet the final OwnerMate review workflow. It is a dataset-analysis contract intended to help a frontend engineer integrate the current AI orchestration safely.
+
+### Suggested prototype route
+
+- `POST /prototype/analyze-dataset`
+
+### Prototype input
+
+Multipart upload or equivalent server-side handoff containing:
+- CSV file
+- optional dataset name override
+
+### Prototype response shape
+
+```json
+{
+  "task_type": "analyze_dataset",
+  "status": "success",
+  "data": {
+    "dataset": {},
+    "semantic_model": {},
+    "questions": {},
+    "findings": {},
+    "insights": {},
+    "run": {}
+  },
+  "meta": {
+    "agent": "dataset_analysis_orchestrator",
+    "duration_ms": 1234,
+    "model": "kimi-k2.5",
+    "question_count": 18,
+    "successful_queries": 16,
+    "failed_queries": 2
+  },
+  "error": null
+}
+```
+
+### Prototype status values
+
+- `success`
+- `partial_success`
+- `error`
+
+### Prototype error shape
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "The uploaded CSV is empty.",
+  "details": null
+}
+```
+
+### Prototype note
+
+This contract is suitable for the current Streamlit shell and for a future frontend port.
+It should not be confused with the final in-scope OwnerMate APIs for review ingestion, sentiment analysis, and content generation.

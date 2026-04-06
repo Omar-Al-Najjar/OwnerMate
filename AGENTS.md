@@ -133,3 +133,47 @@ Whenever an agent is added, changed, rerouted, or removed, the coding agent must
 If a task can be solved with a simple service layer before full multi-agent abstraction, that is acceptable. 
 
 However, the documentation and code should still preserve a clear orchestration boundary so the project can scale later.
+
+## 12. Current Prototype Boundary
+
+The current repository also contains a **frontend handoff prototype** under `Agent prototype/`.
+
+This prototype is intentionally limited:
+- it analyzes uploaded CSV business datasets
+- it does not yet implement the final OwnerMate review-ingestion workflow
+- it keeps a clear orchestration boundary so the frontend can consume one stable response envelope
+
+### Prototype orchestrator output
+
+The prototype returns a structured envelope shaped like:
+
+```json
+{
+  "task_type": "analyze_dataset",
+  "status": "success | partial_success | error",
+  "data": {
+    "dataset": {},
+    "semantic_model": {},
+    "questions": {},
+    "findings": {},
+    "insights": {},
+    "run": {}
+  },
+  "meta": {
+    "agent": "dataset_analysis_orchestrator",
+    "duration_ms": 1234,
+    "model": "kimi-k2.5",
+    "question_count": 18,
+    "successful_queries": 16,
+    "failed_queries": 2
+  },
+  "error": null
+}
+```
+
+### Runtime note
+
+The prototype now expects server-side environment configuration for the model provider, primarily:
+- `OWNERMATE_LLM_API_KEY`
+- `OWNERMATE_LLM_MODEL`
+- `OWNERMATE_LLM_BASE_URL`

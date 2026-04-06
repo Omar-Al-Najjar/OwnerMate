@@ -1,23 +1,45 @@
-import os
-import sys
+from __future__ import annotations
+
+import asyncio
+import hashlib
 import io
 import json
-import asyncio
-from typing import TypedDict, Optional, List, Dict, Literal
+import os
+import sys
+import time
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from difflib import SequenceMatcher
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, TypedDict
 
+import nest_asyncio
 import numpy as np
 import pandas as pd
-import nest_asyncio
+from langgraph.graph import StateGraph
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
-from langgraph.graph import StateGraph
+from pydantic_ai.providers.openai import OpenAIProvider
+from dotenv import load_dotenv
 
 nest_asyncio.apply()
+load_dotenv(Path(__file__).with_name(".env"))
 
-# ══════════════════════════════════════════════════════════════════
-# PYDANTIC DATA MODELS
-# ══════════════════════════════════════════════════════════════════
+
+class PipelineError(Exception):
+    """Base error for predictable pipeline failures."""
+
+
+class ConfigError(PipelineError):
+    """Raised when runtime configuration is missing or invalid."""
+
+
+class ValidationError(PipelineError):
+    """Raised when the uploaded dataset cannot be processed safely."""
+
 
 class ColumnStats(BaseModel):
     mean: Optional[float] = None
@@ -25,23 +47,53 @@ class ColumnStats(BaseModel):
     std: Optional[float] = None
     min: Optional[float] = None
     max: Optional[float] = None
+    q1: Optional[float] = None
+    q3: Optional[float] = None
+    p95: Optional[float] = None
+    iqr: Optional[float] = None
+    skewness: Optional[float] = None
+    zero_count: Optional[int] = None
+    negative_count: Optional[int] = None
     unique_count: int
+    null_count: int = 0
+    null_percentage: float = 0.0
+    top_values: Optional[Dict[str, int]] = None
+
 
 class ColumnSemantics(BaseModel):
     name: str
-    dtype: Literal["int", "float", "string", "datetime", "category"]
+    dtype: Literal["int", "float", "string", "datetime", "category", "boolean"]
     description: str
     unit: Optional[str] = None
     role: Literal["feature", "target", "id", "time", "category"]
     stats: Optional[ColumnStats] = None
+    sample_values: Optional[List[str]] = None
+    cardinality: Optional[Literal["unique", "high", "medium", "low"]] = None
+    possible_values: Optional[List[str]] = None
+    format_hint: Optional[str] = None
+    business_domain: Optional[
+        Literal["financial", "temporal", "geographic", "operational", "identifier", "status", "other"]
+    ] = None
+    is_nullable: bool = False
+    tags: Optional[List[str]] = None
+    relationships: Optional[List[str]] = None
+
 
 class DatasetSemantics(BaseModel):
     dataset_name: str
     row_count: int
+    column_count: int = 0
     columns: List[ColumnSemantics]
     primary_keys: List[str]
     time_column: Optional[str]
     missing_values: Dict[str, int]
+    inferred_domain: Optional[str] = None
+    duplicate_row_count: int = 0
+    date_range: Optional[Dict[str, str]] = None
+    inter_column_relationships: Optional[List[str]] = None
+    dataset_description: Optional[str] = None
+    numeric_correlations: Optional[Dict[str, Dict[str, float]]] = None
+
 
 class AnalyticalQuestion(BaseModel):
     question: str
@@ -49,9 +101,11 @@ class AnalyticalQuestion(BaseModel):
     priority: bool = False
     priority_reason: Optional[str] = None
 
+
 class AnalyticalQuestionsOutput(BaseModel):
     dataset_understanding: str
     questions: List[AnalyticalQuestion]
+
 
 class QueryResult(BaseModel):
     question: str
@@ -61,8 +115,10 @@ class QueryResult(BaseModel):
     error: Optional[str] = None
     actual_result: Optional[str] = None
 
+
 class SQLAgentOutput(BaseModel):
     answers: List[QueryResult]
+
 
 class ActionItem(BaseModel):
     title: str
@@ -72,770 +128,1096 @@ class ActionItem(BaseModel):
     recommendation: str
     expected_impact: str
 
+
 class BusinessInsightsOutput(BaseModel):
     executive_summary: str
+    positive_highlights: List[str]
     action_items: List[ActionItem]
     watch_out_for: List[str]
 
-class ManagerDecision(BaseModel):
-    next_agent: Literal["question_agent", "sql_agent", "insights_agent", "refinement_agent", "done"]
-    reasoning: str
 
 class RefinementDecision(BaseModel):
-    needs_refinement: bool
-    target_agent: Optional[Literal["question_agent", "sql_agent", "insights_agent"]] = None
-    failed_questions: Optional[List[str]] = None
+    approved: bool
     feedback: str
+    failed_questions: Optional[List[str]] = None
     reasoning: str
 
 
-# ══════════════════════════════════════════════════════════════════
-# LANGGRAPH STATE
-# ══════════════════════════════════════════════════════════════════
-
 class MasterState(TypedDict):
-    df: pd.DataFrame
-    semantic_model: DatasetSemantics
+    semantic_model: Optional[DatasetSemantics]
     questions: Optional[AnalyticalQuestionsOutput]
     answers: Optional[List[QueryResult]]
     insights: Optional[BusinessInsightsOutput]
     refinement: Optional[RefinementDecision]
+    question_floor: int
+    sql_retry_count: int
+    insights_retry_count: int
+    question_retry_count: int
     refinement_feedback: Optional[str]
     refinement_failed_questions: Optional[List[str]]
-    refinement_count: int
-    rerun_history: Dict[str, bool]
-    manager_log: List[str]
+    pipeline_log: List[str]
     _next: str
 
 
-# ══════════════════════════════════════════════════════════════════
-# DATA PROFILING UTILITIES
-# ══════════════════════════════════════════════════════════════════
+@dataclass(frozen=True)
+class RuntimeConfig:
+    api_key: str
+    model: str
+    base_url: str
+    temperature: float
+    agent_timeout: int
+    agent_retries: int
+    batch_size: int
+    sql_heal_retries: int
+    max_retries: int
+    trim_chars: int
+    disable_thinking: bool
 
-def profile_dataframe(df: pd.DataFrame) -> dict:
-    profile: dict = {"columns": {}}
-    for col in df.columns:
-        series = df[col]
-        if np.issubdtype(series.dtype, np.number):
-            stats = {
-                "mean": float(series.mean()),
-                "median": float(series.median()),
-                "std": float(series.std()),
-                "min": float(series.min()),
-                "max": float(series.max()),
-                "unique_count": int(series.nunique()),
+
+PRIORITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}
+DEFAULT_MODEL = "kimi-k2.5"
+DEFAULT_BASE_URL = "https://api.moonshot.ai/v1"
+DEFAULT_TEMPERATURE = 0.6
+DEFAULT_TASK_TYPE = "analyze_dataset"
+DEFAULT_AGENT_NAME = "dataset_analysis_orchestrator"
+
+_SEMANTIC_CACHE: dict[str, DatasetSemantics] = {}
+_AGENTS_CACHE: dict[tuple[str, str, bool], dict[str, Agent]] = {}
+
+
+def _as_bool(raw: Optional[str], default: bool = True) -> bool:
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def get_runtime_config() -> RuntimeConfig:
+    api_key = os.getenv("OWNERMATE_LLM_API_KEY")
+    if not api_key:
+        raise ConfigError("Missing `OWNERMATE_LLM_API_KEY` environment variable.")
+    return RuntimeConfig(
+        api_key=api_key,
+        model=os.getenv("OWNERMATE_LLM_MODEL", DEFAULT_MODEL),
+        base_url=os.getenv("OWNERMATE_LLM_BASE_URL", DEFAULT_BASE_URL),
+        temperature=float(os.getenv("OWNERMATE_LLM_TEMPERATURE", str(DEFAULT_TEMPERATURE))),
+        agent_timeout=int(os.getenv("OWNERMATE_AGENT_TIMEOUT", "120")),
+        agent_retries=int(os.getenv("OWNERMATE_AGENT_RETRIES", "3")),
+        batch_size=int(os.getenv("OWNERMATE_BATCH_SIZE", "5")),
+        sql_heal_retries=int(os.getenv("OWNERMATE_SQL_HEAL_RETRIES", "2")),
+        max_retries=int(os.getenv("OWNERMATE_REFINEMENT_RETRIES", "2")),
+        trim_chars=int(os.getenv("OWNERMATE_RESULT_TRIM_CHARS", "6000")),
+        disable_thinking=_as_bool(os.getenv("OWNERMATE_DISABLE_THINKING"), default=True),
+    )
+
+
+def get_runtime_summary() -> dict[str, Any]:
+    return {
+        "api_key_configured": bool(os.getenv("OWNERMATE_LLM_API_KEY")),
+        "model": os.getenv("OWNERMATE_LLM_MODEL", DEFAULT_MODEL),
+        "base_url": os.getenv("OWNERMATE_LLM_BASE_URL", DEFAULT_BASE_URL),
+        "temperature": float(os.getenv("OWNERMATE_LLM_TEMPERATURE", str(DEFAULT_TEMPERATURE))),
+        "batch_size": int(os.getenv("OWNERMATE_BATCH_SIZE", "5")),
+        "agent_timeout": int(os.getenv("OWNERMATE_AGENT_TIMEOUT", "120")),
+    }
+
+
+def _profile_column(column: str, series: pd.Series) -> tuple[str, dict[str, Any]]:
+    null_count = int(series.isnull().sum())
+    unique_count = int(series.nunique(dropna=True))
+    sample_values = [str(value) for value in series.dropna().unique()[:5]]
+    top_values = None
+
+    if series.dtype == object or unique_count <= 50:
+        top_values = {
+            str(key): int(value)
+            for key, value in series.value_counts(dropna=True).head(10).items()
+        }
+
+    stats: dict[str, Any] = {
+        "unique_count": unique_count,
+        "null_count": null_count,
+        "null_percentage": round((null_count / len(series) * 100), 2) if len(series) else 0,
+        "top_values": top_values,
+    }
+
+    if np.issubdtype(series.dtype, np.number):
+        clean = series.dropna()
+        q1 = float(clean.quantile(0.25)) if len(clean) else None
+        q3 = float(clean.quantile(0.75)) if len(clean) else None
+        stats.update(
+            {
+                "mean": float(series.mean()) if len(clean) else None,
+                "median": float(series.median()) if len(clean) else None,
+                "std": float(series.std()) if len(clean) else None,
+                "min": float(series.min()) if len(clean) else None,
+                "max": float(series.max()) if len(clean) else None,
+                "q1": q1,
+                "q3": q3,
+                "p95": float(clean.quantile(0.95)) if len(clean) else None,
+                "iqr": round(q3 - q1, 6) if q1 is not None and q3 is not None else None,
+                "skewness": float(clean.skew()) if len(clean) else None,
+                "zero_count": int((series == 0).sum()),
+                "negative_count": int((series < 0).sum()),
             }
-        else:
-            stats = {"unique_count": int(series.nunique())}
-        profile["columns"][col] = {"dtype": str(series.dtype), "stats": stats}
-    profile["missing"] = df.isnull().sum().to_dict()
+        )
+
+    return column, {"dtype": str(series.dtype), "stats": stats, "sample_values": sample_values}
+
+
+def profile_dataframe(df: pd.DataFrame) -> dict[str, Any]:
+    profile: dict[str, Any] = {"columns": {}}
+    with ThreadPoolExecutor() as executor:
+        for column, column_profile in executor.map(lambda c: _profile_column(c, df[c]), df.columns):
+            profile["columns"][column] = column_profile
+
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    profile["numeric_correlations"] = (
+        df[numeric_cols].corr().round(3).to_dict() if len(numeric_cols) >= 2 else {}
+    )
+    profile["missing"] = {key: int(value) for key, value in df.isnull().sum().items()}
     profile["row_count"] = len(df)
+    profile["column_count"] = len(df.columns)
+    profile["duplicate_row_count"] = int(df.duplicated().sum())
     return profile
 
 
-def build_semantic_input(df: pd.DataFrame) -> str:
-    return json.dumps({"dataset_name": "uploaded_dataset", "profile": profile_dataframe(df)})
-
-
 def validate_semantics(semantics: DatasetSemantics, df: pd.DataFrame) -> DatasetSemantics:
-    df_cols = set(df.columns)
-    semantic_col_names = [c.name for c in semantics.columns]
-    for col in semantics.columns:
-        if col.name not in df_cols:
-            raise ValueError(
-                f"Hallucinated column in semantic model: '{col.name}'. "
-                f"Real columns: {sorted(df_cols)}"
+    df_columns = set(df.columns)
+    valid_columns = [column for column in semantics.columns if column.name in df_columns]
+    seen = {column.name for column in valid_columns}
+
+    for column_name in df.columns:
+        if column_name in seen:
+            continue
+        series = df[column_name]
+        dtype: Literal["int", "float", "string", "datetime", "category", "boolean"]
+        if pd.api.types.is_bool_dtype(series):
+            dtype = "boolean"
+        elif pd.api.types.is_integer_dtype(series):
+            dtype = "int"
+        elif pd.api.types.is_float_dtype(series):
+            dtype = "float"
+        else:
+            dtype = "string"
+        valid_columns.append(
+            ColumnSemantics(
+                name=column_name,
+                dtype=dtype,
+                description=f"Column '{column_name}' added as a fallback stub during validation.",
+                role="feature",
+                stats=ColumnStats(
+                    unique_count=int(series.nunique(dropna=True)),
+                    null_count=int(series.isnull().sum()),
+                    null_percentage=round(series.isnull().mean() * 100, 2),
+                ),
+                is_nullable=bool(series.isnull().any()),
             )
-    for col in df_cols:
-        if col not in semantic_col_names:
-            raise ValueError(f"Column '{col}' exists in dataframe but missing from semantic model.")
-    for pk in semantics.primary_keys:
-        if pk not in df_cols:
-            raise ValueError(f"Invalid primary key: '{pk}' is not a real column.")
-    if semantics.time_column and semantics.time_column not in df_cols:
-        raise ValueError(f"Invalid time_column: '{semantics.time_column}' is not a real column.")
-    if semantics.row_count != len(df):
-        semantics = semantics.model_copy(update={"row_count": len(df)})
-    return semantics
+        )
+
+    primary_keys = [key for key in semantics.primary_keys if key in df_columns]
+    time_column = semantics.time_column if semantics.time_column in df_columns else None
+    return semantics.model_copy(
+        update={
+            "columns": valid_columns,
+            "primary_keys": primary_keys,
+            "time_column": time_column,
+            "row_count": len(df),
+            "column_count": len(df.columns),
+            "missing_values": {key: int(value) for key, value in df.isnull().sum().items()},
+            "duplicate_row_count": int(df.duplicated().sum()),
+        }
+    )
 
 
-# ══════════════════════════════════════════════════════════════════
-# PIPELINE CONSTANTS
-# ══════════════════════════════════════════════════════════════════
+def question_floor(semantic: DatasetSemantics) -> int:
+    analysable = [column for column in semantic.columns if column.role != "id"]
+    floor = len(analysable) * 2
+    floor += 4 if semantic.time_column else 0
+    floor += sum(
+        2
+        for column in semantic.columns
+        if column.role == "category" and column.cardinality in ("low", "medium")
+    )
+    correlation_pairs = 0
+    if semantic.numeric_correlations:
+        columns = list(semantic.numeric_correlations.keys())
+        for index, left in enumerate(columns):
+            for right in columns[index + 1 :]:
+                if abs(semantic.numeric_correlations[left].get(right, 0)) > 0.3:
+                    correlation_pairs += 1
+    floor += min(correlation_pairs, 10)
+    return max(10, floor)
 
-AGENT_TIMEOUT = 120
-AGENT_MAX_RETRIES = 3
-MAX_RETRIES = 2
-BATCH_SIZE = 5
+
+def _similarity(left: str, right: str) -> float:
+    return SequenceMatcher(None, left.lower().strip(), right.lower().strip()).ratio()
 
 
-# ══════════════════════════════════════════════════════════════════
-# PIPELINE BUILDER
-# ══════════════════════════════════════════════════════════════════
+def dedup_questions(questions: List[AnalyticalQuestion], threshold: float = 0.72) -> tuple[List[AnalyticalQuestion], int]:
+    kept: List[AnalyticalQuestion] = []
+    removed = 0
+    for candidate in questions:
+        is_duplicate = False
+        for index, existing in enumerate(kept):
+            if _similarity(candidate.question, existing.question) >= threshold:
+                if candidate.priority and not existing.priority:
+                    kept[index] = candidate
+                is_duplicate = True
+                removed += 1
+                break
+        if not is_duplicate:
+            kept.append(candidate)
+    return kept, removed
 
-def build_pipeline(api_key: str):
-    """Build and return the compiled LangGraph master graph."""
-    os.environ["OPENAI_API_KEY"] = api_key
-    model = OpenAIChatModel(model_name="gpt-4o")
 
-    # ── Agent Definitions ────────────────────────────────────────────────────
+def dedup_actions(items: List[ActionItem], threshold: float = 0.70) -> tuple[List[ActionItem], int]:
+    def fingerprint(item: ActionItem) -> str:
+        return (item.title + " " + item.what[:120]).lower()
 
-    semantic_agent = Agent(
-        model=model,
-        output_type=DatasetSemantics,
-        system_prompt="""You are a strict semantic layer generator.
+    kept: List[ActionItem] = []
+    removed = 0
+    for candidate in items:
+        is_duplicate = False
+        for index, existing in enumerate(kept):
+            if _similarity(fingerprint(candidate), fingerprint(existing)) >= threshold:
+                if PRIORITY_ORDER.get(candidate.priority, 99) < PRIORITY_ORDER.get(existing.priority, 99):
+                    kept[index] = candidate
+                is_duplicate = True
+                removed += 1
+                break
+        if not is_duplicate:
+            kept.append(candidate)
+    return kept, removed
+
+
+def _format_result(result: Any, trim_chars: int) -> str:
+    def _trim_table(table: Any) -> str:
+        full = table.to_string()
+        if len(full) <= trim_chars:
+            return full
+        for rows in range(len(table) - 1, 0, -1):
+            chunk = table.iloc[:rows].to_string()
+            if len(chunk) <= trim_chars - 80:
+                return chunk + f"\n[RESULT TRUNCATED - {len(table) - rows} rows hidden]"
+        return table.iloc[:1].to_string() + f"\n[RESULT TRUNCATED - {len(table) - 1} rows hidden]"
+
+    if isinstance(result, pd.DataFrame):
+        return _trim_table(result)
+    if isinstance(result, pd.Series):
+        return _trim_table(result)
+    result_text = str(result)
+    if len(result_text) <= trim_chars:
+        return result_text
+    return result_text[:trim_chars] + "\n[RESULT TRUNCATED]"
+
+
+def _is_empty(result: Any) -> bool:
+    if result is None:
+        return True
+    if isinstance(result, (int, float)):
+        return bool(np.isnan(result))
+    if isinstance(result, pd.Series):
+        return result.empty or result.isna().all()
+    if isinstance(result, pd.DataFrame):
+        return result.empty or result.isna().all().all()
+    return False
+
+
+def _execute(query: str, df: pd.DataFrame) -> tuple[Any, Optional[str]]:
+    try:
+        local_ns = {"df": df, "pd": pd, "np": np}
+        exec(query, {"__builtins__": __builtins__}, local_ns)
+        result = local_ns.get("result")
+        if result is None:
+            return None, "Script did not assign a `result` variable."
+        if _is_empty(result):
+            return None, f"Empty result: {result!r}"
+        return result, None
+    except Exception as exc:
+        return None, str(exc)
+
+
+def _safe_dataset_name(dataset_name: Optional[str], source_name: Optional[str]) -> str:
+    if dataset_name and dataset_name.strip():
+        return dataset_name.strip()
+    if source_name and source_name.strip():
+        stem, _, _ = source_name.rpartition(".")
+        base = stem or source_name
+        return base.replace("_", " ").replace("-", " ").strip() or "uploaded dataset"
+    return "uploaded dataset"
+
+
+def _validate_dataframe(df: pd.DataFrame) -> None:
+    if df is None:
+        raise ValidationError("No dataframe was provided.")
+    if not isinstance(df, pd.DataFrame):
+        raise ValidationError("Expected a pandas DataFrame.")
+    if df.empty:
+        raise ValidationError("The uploaded CSV is empty.")
+    if len(df.columns) == 0:
+        raise ValidationError("The uploaded CSV has no columns.")
+
+
+def _build_empty_data(source_name: Optional[str] = None) -> dict[str, Any]:
+    return {
+        "dataset": {
+            "file_name": source_name,
+            "dataset_name": None,
+            "row_count": 0,
+            "column_count": 0,
+            "missing_count": 0,
+            "duplicate_row_count": 0,
+            "memory_kb": None,
+            "preview_rows": [],
+        },
+        "semantic_model": {
+            "dataset_name": None,
+            "dataset_description": None,
+            "inferred_domain": None,
+            "row_count": 0,
+            "column_count": 0,
+            "time_column": None,
+            "primary_keys": [],
+            "date_range": None,
+            "relationships": [],
+            "columns": [],
+            "missing_values": [],
+        },
+        "questions": {
+            "dataset_understanding": None,
+            "question_floor": 0,
+            "total": 0,
+            "priority_count": 0,
+            "groups": {},
+            "items": [],
+        },
+        "findings": {
+            "total": 0,
+            "successful_count": 0,
+            "failed_count": 0,
+            "successful": [],
+            "failed": [],
+        },
+        "insights": {
+            "executive_summary": None,
+            "positive_highlights": [],
+            "action_items": [],
+            "watch_out_for": [],
+        },
+        "run": {
+            "log": "",
+            "events": [],
+            "refinement": None,
+            "status_label": None,
+        },
+    }
+
+
+def _build_error_envelope(
+    *,
+    code: str,
+    message: str,
+    source_name: Optional[str] = None,
+    status: str = "error",
+    duration_ms: int = 0,
+    model: Optional[str] = None,
+    details: Optional[str] = None,
+) -> dict[str, Any]:
+    runtime = get_runtime_summary()
+    return {
+        "task_type": DEFAULT_TASK_TYPE,
+        "status": status,
+        "data": _build_empty_data(source_name),
+        "meta": {
+            "agent": DEFAULT_AGENT_NAME,
+            "duration_ms": duration_ms,
+            "model": model or runtime["model"],
+            "question_count": 0,
+            "successful_queries": 0,
+            "failed_queries": 0,
+            "api_key_configured": runtime["api_key_configured"],
+        },
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details,
+        },
+    }
+
+
+def _serialize_semantic_model(semantic_model: Optional[DatasetSemantics]) -> dict[str, Any]:
+    if not semantic_model:
+        return _build_empty_data()["semantic_model"]
+    return {
+        "dataset_name": semantic_model.dataset_name,
+        "dataset_description": semantic_model.dataset_description,
+        "inferred_domain": semantic_model.inferred_domain,
+        "row_count": semantic_model.row_count,
+        "column_count": semantic_model.column_count,
+        "time_column": semantic_model.time_column,
+        "primary_keys": semantic_model.primary_keys,
+        "date_range": semantic_model.date_range,
+        "relationships": semantic_model.inter_column_relationships or [],
+        "columns": [column.model_dump() for column in semantic_model.columns],
+        "missing_values": [
+            {"column": key, "count": value}
+            for key, value in (semantic_model.missing_values or {}).items()
+            if value > 0
+        ],
+    }
+
+
+def _serialize_questions(questions: Optional[AnalyticalQuestionsOutput], floor: int) -> dict[str, Any]:
+    if not questions:
+        payload = _build_empty_data()["questions"]
+        payload["question_floor"] = floor
+        return payload
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in questions.questions:
+        grouped[item.category].append(item.model_dump())
+    items = [item.model_dump() for item in questions.questions]
+    return {
+        "dataset_understanding": questions.dataset_understanding,
+        "question_floor": floor,
+        "total": len(items),
+        "priority_count": sum(1 for item in questions.questions if item.priority),
+        "groups": dict(grouped),
+        "items": items,
+    }
+
+
+def _serialize_findings(answers: Optional[List[QueryResult]]) -> dict[str, Any]:
+    if not answers:
+        return _build_empty_data()["findings"]
+    successful = []
+    failed = []
+    for answer in answers:
+        item = answer.model_dump()
+        if answer.error:
+            failed.append(item)
+        else:
+            successful.append(item)
+    return {
+        "total": len(answers),
+        "successful_count": len(successful),
+        "failed_count": len(failed),
+        "successful": successful,
+        "failed": failed,
+    }
+
+
+def _serialize_insights(insights: Optional[BusinessInsightsOutput]) -> dict[str, Any]:
+    if not insights:
+        return _build_empty_data()["insights"]
+    return {
+        "executive_summary": insights.executive_summary,
+        "positive_highlights": insights.positive_highlights,
+        "action_items": [item.model_dump() for item in insights.action_items],
+        "watch_out_for": insights.watch_out_for,
+    }
+
+
+def _serialize_refinement(refinement: Optional[RefinementDecision]) -> Optional[dict[str, Any]]:
+    if not refinement:
+        return None
+    return refinement.model_dump()
+
+
+def _build_dataset_section(df: pd.DataFrame, dataset_name: str, source_name: Optional[str]) -> dict[str, Any]:
+    return {
+        "file_name": source_name,
+        "dataset_name": dataset_name,
+        "row_count": len(df),
+        "column_count": len(df.columns),
+        "missing_count": int(df.isnull().sum().sum()),
+        "duplicate_row_count": int(df.duplicated().sum()),
+        "memory_kb": round(float(df.memory_usage(deep=True).sum()) / 1024, 1),
+        "preview_rows": df.head(10).to_dict(orient="records"),
+    }
+
+
+def _build_success_envelope(
+    raw_result: dict[str, Any],
+    *,
+    df: pd.DataFrame,
+    dataset_name: str,
+    source_name: Optional[str],
+    duration_ms: int,
+    log_text: str,
+    config: RuntimeConfig,
+) -> dict[str, Any]:
+    semantic_model: Optional[DatasetSemantics] = raw_result.get("semantic_model")
+    questions: Optional[AnalyticalQuestionsOutput] = raw_result.get("questions")
+    answers: Optional[List[QueryResult]] = raw_result.get("answers")
+    insights: Optional[BusinessInsightsOutput] = raw_result.get("insights")
+    refinement: Optional[RefinementDecision] = raw_result.get("refinement")
+    findings = _serialize_findings(answers)
+    failed_count = findings["failed_count"]
+    status = "partial_success" if failed_count > 0 else "success"
+    status_label = "Approved"
+    if refinement and not refinement.approved:
+        status_label = "Completed with unresolved refinement feedback"
+    elif failed_count > 0:
+        status_label = "Completed with failed query fallbacks"
+
+    return {
+        "task_type": DEFAULT_TASK_TYPE,
+        "status": status,
+        "data": {
+            "dataset": _build_dataset_section(df, dataset_name, source_name),
+            "semantic_model": _serialize_semantic_model(semantic_model),
+            "questions": _serialize_questions(questions, raw_result.get("question_floor", 0)),
+            "findings": findings,
+            "insights": _serialize_insights(insights),
+            "run": {
+                "log": log_text,
+                "events": raw_result.get("pipeline_log") or [],
+                "refinement": _serialize_refinement(refinement),
+                "status_label": status_label,
+            },
+        },
+        "meta": {
+            "agent": DEFAULT_AGENT_NAME,
+            "duration_ms": duration_ms,
+            "model": config.model,
+            "question_count": findings["total"],
+            "successful_queries": findings["successful_count"],
+            "failed_queries": findings["failed_count"],
+            "api_key_configured": True,
+        },
+        "error": None,
+    }
+
+
+def _semantic_prompt() -> str:
+    return """
+You are an expert data architect who builds a detailed semantic layer from dataframe profiling data.
 
 Rules:
-- Only use provided profiling data
-- Do NOT create new columns
-- Do NOT generate insights or explanations
-- Assign roles: id, time, feature, category
-- If unsure, default to 'feature'
-""",
-    )
+- Use only columns present in the profiling input.
+- Fill optional fields whenever the evidence supports them.
+- Never fabricate statistics.
+- Preserve exact column names.
+- Infer dataset-level context such as domain, relationships, primary keys, and time column when evidence is strong.
+"""
 
-    question_agent = Agent(
-        model=model,
-        output_type=AnalyticalQuestionsOutput,
-        system_prompt="""
-You are a senior data analyst and analytical strategist.
-Your sole responsibility is to generate high-quality analytical questions that will be executed by a downstream SQL agent.
-You do NOT analyze results.
-You do NOT provide insights.
-You do NOT generate SQL queries.
-Your only job is to define the most valuable questions that can be answered using the dataset.
 
----
-
-INPUT:
-You will receive a semantic model of a dataset containing:
-- Dataset name
-- Row count
-- Columns (name, type, role, description, statistics)
-- Primary keys
-- Time column (if present)
-- Missing values
-
----
-
-OBJECTIVES:
-
-1. **Understand the dataset deeply**
-   - Infer the meaning of each column
-   - Understand relationships between variables
-   - Identify roles (feature, target, id, time, category)
-   - If a target column exists, treat it as the north star — the majority of questions should relate back to what drives, predicts, or correlates with it
-
-2. **Think like a senior business analyst**
-   - Focus on business value and decision-making
-   - Identify what stakeholders would care about
-   - Prioritize high-impact questions
-   - Consider dataset size when prioritizing — avoid granular per-row questions on large datasets
-
-3. **Generate comprehensive analytical questions**
-You must generate 4-8 questions per category across these dimensions:
-   - Trends & time-based analysis (only if time column exists)
-   - Segmentation & group comparisons
-   - Relationships & correlations
-   - Distributions & outliers
-   - Performance & ranking (top/bottom analysis)
-   - Data quality & missing values (only for target, id, or time columns)
-   - Behavioral or usage patterns
-
-Aim for a MINIMUM of 15 questions total. More is better as long as they are not redundant.
-
-4. **Question quality rules**
-Each question must:
-   - Start with: What, Which, How many, How does, or Is there
-   - Be specific and unambiguous
-   - Be measurable
-   - Reference actual columns in the dataset
-   - Be non-trivial
-   - Lead to actionable insights
-   - Be phrased in a way that directly maps to a SQL query
-
-5. **Coverage requirement**
-   - Cover all important columns
-   - Explore relationships between multiple variables
-   - Avoid redundancy
-   - Provide a diverse set of questions
-
-OUTPUT FORMAT:
-Return a structured output with:
-- dataset_understanding: brief description of the dataset, key variables, and target column if any
-- questions: list of analytical questions, each with:
-  - question: must start with What/Which/How many/How does/Is there
-  - category: one of Trend, Segmentation, Correlation, Distribution, Performance, DataQuality, Behavioral
-  - priority: true if this is one of the 5-10 most impactful questions
-  - priority_reason: one sentence explaining why (only for priority=true)
-
-CONSTRAINTS:
-- Do NOT generate SQL queries
-- Do NOT answer the questions
-- Do NOT hallucinate columns not in the semantic model
-- Every question must be answerable with SQL using the given schema
-""",
-    )
-
-    sql_agent = Agent(
-        model=model,
-        output_type=SQLAgentOutput,
-        system_prompt="""
-You are an expert data analyst who answers analytical questions by writing pandas queries.
+def _question_prompt() -> str:
+    return """
+You are a senior data analyst generating exhaustive analytical questions for a downstream pandas execution agent.
 
 You will receive:
-- A list of analytical questions
-- The dataset schema (column names, types, roles)
-- A sample of the dataframe (first 5 rows)
+- semantic_model
+- dataframe_sample
+- question_floor
+- optional refinement_feedback
 
-For EACH question you must produce:
-1. query: a valid pandas code snippet using a variable called `df`. Keep it concise — one or two chained operations.
-   Examples:
-     df.groupby('category')['revenue'].sum().sort_values(ascending=False).head(10)
-     df[df['churn'] == 1]['age'].describe()
-     df.corr()['target_col'].drop('target_col').abs().sort_values(ascending=False)
+Requirements:
+- Cover every meaningful angle the dataset supports.
+- Use the floor as a minimum, not a target.
+- Questions must start with What, Which, How many, How does, or Is there.
+- Questions must reference real schema fields only.
+- Questions must be specific, measurable, and useful to a business owner.
+- Return non-redundant questions across trend, segmentation, correlation, distribution, performance, data quality, and behavior where supported.
+"""
 
-2. result_summary: Write EXACTLY this placeholder text — do NOT predict or invent any numbers or values:
-   "PENDING: result will be computed by executing the query above."
-   ⚠ CRITICAL ANTI-HALLUCINATION RULE: You have NOT seen the actual data output. Any specific numbers,
-   rankings, or values you write here would be fabricated. The real result will replace this field
-   automatically after execution. Writing fake numbers here causes wrong business decisions.
 
-3. explanation: one or two sentences on why this result is business-relevant and what action it might suggest.
-   Do NOT include specific numbers — those will come from the actual result.
-
-RULES:
-- Only use columns that exist in the provided schema
-- Do NOT import any libraries — pandas is already available as `df`
-- Do NOT use SQL syntax — only pandas
-- If a question cannot be answered with the given schema, set error to a short explanation and leave query/result_summary/explanation empty
-- For correlations: df[['col_a','col_b']].dropna().corr()
-- For date parsing inline: pd.to_datetime(df['col'], format='%d/%m/%Y %H:%M', errors='coerce').dt.dayofweek
-""",
-    )
-
-    insights_agent = Agent(
-        model=model,
-        output_type=BusinessInsightsOutput,
-        system_prompt="""
-You are a trusted business advisor translating data analysis results into clear, actionable guidance for a business owner with no data or technical background.
-
-You will receive:
-- A dataset understanding summary
-- A list of analytical questions, each with an "actual_result" field and an "explanation" field
-
-⚠ CRITICAL ANTI-HALLUCINATION RULES — READ CAREFULLY:
-1. Every number, ranking, or value you write MUST come from the "actual_result" field of the corresponding Q&A pair.
-2. NEVER invent, estimate, or extrapolate numbers not present in actual_result.
-3. If actual_result is null or unavailable (query failed), DO NOT guess — omit the number or say "data unavailable".
-4. The "explanation" field is LLM-generated context — it may contain wrong numbers. IGNORE any numbers in explanation; use only actual_result.
-5. Before writing any number in your report, ask yourself: "Is this exact value present in the actual_result field?" If no → do not write it.
-
-Your job is to read EVERY answered question and turn ALL meaningful findings into a thorough, honest, and actionable business report.
-
----
-
-OUTPUT STRUCTURE:
-
-1. executive_summary
-Write 4-6 sentences covering the overall picture of the business.
-- Lead with the single most important finding
-- Include 3-4 specific numbers from the data
-- Mention which locations/segments are strongest and weakest
-- End with the single most urgent thing the owner should do
-
-2. action_items
-For each finding, decide: is this actionable, surprising, or important to the owner?
-If yes — write an action item for it.
-
-For each action item:
-- title: short and specific (name the branch/segment/metric)
-- priority: High (revenue impact or failure-related), Medium (performance gaps), Low (monitoring/optimization)
-- what: 2-3 sentences using the EXACT numbers from the actual result
-- why_it_matters: the real business consequence if nothing changes
-- recommendation: one concrete step
-- expected_impact: a specific number or range (or "difficult to estimate without more data")
+def _sql_prompt() -> str:
+    return """
+You are an expert pandas analyst. For each question, write executable Python code that assigns the final value to a variable named `result`.
 
 Rules:
-- EVERY "what" field must use numbers directly from the actual data result
-- Be specific: name exact locations/segments not "one of your branches"
-- No jargon: no "correlation", "distribution", "normalize", "dtype"
-- Never say "consider" or "may want to"
+- Use the provided dataframe variable `df`.
+- Do not import libraries.
+- Keep each answer as a small Python snippet.
+- Never fabricate numbers or results.
+- Set `result_summary` to the exact placeholder: "PENDING: result will be computed by executing the query above."
+- If the question cannot be answered, set a short `error` and keep the rest minimal.
+"""
 
-3. watch_out_for
-List 5-7 specific warning signs based on the actual data.
-Each must name a specific metric, threshold, and consequence.
 
----
+def _insights_prompt() -> str:
+    return """
+You are a trusted business advisor translating executed analytical outputs into plain-English guidance for a business owner.
 
-TONE:
-- Direct, warm, and confident — like a trusted advisor who has read every number
-- Never vague. Every sentence should contain a fact or an action.
-- Use plain language.
-- Focus entirely on what the owner can do with this information.
-""",
-    )
+Rules:
+- Use only the provided executed `actual_result` values as evidence for numbers.
+- Do not invent metrics.
+- Produce an executive summary, positive highlights, action items, and watch-outs.
+- Make recommendations concrete and business-facing.
+"""
 
-    refinement_agent = Agent(
-        model=model,
-        output_type=RefinementDecision,
-        system_prompt="""
-You are the team lead of a data analysis pipeline.
-Your job is to review the full output of the team — the questions generated, the SQL answers, and the business insights — and decide if the work is good enough or needs improvement.
 
-You will receive:
-- The analytical questions that were generated
-- The SQL answers (including actual data results)
-- The business insights report produced for the business owner
+def _refinement_prompt() -> str:
+    return """
+You are the quality reviewer for a multi-agent data analysis pipeline.
 
----
+Review:
+- question quality and coverage
+- failed or empty query outputs
+- accuracy and usefulness of the business insights
 
-WHAT TO CHECK:
+Return:
+- approved: true if the output is acceptable
+- feedback: concise actionable feedback
+- failed_questions: list only the questions that should be re-run if query results failed
+- reasoning: short explanation
+"""
 
-1. Questions quality
-- Are the questions specific and tied to actual columns?
-- Are there important angles that were completely missed?
-- Are there too many redundant questions covering the same thing?
 
-2. SQL answers quality
-- Did any questions fail to execute (error field is set)?
-- Does the actual_result field contain real data (not empty / all-NaN)?
-- Are there answers where the query logic looks wrong for the question asked?
-- ⚠ Do NOT flag answers just because result_summary is vague — the ground truth is always in actual_result.
+def get_agents(config: RuntimeConfig) -> dict[str, Agent]:
+    cache_key = (config.base_url, config.model, config.disable_thinking)
+    if cache_key in _AGENTS_CACHE:
+        return _AGENTS_CACHE[cache_key]
 
-3. Business insights quality
-- Does every action item include real numbers from the data's actual_result fields?
-- ⚠ Cross-check: for each number cited in the insights, verify it appears in the corresponding actual_result.
-- Are the recommendations specific and actionable, or vague?
-- Does the executive summary actually reflect what the data showed?
-- Are there important findings from the SQL answers that were completely ignored?
+    client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url)
+    provider = OpenAIProvider(openai_client=client)
+    model = OpenAIChatModel(config.model, provider=provider)
+    settings: dict[str, Any] = {"temperature": config.temperature}
+    if config.disable_thinking:
+        settings["extra_body"] = {"thinking": {"type": "disabled"}}
 
----
+    def build_agent(output_type: Any, prompt: str) -> Agent:
+        return Agent(
+            model=model,
+            model_settings=settings,
+            output_type=output_type,
+            system_prompt=prompt,
+        )
 
-DECISION RULES:
+    agents = {
+        "semantic": build_agent(DatasetSemantics, _semantic_prompt()),
+        "question": build_agent(AnalyticalQuestionsOutput, _question_prompt()),
+        "sql": build_agent(SQLAgentOutput, _sql_prompt()),
+        "insights": build_agent(BusinessInsightsOutput, _insights_prompt()),
+        "refinement": build_agent(RefinementDecision, _refinement_prompt()),
+    }
+    _AGENTS_CACHE[cache_key] = agents
+    return agents
 
-- If everything is good enough: set needs_refinement=false
-- If something needs fixing: set needs_refinement=true, pick ONE target_agent, and write specific feedback
 
-Priority order if multiple issues exist:
-1. Fix SQL errors/bad results first
-2. Fix missing critical questions second
-3. Fix weak insights third
-
----
-
-IMPORTANT:
-- Be honest but not a perfectionist — if the output is good enough, approve it
-- Only request refinement if the improvement would meaningfully change what the business owner understands or does
-- You can only request a re-run of each agent once — if an agent has already been re-run, approve its output
-""",
-    )
-
-    manager_agent = Agent(
-        model=model,
-        output_type=ManagerDecision,
-        system_prompt="""
-You are the manager of a data analysis pipeline.
-You coordinate specialist agents: the question agent, SQL agent, insights agent, and refinement agent.
-
-Your job is to decide what happens next at each step of the pipeline.
-
-Your decision options:
-- "question_agent": run the question agent (only if questions are not yet generated)
-- "sql_agent": run the SQL agent (only if questions exist but answers do not)
-- "insights_agent": run the business insights agent (only if answers exist but insights do not)
-- "refinement_agent": run the refinement agent (only after insights exist, and only if refinement has not run yet OR the previous refinement requested a re-run that has now completed)
-- "done": the pipeline is complete
-
-Be decisive. Do not repeat steps that are already complete.
-Return your decision as next_agent and a one-sentence reasoning.
-""",
-    )
-
-    # ── Retry Wrapper ────────────────────────────────────────────────────────
-
-    async def _agent_run_with_retry(agent, prompt: str, label: str = "agent"):
-        for attempt in range(1, AGENT_MAX_RETRIES + 1):
-            try:
-                return await asyncio.wait_for(agent.run(prompt), timeout=AGENT_TIMEOUT)
-            except asyncio.TimeoutError:
-                if attempt < AGENT_MAX_RETRIES:
-                    wait = 5 * attempt
-                    print(f"  [{label}] Timed out (attempt {attempt}/{AGENT_MAX_RETRIES}), retrying in {wait}s...")
-                    await asyncio.sleep(wait)
-                else:
-                    raise RuntimeError(f"[{label}] All {AGENT_MAX_RETRIES} attempts timed out after {AGENT_TIMEOUT}s each.")
-            except Exception as e:
-                if attempt < AGENT_MAX_RETRIES:
-                    wait = 5 * attempt
-                    print(f"  [{label}] Error: {e} (attempt {attempt}/{AGENT_MAX_RETRIES}), retrying in {wait}s...")
-                    await asyncio.sleep(wait)
-                else:
-                    raise
-
-    # ── SQL Execution Helpers ────────────────────────────────────────────────
-
-    def _is_bad_result(result) -> bool:
+async def _call(agent: Agent, prompt: str, label: str, config: RuntimeConfig) -> Any:
+    for attempt in range(1, config.agent_retries + 1):
         try:
-            if result is None:
-                return True
-            if isinstance(result, (int, float)):
-                return np.isnan(result)
-            if isinstance(result, pd.Series):
-                return result.empty or result.isna().all()
-            if isinstance(result, pd.DataFrame):
-                return result.empty or result.isna().all().all()
-            return False
-        except Exception:
-            return False
+            return await asyncio.wait_for(agent.run(prompt), timeout=config.agent_timeout)
+        except asyncio.TimeoutError:
+            if attempt == config.agent_retries:
+                raise RuntimeError(f"[{label}] timed out after {config.agent_retries} attempts")
+            wait_seconds = 5 * attempt
+            print(f"  [{label}] timed out, retrying in {wait_seconds}s...")
+            await asyncio.sleep(wait_seconds)
+        except Exception as exc:
+            if attempt == config.agent_retries:
+                raise
+            wait_seconds = 5 * attempt
+            print(f"  [{label}] error: {exc} - retrying in {wait_seconds}s...")
+            await asyncio.sleep(wait_seconds)
 
-    def _execute_query(query: str, df) -> tuple:
-        try:
-            result = eval(query, {"df": df, "pd": pd, "np": np})
-            if _is_bad_result(result):
-                return None, f"Query returned empty/NaN result: {repr(result)}"
-            return result, None
-        except Exception as e:
-            return None, f"Execution error: {str(e)}"
 
-    async def _run_batch(questions_batch, schema, sample, feedback_map, df):
-        payload = {
-            "questions": questions_batch,
+def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
+    agents = get_agents(config)
+
+    async def run_sql_batch(
+        questions: List[str],
+        schema: list[dict[str, Any]],
+        semantic_json: dict[str, Any],
+        sample: list[dict[str, Any]],
+        feedback_map: Optional[dict[str, str]],
+    ) -> list[QueryResult]:
+        payload: dict[str, Any] = {
+            "questions": questions,
+            "semantic_model": semantic_json,
             "schema": schema,
             "dataframe_sample": sample,
         }
         if feedback_map:
             payload["retry_feedback"] = feedback_map
-        result = await _agent_run_with_retry(sql_agent, json.dumps(payload), "sql_agent")
-        executed = []
+        result = await _call(agents["sql"], json.dumps(payload), "sql", config)
+        answers: list[QueryResult] = []
         for answer in result.output.answers:
-            if answer.error:
-                executed.append(answer)
-                continue
-            exec_result, err = _execute_query(answer.query, df)
-            if err:
-                answer.error = err
-            else:
-                actual_str = str(exec_result)
-                answer.actual_result = actual_str
-                answer.result_summary = f"Actual result (executed, not predicted):\n{actual_str}"
-            executed.append(answer)
-        return executed
+            if not answer.error:
+                execution_result, error = _execute(answer.query, df)
+                if error:
+                    answer.error = error
+                else:
+                    actual = _format_result(execution_result, config.trim_chars)
+                    answer.actual_result = actual
+                    answer.result_summary = f"Result:\n{actual}"
+            answers.append(answer)
+        return answers
 
-    # ── Graph Nodes ──────────────────────────────────────────────────────────
-
-    async def semantic_node(state: MasterState):
-        print("  [semantic_agent] Building semantic model...")
-        df = state["df"]
-        semantic_input = build_semantic_input(df)
-        result = await _agent_run_with_retry(semantic_agent, semantic_input, "semantic_agent")
-        validated = validate_semantics(result.output, df)
-        print("  [semantic_agent] Done.")
-        return {"semantic_model": validated}
-
-    async def question_node(state):
-        print("  [question_agent] Generating analytical questions...")
-        semantic = state["semantic_model"]
-        df = state["df"]
-        sample = df.head(5).to_dict(orient="records")
-        feedback = state.get("refinement_feedback")
-        payload = {
-            "semantic_model": semantic.model_dump(),
-            "dataframe_sample": sample,
-        }
-        if feedback:
-            payload["refinement_feedback"] = (
-                f"REFINEMENT FEEDBACK — add to or improve the existing questions:\n{feedback}"
-            )
-        result = await _agent_run_with_retry(question_agent, json.dumps(payload), "question_agent")
-        qs = result.output
-        print(f"  [question_agent] Done — {len(qs.questions)} questions generated.")
-        return {"questions": qs, "refinement_feedback": None}
-
-    async def sql_node(state):
-        questions = state["questions"]
-        semantic = state["semantic_model"]
-        df = state["df"]
-        sample = df.head(5).to_dict(orient="records")
-        refinement_fb = state.get("refinement_feedback")
-        failed_qs = state.get("refinement_failed_questions") or []
-        existing_answers = list(state.get("answers") or [])
-
-        schema = [
-            {"name": c.name, "dtype": c.dtype, "role": c.role, "description": c.description}
-            for c in semantic.columns
-        ]
-
-        if failed_qs:
-            questions_to_run = failed_qs
-            print(f"  [sql_agent] Re-running {len(questions_to_run)} failed question(s) from refinement...")
+    async def semantic_node(state: MasterState) -> dict[str, Any]:
+        print("  [semantic] Building semantic model...")
+        cache_key = hashlib.md5(
+            f"{df.shape}|{list(df.columns)}|{df.head(3).to_csv(index=False)}".encode("utf-8")
+        ).hexdigest()
+        if cache_key in _SEMANTIC_CACHE:
+            validated = _SEMANTIC_CACHE[cache_key]
         else:
-            questions_to_run = [q.question for q in questions.questions]
-            print(f"  [sql_agent] Answering {len(questions_to_run)} questions...")
+            payload = json.dumps({"dataset_name": dataset_name, "profile": profile_dataframe(df)})
+            result = await _call(agents["semantic"], payload, "semantic", config)
+            validated = validate_semantics(result.output, df)
+            _SEMANTIC_CACHE[cache_key] = validated
 
-        all_answers = []
-        for i in range(0, len(questions_to_run), BATCH_SIZE):
-            batch = questions_to_run[i : i + BATCH_SIZE]
-            print(f"  [sql_agent] Batch {i // BATCH_SIZE + 1} ({len(batch)} questions)...")
-            fb_map = {q: refinement_fb for q in batch} if refinement_fb else {}
-            answers = await _run_batch(batch, schema, sample, fb_map, df)
-            all_answers.extend(answers)
-
-        for retry in range(1, MAX_RETRIES + 1):
-            bad = [a for a in all_answers if a.error]
-            if not bad:
-                break
-            print(f"  [sql_agent] Self-healing retry {retry}/{MAX_RETRIES} — fixing {len(bad)} bad answer(s)...")
-            feedback_map = {}
-            for a in bad:
-                feedback_map[a.question] = (
-                    f"Previous query was: {a.query!r}\n"
-                    f"It failed with: {a.error}\n"
-                    f"Fix it. Requirements:\n"
-                    f"- Must be a single eval()-able pandas expression, no assignments\n"
-                    f"- To parse dates inline use: pd.to_datetime(df['col'], errors='coerce').dt.to_period('M')\n"
-                    f"- For correlations: df[['col_a','col_b']].dropna().corr()\n"
-                    f"- Never use multi-line code or import statements"
-                )
-            retry_qs = [a.question for a in bad]
-            retry_answers = []
-            for i in range(0, len(retry_qs), BATCH_SIZE):
-                batch = retry_qs[i : i + BATCH_SIZE]
-                fb_map = {q: feedback_map[q] for q in batch}
-                answers = await _run_batch(batch, schema, sample, fb_map, df)
-                retry_answers.extend(answers)
-            retry_map = {a.question: a for a in retry_answers}
-            all_answers = [retry_map.get(a.question, a) if a.error else a for a in all_answers]
-
-        good = [a for a in all_answers if not a.error]
-        bad = [a for a in all_answers if a.error]
-        if bad:
-            print(f"  [sql_agent] Done — {len(good)} good, {len(bad)} still failed after {MAX_RETRIES} retries.")
-            for a in bad:
-                print(f"    still failed: {a.question[:80]}")
-        else:
-            print(f"  [sql_agent] Done — all {len(good)} answers valid ✓")
-
-        if failed_qs and existing_answers:
-            failed_set = set(failed_qs)
-            kept = [a for a in existing_answers if a.question not in failed_set]
-            final_answers = kept + all_answers
-            print(f"  [sql_agent] Merged — kept {len(kept)}, replaced {len(all_answers)}.")
-        else:
-            final_answers = all_answers
-
-        print(f"  [sql_agent] Total: {len(final_answers)} answers.")
+        floor = question_floor(validated)
+        print(f"  [semantic] Done. Domain: {validated.inferred_domain or 'unknown'} | Q floor: {floor}")
         return {
-            "answers": final_answers,
+            "semantic_model": validated,
+            "question_floor": floor,
+            "sql_retry_count": 0,
+            "insights_retry_count": 0,
+            "question_retry_count": 0,
             "refinement_feedback": None,
             "refinement_failed_questions": None,
+            "questions": None,
+            "answers": None,
+            "insights": None,
+            "refinement": None,
+            "pipeline_log": [f"semantic -> done (floor={floor})"],
         }
 
-    def _trim_result(answer, max_chars: int = 400) -> str:
-        raw = getattr(answer, "actual_result", None) or answer.result_summary or ""
-        if not raw:
-            return ""
-        for marker in ["Actual result (executed, not predicted):\n", "Actual result:\n"]:
-            if raw.startswith(marker):
-                raw = raw[len(marker):]
-                break
-        if len(raw) > max_chars:
-            raw = raw[:max_chars] + "\n... (truncated)"
-        return raw
+    async def question_node(state: MasterState) -> dict[str, Any]:
+        semantic = state["semantic_model"]
+        sample = df.head(5).to_dict(orient="records")
+        floor = state.get("question_floor") or 10
+        feedback = state.get("refinement_feedback")
+        retry_count = state.get("question_retry_count") or 0
+        print(f"  [questions] Generating questions - floor {floor}...")
 
-    async def insights_node(state):
-        print("  [insights_agent] Generating business insights...")
-        questions = state["questions"]
+        for attempt in range(2):
+            payload: dict[str, Any] = {
+                "semantic_model": semantic.model_dump(),
+                "dataframe_sample": sample,
+                "question_floor": floor,
+            }
+            if feedback:
+                payload["refinement_feedback"] = feedback
+            if attempt == 1:
+                payload["refinement_feedback"] = (
+                    (payload.get("refinement_feedback") or "")
+                    + f"\nThe previous pass produced too few useful questions. Return at least {floor} non-redundant questions."
+                ).strip()
+            result = await _call(agents["question"], json.dumps(payload), "question", config)
+            output = result.output
+            deduped, removed = dedup_questions(output.questions)
+            output = output.model_copy(update={"questions": deduped})
+            if removed:
+                print(f"  [questions] Removed {removed} duplicate question(s).")
+            if len(output.questions) >= floor or attempt == 1:
+                print(f"  [questions] Done - {len(output.questions)} questions.")
+                log = list(state.get("pipeline_log") or [])
+                log.append(f"question -> done ({len(output.questions)} questions)")
+                return {
+                    "questions": output,
+                    "refinement_feedback": None,
+                    "question_retry_count": retry_count + attempt,
+                    "pipeline_log": log,
+                }
+
+        raise RuntimeError("Question generation did not complete.")
+
+    async def sql_node(state: MasterState) -> dict[str, Any]:
+        semantic = state["semantic_model"]
+        questions_output = state["questions"]
+        failed_questions = state.get("refinement_failed_questions") or []
+        existing_answers = list(state.get("answers") or [])
+        feedback = state.get("refinement_feedback")
+
+        schema = [
+            {
+                "name": column.name,
+                "dtype": column.dtype,
+                "role": column.role,
+                "description": column.description,
+            }
+            for column in semantic.columns
+        ]
+        sample = df.head(5).to_dict(orient="records")
+        semantic_json = semantic.model_dump()
+        if failed_questions:
+            questions_to_run = failed_questions
+            print(f"  [sql] Re-running {len(questions_to_run)} failed question(s)...")
+        else:
+            questions_to_run = [question.question for question in questions_output.questions]
+            print(f"  [sql] Answering {len(questions_to_run)} questions...")
+
+        answers: list[QueryResult] = []
+        for offset in range(0, len(questions_to_run), config.batch_size):
+            batch = questions_to_run[offset : offset + config.batch_size]
+            feedback_map = {question: feedback for question in batch} if feedback else None
+            print(f"  [sql] Batch {offset // config.batch_size + 1} ({len(batch)} questions)")
+            answers.extend(await run_sql_batch(batch, schema, semantic_json, sample, feedback_map))
+
+        for retry in range(1, config.sql_heal_retries + 1):
+            broken = [answer for answer in answers if answer.error]
+            if not broken:
+                break
+            print(f"  [sql] Self-healing retry {retry}/{config.sql_heal_retries} for {len(broken)} query failures...")
+            feedback_map = {
+                answer.question: (
+                    f"Previous query:\n{answer.query}\n\n"
+                    f"Error:\n{answer.error}\n\n"
+                    "Return a corrected Python snippet that assigns the final answer to `result`."
+                )
+                for answer in broken
+            }
+            rerun = []
+            retry_questions = [answer.question for answer in broken]
+            for offset in range(0, len(retry_questions), config.batch_size):
+                batch = retry_questions[offset : offset + config.batch_size]
+                rerun.extend(await run_sql_batch(batch, schema, semantic_json, sample, feedback_map))
+            rerun_map = {answer.question: answer for answer in rerun}
+            answers = [rerun_map.get(answer.question, answer) if answer.error else answer for answer in answers]
+
+        if failed_questions and existing_answers:
+            replaced = set(failed_questions)
+            answers = [answer for answer in existing_answers if answer.question not in replaced] + answers
+
+        good = sum(1 for answer in answers if not answer.error)
+        bad = sum(1 for answer in answers if answer.error)
+        print(f"  [sql] Done - {good} successful, {bad} failed.")
+        log = list(state.get("pipeline_log") or [])
+        log.append(f"sql -> done ({good} ok, {bad} failed)")
+        return {
+            "answers": answers,
+            "refinement_feedback": None,
+            "refinement_failed_questions": None,
+            "pipeline_log": log,
+        }
+
+    async def insights_node(state: MasterState) -> dict[str, Any]:
+        questions_output = state["questions"]
         answers = state["answers"]
         feedback = state.get("refinement_feedback")
+        print("  [insights] Building business report...")
         qa_pairs = [
             {
-                "question": a.question,
-                "actual_result": _trim_result(a) if not a.error else None,
-                "explanation": a.explanation,
-                "error": a.error,
+                "question": answer.question,
+                "actual_result": answer.actual_result if not answer.error else None,
+                "explanation": answer.explanation,
+                "error": answer.error,
             }
-            for a in answers
+            for answer in answers
         ]
-        payload = {
-            "dataset_understanding": questions.dataset_understanding,
+        payload: dict[str, Any] = {
+            "dataset_understanding": questions_output.dataset_understanding,
             "qa_pairs": qa_pairs,
         }
         if feedback:
-            payload["refinement_feedback"] = (
-                f"REFINEMENT FEEDBACK — address these issues in your report:\n{feedback}"
-            )
-        prompt = json.dumps(payload)
-        print(f"  [insights_agent] Prompt size: {len(prompt):,} chars across {len(qa_pairs)} Q&A pairs.")
-        result = await _agent_run_with_retry(insights_agent, prompt, "insights_agent")
-        print("  [insights_agent] Done.")
-        return {"insights": result.output, "refinement_feedback": None}
+            payload["refinement_feedback"] = feedback
+        result = await _call(agents["insights"], json.dumps(payload), "insights", config)
+        insights = result.output
+        deduped_actions, removed = dedup_actions(insights.action_items)
+        if removed:
+            print(f"  [insights] Removed {removed} duplicate action item(s).")
+            insights = insights.model_copy(update={"action_items": deduped_actions})
+        log = list(state.get("pipeline_log") or [])
+        log.append(f"insights -> done ({len(insights.action_items)} actions)")
+        print("  [insights] Done.")
+        return {"insights": insights, "refinement_feedback": None, "pipeline_log": log}
 
-    async def refinement_node(state):
-        print("  [refinement_agent] Reviewing all outputs...")
-        questions = state["questions"]
+    async def refinement_node(state: MasterState) -> dict[str, Any]:
+        questions_output = state["questions"]
         answers = state["answers"]
         insights = state["insights"]
-        prompt = json.dumps(
-            {
-                "questions": [
-                    {"question": q.question, "category": q.category, "priority": q.priority}
-                    for q in questions.questions
-                ],
-                "answers": [
-                    {
-                        "question": a.question,
-                        "query": a.query,
-                        "actual_result": (a.actual_result or "")[:400] if not a.error else None,
-                        "explanation": a.explanation,
-                        "error": a.error,
-                    }
-                    for a in answers
-                ],
-                "insights": {
-                    "executive_summary": insights.executive_summary,
-                    "action_items": [
-                        {
-                            "title": ai.title,
-                            "priority": ai.priority,
-                            "what": ai.what,
-                            "why_it_matters": ai.why_it_matters,
-                            "recommendation": ai.recommendation,
-                            "expected_impact": ai.expected_impact,
-                        }
-                        for ai in insights.action_items
-                    ],
-                    "watch_out_for": insights.watch_out_for,
-                },
-            }
-        )
-        result = await _agent_run_with_retry(refinement_agent, prompt, "refinement_agent")
+        print("  [refinement] Reviewing outputs...")
+        payload = {
+            "question_floor": state.get("question_floor"),
+            "questions": [question.model_dump() for question in questions_output.questions],
+            "answers": [
+                {
+                    "question": answer.question,
+                    "query": answer.query,
+                    "actual_result": answer.actual_result,
+                    "error": answer.error,
+                    "explanation": answer.explanation,
+                }
+                for answer in answers
+            ],
+            "insights": insights.model_dump(),
+        }
+        result = await _call(agents["refinement"], json.dumps(payload), "refinement", config)
         decision = result.output
-        count = (state.get("refinement_count") or 0) + 1
-        status = "✓ Approved" if not decision.needs_refinement else f"↺ Re-run {decision.target_agent}"
-        print(f"  [refinement_agent] {status} — {decision.reasoning}")
-        if decision.needs_refinement and decision.failed_questions:
-            for fq in decision.failed_questions:
-                print(f"    Failed: {fq}")
+        status = "approved" if decision.approved else "needs changes"
+        print(f"  [refinement] {status}: {decision.reasoning}")
+        log = list(state.get("pipeline_log") or [])
+        log.append(f"refinement -> {status}")
         return {
             "refinement": decision,
-            "refinement_count": count,
-            "refinement_feedback": decision.feedback if decision.needs_refinement else None,
-            "refinement_failed_questions": decision.failed_questions if decision.needs_refinement else None,
+            "refinement_feedback": decision.feedback if not decision.approved else None,
+            "refinement_failed_questions": decision.failed_questions if not decision.approved else None,
+            "pipeline_log": log,
         }
 
-    async def manager_node(state):
-        questions = state.get("questions")
+    async def manager_node(state: MasterState) -> dict[str, Any]:
+        questions_output = state.get("questions")
         answers = state.get("answers")
         insights = state.get("insights")
         refinement = state.get("refinement")
-        rerun_history = dict(state.get("rerun_history") or {})
-        log = list(state.get("manager_log") or [])
-        updates: dict = {}
+        log = list(state.get("pipeline_log") or [])
 
-        if questions is None:
-            next_agent = "question_agent"
-        elif answers is None or len(answers) == 0:
-            next_agent = "sql_agent"
+        if questions_output is None:
+            next_agent = "question"
+        elif answers is None:
+            next_agent = "sql"
         elif insights is None:
-            next_agent = "insights_agent"
+            next_agent = "insights"
         elif refinement is None:
-            next_agent = "refinement_agent"
-        elif not refinement.needs_refinement:
+            next_agent = "refinement"
+        elif refinement.approved:
             next_agent = "done"
+        elif refinement.failed_questions and (state.get("sql_retry_count") or 0) < config.max_retries:
+            next_agent = "sql"
+        elif (
+            len(questions_output.questions) < (state.get("question_floor") or 0)
+            and (state.get("question_retry_count") or 0) < config.max_retries
+        ):
+            next_agent = "question"
+        elif (state.get("insights_retry_count") or 0) < config.max_retries:
+            next_agent = "insights"
         else:
-            target = refinement.target_agent
-            if rerun_history.get(target):
-                print(f"  [manager] {target} already had one re-run, accepting and finishing.")
-                next_agent = "done"
-            else:
-                rerun_history[target] = True
-                updates["rerun_history"] = rerun_history
-                updates["refinement"] = None
-                if target == "sql_agent":
-                    updates["insights"] = None
-                elif target == "question_agent":
-                    updates["answers"] = None
-                    updates["insights"] = None
-                next_agent = target
+            next_agent = "done"
 
-        log.append(f"Manager → {next_agent}")
-        print(f"  [manager] → {next_agent}")
-        updates["manager_log"] = log
-        updates["_next"] = next_agent
+        updates: dict[str, Any] = {"_next": next_agent}
+        if refinement and not refinement.approved and next_agent == "sql":
+            updates["answers"] = None
+            updates["insights"] = None
+            updates["refinement"] = None
+            updates["sql_retry_count"] = (state.get("sql_retry_count") or 0) + 1
+        elif refinement and not refinement.approved and next_agent == "question":
+            updates["questions"] = None
+            updates["answers"] = None
+            updates["insights"] = None
+            updates["refinement"] = None
+            updates["question_retry_count"] = (state.get("question_retry_count") or 0) + 1
+        elif refinement and not refinement.approved and next_agent == "insights":
+            updates["insights"] = None
+            updates["refinement"] = None
+            updates["insights_retry_count"] = (state.get("insights_retry_count") or 0) + 1
+
+        log.append(f"manager -> {next_agent}")
+        print(f"  [manager] -> {next_agent}")
+        updates["pipeline_log"] = log
         return updates
 
-    def route_from_manager(
-        state,
-    ) -> Literal["question_agent", "sql_agent", "insights_agent", "refinement_agent", "done"]:
+    def route_from_manager(state: MasterState) -> Literal["question", "sql", "insights", "refinement", "done"]:
         return state.get("_next", "done")
 
-    # ── Semantic Subgraph ─────────────────────────────────────────────────────
     semantic_builder = StateGraph(MasterState)
-    semantic_builder.add_node("semantic_layer", semantic_node)
-    semantic_builder.set_entry_point("semantic_layer")
-    semantic_builder.set_finish_point("semantic_layer")
-    semantic_subgraph = semantic_builder.compile()
+    semantic_builder.add_node("semantic", semantic_node)
+    semantic_builder.set_entry_point("semantic")
+    semantic_builder.set_finish_point("semantic")
+    semantic_graph = semantic_builder.compile()
 
-    # ── Analysis Subgraph ─────────────────────────────────────────────────────
     analysis_builder = StateGraph(MasterState)
     analysis_builder.add_node("manager", manager_node)
-    analysis_builder.add_node("question_agent", question_node)
-    analysis_builder.add_node("sql_agent", sql_node)
-    analysis_builder.add_node("insights_agent", insights_node)
-    analysis_builder.add_node("refinement_agent", refinement_node)
+    analysis_builder.add_node("question", question_node)
+    analysis_builder.add_node("sql", sql_node)
+    analysis_builder.add_node("insights", insights_node)
+    analysis_builder.add_node("refinement", refinement_node)
     analysis_builder.set_entry_point("manager")
     analysis_builder.add_conditional_edges(
         "manager",
         route_from_manager,
         {
-            "question_agent": "question_agent",
-            "sql_agent": "sql_agent",
-            "insights_agent": "insights_agent",
-            "refinement_agent": "refinement_agent",
+            "question": "question",
+            "sql": "sql",
+            "insights": "insights",
+            "refinement": "refinement",
             "done": "__end__",
         },
     )
-    analysis_builder.add_edge("question_agent", "manager")
-    analysis_builder.add_edge("sql_agent", "manager")
-    analysis_builder.add_edge("insights_agent", "manager")
-    analysis_builder.add_edge("refinement_agent", "manager")
-    analysis_subgraph = analysis_builder.compile()
+    analysis_builder.add_edge("question", "manager")
+    analysis_builder.add_edge("sql", "manager")
+    analysis_builder.add_edge("insights", "manager")
+    analysis_builder.add_edge("refinement", "manager")
+    analysis_graph = analysis_builder.compile()
 
-    # ── Master Graph ──────────────────────────────────────────────────────────
     master_builder = StateGraph(MasterState)
-    master_builder.add_node("semantic_pipeline", semantic_subgraph)
-    master_builder.add_node("analysis_pipeline", analysis_subgraph)
-    master_builder.add_edge("semantic_pipeline", "analysis_pipeline")
-    master_builder.set_entry_point("semantic_pipeline")
-    master_builder.set_finish_point("analysis_pipeline")
+    master_builder.add_node("semantic_graph", semantic_graph)
+    master_builder.add_node("analysis_graph", analysis_graph)
+    master_builder.add_edge("semantic_graph", "analysis_graph")
+    master_builder.set_entry_point("semantic_graph")
+    master_builder.set_finish_point("analysis_graph")
     return master_builder.compile()
 
 
-# ══════════════════════════════════════════════════════════════════
-# PUBLIC ENTRY POINT
-# ══════════════════════════════════════════════════════════════════
-
-async def _run_async(df: pd.DataFrame, api_key: str) -> dict:
-    graph = build_pipeline(api_key)
-    return await graph.ainvoke({"df": df})
+async def _run_async(df: pd.DataFrame, dataset_name: str, config: RuntimeConfig) -> dict[str, Any]:
+    graph = build_pipeline(config, df, dataset_name)
+    return await graph.ainvoke({})
 
 
-def run_analysis(df: pd.DataFrame, api_key: str) -> tuple[dict, str]:
-    """
-    Synchronous wrapper around the async pipeline.
-    Returns (result_dict, log_string).
-    """
-    log_buffer = io.StringIO()
-    old_stdout = sys.stdout
-    sys.stdout = log_buffer
+def _execute_pipeline(df: pd.DataFrame, dataset_name: str, config: RuntimeConfig) -> tuple[dict[str, Any], str]:
+    buffer = io.StringIO()
+    original_stdout = sys.stdout
+    sys.stdout = buffer
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            result = loop.run_until_complete(_run_async(df, api_key))
+            result = loop.run_until_complete(_run_async(df, dataset_name, config))
         finally:
             loop.close()
-        return result, log_buffer.getvalue()
+            asyncio.set_event_loop(None)
+        return result, buffer.getvalue()
     finally:
-        sys.stdout = old_stdout
+        sys.stdout = original_stdout
+
+
+def analyze_dataset(
+    df: pd.DataFrame,
+    *,
+    dataset_name: Optional[str] = None,
+    source_name: Optional[str] = None,
+) -> dict[str, Any]:
+    start = time.perf_counter()
+    dataset_name = _safe_dataset_name(dataset_name, source_name)
+
+    try:
+        _validate_dataframe(df)
+        config = get_runtime_config()
+        raw_result, log_text = _execute_pipeline(df, dataset_name, config)
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        return _build_success_envelope(
+            raw_result,
+            df=df,
+            dataset_name=dataset_name,
+            source_name=source_name,
+            duration_ms=duration_ms,
+            log_text=log_text,
+            config=config,
+        )
+    except ValidationError as exc:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        return _build_error_envelope(
+            code="VALIDATION_ERROR",
+            message=str(exc),
+            source_name=source_name,
+            duration_ms=duration_ms,
+        )
+    except ConfigError as exc:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        return _build_error_envelope(
+            code="CONFIG_ERROR",
+            message=str(exc),
+            source_name=source_name,
+            duration_ms=duration_ms,
+        )
+    except Exception as exc:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        return _build_error_envelope(
+            code="PIPELINE_ERROR",
+            message="The analysis pipeline failed before it could finish.",
+            source_name=source_name,
+            duration_ms=duration_ms,
+            details=str(exc),
+        )
+
+
+def run_analysis(
+    df: pd.DataFrame,
+    dataset_name: Optional[str] = None,
+    source_name: Optional[str] = None,
+) -> dict[str, Any]:
+    """Backward-compatible public entry point used by the UI shell."""
+    return analyze_dataset(df, dataset_name=dataset_name, source_name=source_name)

@@ -157,6 +157,29 @@ At minimum, the project will likely need:
 - OPENAI_API_KEY or equivalent LLM provider key if used
 - APP_ENV
 
+### Current Prototype Env File
+
+The dataset-analysis prototype under `Agent prototype/` now includes:
+
+- `Agent prototype/.env.example`
+
+For the current handoff shell, the main required variable is:
+
+- `OWNERMATE_LLM_API_KEY`
+
+Optional prototype variables:
+
+- `OWNERMATE_LLM_MODEL`
+- `OWNERMATE_LLM_BASE_URL`
+- `OWNERMATE_LLM_TEMPERATURE`
+- `OWNERMATE_AGENT_TIMEOUT`
+- `OWNERMATE_AGENT_RETRIES`
+- `OWNERMATE_BATCH_SIZE`
+- `OWNERMATE_SQL_HEAL_RETRIES`
+- `OWNERMATE_REFINEMENT_RETRIES`
+- `OWNERMATE_RESULT_TRIM_CHARS`
+- `OWNERMATE_DISABLE_THINKING`
+
 ### Documentation Index
 - PRD.md
 - ARCHITECTURE.md

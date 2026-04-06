@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+!.env.sample
+
+Agent prototype/.env
+Agent prototype/.env.local
+Agent prototype/.streamlit/secrets.toml
+
+__pycache__/
+*.pyc

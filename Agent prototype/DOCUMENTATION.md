@@ -249,6 +249,12 @@ The Streamlit app (`app.py`) is the user-facing interface for the pipeline. It p
 
 The app is designed for business owners, not developers. The output is presented in plain English with no technical jargon.
 
+The current `app.py` is also a **reference frontend shell** for handoff purposes:
+- it reads model configuration from server environment variables
+- it does not ask end users for provider credentials
+- it renders only the public response envelope returned by `pipeline.py`
+- it should be treated as the source of truth for UI states, not as the final production frontend
+
 ---
 
 ### 4.2 User Flow
@@ -406,6 +412,53 @@ ManagerDecision
 
 ## 7. Deployment
 
+### Local setup
+
+1. Install the prototype dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Create a local env file from the example:
+
+```bash
+cp .env.example .env
+```
+
+3. Set at least:
+
+```bash
+OWNERMATE_LLM_API_KEY=your_provider_key
+```
+
+4. Run the reference UI shell:
+
+```bash
+streamlit run app.py
+```
+
+Windows shortcut commands from the `Agent prototype/` folder:
+
+```powershell
+.\run-prototype.ps1
+```
+
+or
+
+```bat
+run-prototype.bat
+```
+
+### Local setup notes
+
+- The current prototype is configured through environment variables, not user-entered API keys.
+- The included `.env.example` documents the supported runtime variables.
+- `pipeline.py` loads `Agent prototype/.env` automatically at import time.
+- Keep local `.env` files uncommitted; the repo now ignores them.
+- The launcher scripts avoid needing `streamlit` on your global PATH.
+- For `kimi-k2.5`, keep `OWNERMATE_LLM_TEMPERATURE=0.6` unless you intentionally switch to a model with different temperature rules.
+
 ### Local
 
 ```bash
@@ -448,3 +501,33 @@ nest-asyncio>=1.5.0
 - **Model:** GPT-4o (configurable in `pipeline.py`)
 - **Agent timeout:** 120 seconds per agent call, with up to 3 exponential-backoff retries
 - **Batch size:** 5 questions per SQL agent call
+
+## 8. Frontend Handoff Contract
+
+The public contract exposed by `pipeline.py` is:
+
+```json
+{
+  "task_type": "analyze_dataset",
+  "status": "success | partial_success | error",
+  "data": {
+    "dataset": {},
+    "semantic_model": {},
+    "questions": {},
+    "findings": {},
+    "insights": {},
+    "run": {}
+  },
+  "meta": {
+    "agent": "dataset_analysis_orchestrator",
+    "duration_ms": 1234,
+    "model": "kimi-k2.5",
+    "question_count": 18,
+    "successful_queries": 16,
+    "failed_queries": 2
+  },
+  "error": null
+}
+```
+
+This prototype contract is for the current CSV-analysis handoff only and is not yet the final OwnerMate product API.
