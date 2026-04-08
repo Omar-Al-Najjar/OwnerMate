@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import hashlib
 import io
 import json
@@ -165,7 +166,7 @@ class RuntimeConfig:
     model: str
     base_url: str
     temperature: float
-    agent_timeout: int
+    agent_timeout: Optional[int]
     agent_retries: int
     batch_size: int
     sql_heal_retries: int
@@ -191,16 +192,63 @@ def _as_bool(raw: Optional[str], default: bool = True) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _is_overload_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "429" in message
+        or "rate limit" in message
+        or "too many requests" in message
+        or "overloaded" in message
+        or "engine_overloaded_error" in message
+    )
+
+
+def _retry_wait_seconds(exc: Exception, attempt: int) -> int:
+    if _is_overload_error(exc):
+        return min(30 * (2 ** (attempt - 1)), 300)
+    return 5 * attempt
+
+
+def _retry_limit_for_exception(config: RuntimeConfig, exc: Exception) -> int:
+    if _is_overload_error(exc):
+        return max(config.agent_retries, 6)
+    return config.agent_retries
+
+
+def _to_json_safe(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    if isinstance(value, (dt.datetime, dt.date, dt.time)):
+        return value.isoformat()
+    if value is pd.NA:
+        return None
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, dict):
+        return {str(key): _to_json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_json_safe(item) for item in value]
+    return value
+
+
+def _json_dumps(payload: Any) -> str:
+    return json.dumps(_to_json_safe(payload))
+
+
 def get_runtime_config() -> RuntimeConfig:
     api_key = os.getenv("OWNERMATE_LLM_API_KEY")
     if not api_key:
         raise ConfigError("Missing `OWNERMATE_LLM_API_KEY` environment variable.")
+    raw_agent_timeout = os.getenv("OWNERMATE_AGENT_TIMEOUT", "120").strip()
+    parsed_agent_timeout = int(raw_agent_timeout)
     return RuntimeConfig(
         api_key=api_key,
         model=os.getenv("OWNERMATE_LLM_MODEL", DEFAULT_MODEL),
         base_url=os.getenv("OWNERMATE_LLM_BASE_URL", DEFAULT_BASE_URL),
         temperature=float(os.getenv("OWNERMATE_LLM_TEMPERATURE", str(DEFAULT_TEMPERATURE))),
-        agent_timeout=int(os.getenv("OWNERMATE_AGENT_TIMEOUT", "120")),
+        agent_timeout=parsed_agent_timeout if parsed_agent_timeout > 0 else None,
         agent_retries=int(os.getenv("OWNERMATE_AGENT_RETRIES", "3")),
         batch_size=int(os.getenv("OWNERMATE_BATCH_SIZE", "5")),
         sql_heal_retries=int(os.getenv("OWNERMATE_SQL_HEAL_RETRIES", "2")),
@@ -211,13 +259,15 @@ def get_runtime_config() -> RuntimeConfig:
 
 
 def get_runtime_summary() -> dict[str, Any]:
+    raw_agent_timeout = os.getenv("OWNERMATE_AGENT_TIMEOUT", "120").strip()
+    parsed_agent_timeout = int(raw_agent_timeout)
     return {
         "api_key_configured": bool(os.getenv("OWNERMATE_LLM_API_KEY")),
         "model": os.getenv("OWNERMATE_LLM_MODEL", DEFAULT_MODEL),
         "base_url": os.getenv("OWNERMATE_LLM_BASE_URL", DEFAULT_BASE_URL),
         "temperature": float(os.getenv("OWNERMATE_LLM_TEMPERATURE", str(DEFAULT_TEMPERATURE))),
         "batch_size": int(os.getenv("OWNERMATE_BATCH_SIZE", "5")),
-        "agent_timeout": int(os.getenv("OWNERMATE_AGENT_TIMEOUT", "120")),
+        "agent_timeout": parsed_agent_timeout if parsed_agent_timeout > 0 else None,
     }
 
 
@@ -240,7 +290,7 @@ def _profile_column(column: str, series: pd.Series) -> tuple[str, dict[str, Any]
         "top_values": top_values,
     }
 
-    if np.issubdtype(series.dtype, np.number):
+    if pd.api.types.is_numeric_dtype(series):
         clean = series.dropna()
         q1 = float(clean.quantile(0.25)) if len(clean) else None
         q3 = float(clean.quantile(0.75)) if len(clean) else None
@@ -270,7 +320,12 @@ def profile_dataframe(df: pd.DataFrame) -> dict[str, Any]:
         for column, column_profile in executor.map(lambda c: _profile_column(c, df[c]), df.columns):
             profile["columns"][column] = column_profile
 
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = [
+        column
+        for column in df.columns
+        if pd.api.types.is_numeric_dtype(df[column])
+        and not pd.api.types.is_bool_dtype(df[column])
+    ]
     profile["numeric_correlations"] = (
         df[numeric_cols].corr().round(3).to_dict() if len(numeric_cols) >= 2 else {}
     )
@@ -548,7 +603,7 @@ def _build_error_envelope(
 def _serialize_semantic_model(semantic_model: Optional[DatasetSemantics]) -> dict[str, Any]:
     if not semantic_model:
         return _build_empty_data()["semantic_model"]
-    return {
+    return _to_json_safe({
         "dataset_name": semantic_model.dataset_name,
         "dataset_description": semantic_model.dataset_description,
         "inferred_domain": semantic_model.inferred_domain,
@@ -564,7 +619,7 @@ def _serialize_semantic_model(semantic_model: Optional[DatasetSemantics]) -> dic
             for key, value in (semantic_model.missing_values or {}).items()
             if value > 0
         ],
-    }
+    })
 
 
 def _serialize_questions(questions: Optional[AnalyticalQuestionsOutput], floor: int) -> dict[str, Any]:
@@ -576,14 +631,14 @@ def _serialize_questions(questions: Optional[AnalyticalQuestionsOutput], floor: 
     for item in questions.questions:
         grouped[item.category].append(item.model_dump())
     items = [item.model_dump() for item in questions.questions]
-    return {
+    return _to_json_safe({
         "dataset_understanding": questions.dataset_understanding,
         "question_floor": floor,
         "total": len(items),
         "priority_count": sum(1 for item in questions.questions if item.priority),
         "groups": dict(grouped),
         "items": items,
-    }
+    })
 
 
 def _serialize_findings(answers: Optional[List[QueryResult]]) -> dict[str, Any]:
@@ -597,34 +652,34 @@ def _serialize_findings(answers: Optional[List[QueryResult]]) -> dict[str, Any]:
             failed.append(item)
         else:
             successful.append(item)
-    return {
+    return _to_json_safe({
         "total": len(answers),
         "successful_count": len(successful),
         "failed_count": len(failed),
         "successful": successful,
         "failed": failed,
-    }
+    })
 
 
 def _serialize_insights(insights: Optional[BusinessInsightsOutput]) -> dict[str, Any]:
     if not insights:
         return _build_empty_data()["insights"]
-    return {
+    return _to_json_safe({
         "executive_summary": insights.executive_summary,
         "positive_highlights": insights.positive_highlights,
         "action_items": [item.model_dump() for item in insights.action_items],
         "watch_out_for": insights.watch_out_for,
-    }
+    })
 
 
 def _serialize_refinement(refinement: Optional[RefinementDecision]) -> Optional[dict[str, Any]]:
     if not refinement:
         return None
-    return refinement.model_dump()
+    return _to_json_safe(refinement.model_dump())
 
 
 def _build_dataset_section(df: pd.DataFrame, dataset_name: str, source_name: Optional[str]) -> dict[str, Any]:
-    return {
+    return _to_json_safe({
         "file_name": source_name,
         "dataset_name": dataset_name,
         "row_count": len(df),
@@ -633,7 +688,7 @@ def _build_dataset_section(df: pd.DataFrame, dataset_name: str, source_name: Opt
         "duplicate_row_count": int(df.duplicated().sum()),
         "memory_kb": round(float(df.memory_usage(deep=True).sum()) / 1024, 1),
         "preview_rows": df.head(10).to_dict(orient="records"),
-    }
+    })
 
 
 def _build_success_envelope(
@@ -660,7 +715,7 @@ def _build_success_envelope(
     elif failed_count > 0:
         status_label = "Completed with failed query fallbacks"
 
-    return {
+    return _to_json_safe({
         "task_type": DEFAULT_TASK_TYPE,
         "status": status,
         "data": {
@@ -686,82 +741,334 @@ def _build_success_envelope(
             "api_key_configured": True,
         },
         "error": None,
-    }
+    })
 
 
 def _semantic_prompt() -> str:
     return """
-You are an expert data architect who builds a detailed semantic layer from dataframe profiling data.
+You are an expert data architect who builds rich, detailed semantic layers from raw profiling data.
 
-Rules:
-- Use only columns present in the profiling input.
-- Fill optional fields whenever the evidence supports them.
-- Never fabricate statistics.
-- Preserve exact column names.
-- Infer dataset-level context such as domain, relationships, primary keys, and time column when evidence is strong.
+INPUT:
+You receive a JSON object with:
+- dataset_name
+- profile.columns: per-column dtype, stats (mean/median/std/min/max/q1/q3/p95/iqr/skewness/
+  zero_count/negative_count/unique_count/null_count/null_percentage/top_values), and sample_values
+- profile.row_count, column_count, duplicate_row_count, missing (null counts per column)
+- profile.numeric_correlations: cross-column Pearson correlation matrix for numeric columns
+
+YOUR TASK - fill every field of DatasetSemantics as completely as possible:
+
+name          : exact column name from input (never hallucinate)
+dtype         : 'int' | 'float' | 'string' | 'datetime' | 'category' | 'boolean'
+description   : 1-2 sentence plain-English business context explanation
+unit          : currency code (e.g. 'JOD'), unit of measurement, or null
+role          : 'id' | 'time' | 'feature' | 'target' | 'category'
+stats         : copy ALL numeric fields from the profile - NEVER fabricate numbers
+sample_values : copy from profile.columns[col].sample_values
+cardinality   : 'unique' / 'high' / 'medium' / 'low' based on unique_count vs row_count
+possible_values: all distinct values for low-cardinality columns
+format_hint   : detected format pattern (e.g. '%d/%m/%Y %H:%M', 'JO-YYYY-NNNN-NNNNN')
+business_domain: 'financial' | 'temporal' | 'geographic' | 'operational' | 'identifier' | 'status' | 'other'
+is_nullable   : true if null_count > 0
+tags          : 2-5 short descriptive labels
+relationships : use numeric_correlations to note strong correlations (|r| > 0.5)
+
+DATASET-LEVEL:
+dataset_name, row_count, column_count, primary_keys, time_column, missing_values,
+inferred_domain, duplicate_row_count, date_range, inter_column_relationships, dataset_description
+
+RULES:
+- NEVER create columns not in profile.columns
+- NEVER fabricate statistics
+- Fill every optional field where data supports it
+- Use numeric_correlations to enrich inter_column_relationships and column relationships fields
 """
 
 
 def _question_prompt() -> str:
     return """
-You are a senior data analyst generating exhaustive analytical questions for a downstream pandas execution agent.
+You are a senior data analyst and analytical strategist.
+Your sole job is to generate exhaustive, high-quality analytical questions for a downstream SQL agent.
+You do NOT analyze results. You do NOT provide insights. You do NOT generate SQL.
 
-You will receive:
-- semantic_model
-- dataframe_sample
-- question_floor
-- optional refinement_feedback
+INPUT:
+- semantic_model: full dataset semantic model (columns, types, roles, stats, correlations)
+- dataframe_sample: first 5 rows of actual data
+- question_floor: the MINIMUM number of questions - treat this as a floor, not a target
+- refinement_feedback (optional): specific issues to fix from the quality checker
 
-Requirements:
-- Cover every meaningful angle the dataset supports.
-- Use the floor as a minimum, not a target.
-- Questions must start with What, Which, How many, How does, or Is there.
-- Questions must reference real schema fields only.
-- Questions must be specific, measurable, and useful to a business owner.
-- Return non-redundant questions across trend, segmentation, correlation, distribution, performance, data quality, and behavior where supported.
+COVERAGE POLICY - NON-NEGOTIABLE:
+Your goal is COMPLETE analytical coverage of the dataset, not hitting a number.
+Go through every element listed below and generate at least one question for each
+angle the data actually supports. A richer dataset will produce more questions naturally.
+Do NOT stop early to stay near question_floor - stop only when you have covered everything.
+
+SYSTEMATIC COVERAGE CHECKLIST - work through each in order:
+
+1. COLUMNS (one pass per column):
+   - For every numeric column: distribution shape, outliers, zero/negative counts if relevant
+   - For every category/status column: value breakdown, dominant vs rare values
+   - For every time column: trend over time, seasonality, period-over-period change
+   - For every ID/key column: uniqueness, duplicate detection
+
+2. SEGMENTATION (cross every category against every metric):
+   - For each category column x each numeric column: how does the metric differ by segment?
+   - Which segment ranks highest / lowest on each KPI?
+   - Are there segments with unexpectedly high failure, refund, or error rates?
+
+3. CORRELATIONS (from numeric_correlations, |r| > 0.3):
+   - For each notable correlation pair: does the relationship hold across segments?
+   - Are there pairs where correlation is strong in one segment but weak in another?
+
+4. TRENDS (only if a time column exists):
+   - Overall trend for each numeric KPI
+   - Month-over-month / week-over-week change rates
+   - Which segments are growing vs declining?
+   - Are there sudden drops or spikes at specific time periods?
+
+5. PERFORMANCE & RANKING:
+   - Rank every segment by every key metric
+   - Identify top and bottom performers
+   - What separates the best-performing segment from the worst?
+
+6. DATA QUALITY:
+   - Missing value patterns - are nulls concentrated in certain segments or time periods?
+   - Duplicate records
+   - Outliers (values beyond 3x IQR or p95)
+   - Zero-value anomalies in columns that should always be positive
+
+7. BEHAVIORAL / OPERATIONAL:
+   - Frequency distributions (how often do events occur?)
+   - Any columns that suggest process steps or funnels - where do drop-offs occur?
+   - Time-of-day or day-of-week patterns if datetime granularity supports it
+
+QUESTION RULES:
+- Reference ONLY columns listed in semantic_model.columns - never hallucinate column names
+- Every question must be specific and directly translatable to a single pandas expression
+- Every question must lead to a genuinely useful business insight
+- Phrase questions as: What / Which / How many / How does / Compare / Rank / Is there / etc.
+- No near-identical questions - each must cover a distinct analytical angle
+- Do NOT generate SQL or pandas code
+
+PRIORITISATION:
+Mark the most impactful questions as priority=true with a priority_reason.
+Priority questions are those where the answer could directly change a business decision.
+There is no cap on how many questions can be priority - mark as many as genuinely deserve it.
 """
 
 
 def _sql_prompt() -> str:
     return """
-You are an expert pandas analyst. For each question, write executable Python code that assigns the final value to a variable named `result`.
+You are an expert data analyst who answers analytical questions by writing pandas scripts.
 
-Rules:
-- Use the provided dataframe variable `df`.
-- Do not import libraries.
-- Keep each answer as a small Python snippet.
-- Never fabricate numbers or results.
-- Set `result_summary` to the exact placeholder: "PENDING: result will be computed by executing the query above."
-- If the question cannot be answered, set a short `error` and keep the rest minimal.
+INPUT:
+- questions: list of analytical questions to answer
+- semantic_model: full semantic model (column names, types, roles, stats, format hints)
+- schema: condensed column list for quick reference
+- dataframe_sample: first 5 rows of actual data
+- retry_feedback (optional): errors from previous attempts - fix these exactly
+
+For EACH question produce:
+1. query: a multi-line Python script using `df`, `pd`, `np`.
+   The script MUST assign the final answer to a variable called `result`.
+   You MAY use as many intermediate steps as needed for clarity and correctness.
+   Good examples:
+
+     # Simple aggregation
+     result = df.groupby('category')['revenue'].sum().sort_values(ascending=False).head(10)
+
+     # Multi-step: parse dates then aggregate
+     dates = pd.to_datetime(df['date'], format='%d/%m/%Y %H:%M', errors='coerce')
+     failed = df[df['status'] == 'Failed'].copy()
+     result = failed.groupby(dates[failed.index].dt.to_period('M')).size()
+
+     # Correlation with filtering
+     clean = df[['col_a', 'col_b']].dropna()
+     result = clean.corr()
+
+     # Ranked segment summary
+     grp = df.groupby('region').agg(total=('amount', 'sum'), count=('id', 'count'))
+     result = grp.sort_values('total', ascending=False)
+
+2. result_summary: Write EXACTLY: "PENDING: result will be computed by executing the query above."
+   DO NOT invent numbers - actual results replace this field automatically.
+
+3. explanation: 1-2 sentences on business relevance. No specific numbers.
+
+RULES:
+- Only use columns in semantic_model.columns
+- `df`, `pd`, `np` are pre-defined - do NOT import or redefine them
+- The last statement MUST be `result = <expression>` - nothing after it
+- Parse dates with pd.to_datetime(..., errors='coerce') and store in an intermediate var
+- If a question requires multiple groupbys or filters, use intermediate variables freely
+- If unanswerable with this schema: set error field, leave query empty
+- Return exactly one answer per question - no skipping
 """
 
 
 def _insights_prompt() -> str:
     return """
-You are a trusted business advisor translating executed analytical outputs into plain-English guidance for a business owner.
+You are a trusted business advisor translating data analysis into clear, actionable guidance
+for a business owner with no technical background.
 
-Rules:
-- Use only the provided executed `actual_result` values as evidence for numbers.
-- Do not invent metrics.
-- Produce an executive summary, positive highlights, action items, and watch-outs.
-- Make recommendations concrete and business-facing.
+INPUT:
+- semantic_model: full dataset semantic model
+- dataset_understanding: summary of the dataset
+- qa_pairs: answered questions, each with actual_result (the real data) and explanation
+- pipeline_context_log: chronological narrative of every stage completed so far
+- refinement_feedback (optional): specific issues to fix
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NUMBERS POLICY - ABSOLUTE, NON-NEGOTIABLE RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. EVERY number, percentage, count, amount, ratio, or metric you write MUST
+   be copied verbatim from an actual_result field in qa_pairs.
+2. NEVER invent, estimate, round, extrapolate, or approximate any number.
+   If you did not see the exact number in actual_result, do NOT write it.
+3. NEVER use numbers from the explanation field - explanations may contain
+   estimates. Use ONLY actual_result.
+4. If actual_result is null or the query errored, write "data unavailable"
+   and make NO numeric claim about that question.
+5. Before writing any number, ask yourself: "Can I point to the exact row
+   in actual_result where this number appears?" If NO - remove it.
+6. Fabricating or estimating numbers is a critical failure.
+7. If actual_result contains [RESULT TRUNCATED - N rows hidden], only numbers
+   that are VISIBLE in the shown portion are verified. For any number from a
+   truncated result that you cannot see explicitly, write "data unavailable"
+   - do NOT infer, extrapolate, or fill in hidden rows from memory.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+COVERAGE POLICY - NON-NEGOTIABLE:
+- Go through EVERY qa_pair that has a non-null actual_result.
+- Every meaningful finding must appear somewhere in the report.
+- Do NOT skip or summarise away findings just to keep the report short.
+- The dataset determines how much there is to say. A rich dataset produces
+  a long report. A sparse dataset produces a short one. Both are correct.
+
+OUTPUT - produce ALL four sections:
+
+1. executive_summary:
+   A flowing narrative that covers the full picture - both strengths AND problems.
+   - Open with the single most important positive finding.
+   - Cover key risks, failures, and anomalies found in the data.
+   - Include specific numbers traced directly to actual_result wherever relevant.
+   - Mention top-performing and underperforming segments.
+   - Close with the top-priority action the owner must take TODAY.
+   - Length scales with the data: write as many sentences as the findings require.
+
+2. positive_highlights:
+   One item per genuinely positive finding in the data - celebrate everything that is working.
+   - Each item must include at least one number from actual_result.
+   - Do not cap this list; if there are 12 positives, write 12.
+   - Do not pad with vague praise if the data does not support it.
+
+3. action_items:
+   One item per distinct actionable problem or opportunity found in the data.
+   - Cover every problem AND every opportunity the data reveals - do not merge
+     unrelated findings just to keep the list short.
+   - For each item:
+       title: short and specific (name the metric / branch / segment)
+       priority: High (revenue/failure impact), Medium (performance gap), Low (monitoring/scaling)
+       what: as many sentences as needed. Every number MUST exist verbatim in actual_result.
+       why_it_matters: business consequence if ignored OR opportunity missed.
+       recommendation: 2-3 concrete, specific next steps - no vague advice.
+       expected_impact: use numbers from actual_result; say "see data" if unavailable.
+   - Ensure a mix of High, Medium, and Low priorities reflecting the actual data.
+   - Write DISTINCT items - do NOT restate the same finding under different titles.
+
+4. watch_out_for:
+   One warning per risk or anomaly visible in the data.
+   - Cover every threshold, outlier, or declining trend found across ALL qa_pairs.
+   - Every threshold cited must come from actual_result - do not invent alert levels.
+   - Do not cap this list; write as many warnings as the data warrants.
+
+TONE: Direct, warm, specific. Celebrate wins openly. No jargon. Plain language.
+"""
+
+
+def _sql_checker_prompt() -> str:
+    return """
+You are a quality checker for a data analysis pipeline.
+Review the SQL execution results and decide if they are good enough for the insights stage.
+
+INPUT:
+- semantic_model: full dataset semantic model
+- answers: executed query results with question, query, actual_result, error, priority flag
+
+CHECKS:
+1. SUCCESS RATE: >= 80% of questions answered (no error, non-empty result). Below 80% = fail.
+2. PRIORITY COVERAGE: Did all priority=true questions succeed? Any priority failure = fail.
+3. RESULT QUALITY: Do actual_result values look real? Empty series / all-NaN = fail.
+4. QUERY LOGIC: Do queries actually answer what was asked?
+5. TRUNCATION: If actual_result contains [RESULT TRUNCATED - N rows hidden], flag this
+   question in your feedback so it can be rewritten to return a more compact result
+   (e.g. aggregated summary instead of raw rows). Do NOT fail the whole batch for this
+   alone - just note it so the SQL agent can fix the query on retry.
+
+DECISION:
+- approved=true: >=80% success, all priority questions answered, results meaningful
+- approved=false: set failed_questions (list of question strings) + specific feedback
+
+Ground truth is ALWAYS actual_result - never result_summary.
+Do NOT fail a result that ran and returned real data just because result_summary says PENDING.
 """
 
 
 def _refinement_prompt() -> str:
     return """
-You are the quality reviewer for a multi-agent data analysis pipeline.
+You are a quality checker for a data analysis pipeline.
+Review the business insights report and decide if it is good enough to present to the owner.
 
-Review:
-- question quality and coverage
-- failed or empty query outputs
-- accuracy and usefulness of the business insights
+INPUT:
+- semantic_model: full dataset semantic model
+- qa_pairs: SQL results (questions + actual_result)
+- insights: the generated business insights report
 
-Return:
-- approved: true if the output is acceptable
-- feedback: concise actionable feedback
-- failed_questions: list only the questions that should be re-run if query results failed
-- reasoning: short explanation
+YOUR ONLY JOB: verify quality, not quantity.
+Different datasets produce different amounts of content. A simple dataset may have
+3 action items; a complex one may have 15. Both can be correct. Never fail a report
+solely because a section has fewer or more items than some fixed number.
+
+CHECKS (in order of importance):
+
+1. NUMBER GROUNDING (CRITICAL - the only automatic fail):
+   - For every number, percentage, count, amount, or ratio that appears anywhere
+     in the report, scan ALL actual_result fields in qa_pairs for an exact match.
+   - If ANY number cannot be found verbatim in actual_result -> fail, and list
+     each unverified number and exactly where it appears.
+   - Numbers from the explanation field do NOT count as a valid source.
+   - Rounded or approximated values that differ from actual_result -> fail.
+   - If actual_result for a question is null/errored, any number claimed from
+     that question is automatically fabricated -> fail.
+   - If actual_result contains [RESULT TRUNCATED - N rows hidden], only numbers
+     visible in the shown portion are valid sources. Any number from a hidden
+     row that appears in the report is an automatic fail - treat it as fabricated.
+
+2. COVERAGE:
+   - Does the report address every qa_pair that returned a non-null actual_result?
+   - A meaningful finding that is completely absent from the report -> fail.
+   - Minor omissions or slight de-emphasis are acceptable.
+
+3. SPECIFICITY:
+   - Are recommendations concrete and actionable? "Consider improving" with no
+     further detail = vague = fail.
+   - At least one concrete next step per action item is required.
+
+4. FABRICATION CHECK:
+   - Are there numbers that look invented (suspiciously round estimates, percentages
+     with no query to support them)? If yes -> fail.
+
+DECISION:
+- approved=true: number grounding passes, all key findings covered, recommendations specific.
+- approved=false: ONLY for number grounding failures, clear fabrication, missing key findings,
+  or fully vague recommendations. List the exact issues found.
+
+Do NOT fail a report for:
+- Having fewer or more items than an arbitrary target.
+- Minor stylistic issues or slightly soft wording in one sentence.
+- Section lengths that differ from a template.
+
+Be a fair reviewer, not a perfectionist. If the content is grounded and covers the data, approve it.
 """
 
 
@@ -790,6 +1097,7 @@ def get_agents(config: RuntimeConfig) -> dict[str, Agent]:
         "question": build_agent(AnalyticalQuestionsOutput, _question_prompt()),
         "sql": build_agent(SQLAgentOutput, _sql_prompt()),
         "insights": build_agent(BusinessInsightsOutput, _insights_prompt()),
+        "sql_checker": build_agent(RefinementDecision, _sql_checker_prompt()),
         "refinement": build_agent(RefinementDecision, _refinement_prompt()),
     }
     _AGENTS_CACHE[cache_key] = agents
@@ -797,9 +1105,13 @@ def get_agents(config: RuntimeConfig) -> dict[str, Agent]:
 
 
 async def _call(agent: Agent, prompt: str, label: str, config: RuntimeConfig) -> Any:
-    for attempt in range(1, config.agent_retries + 1):
+    attempt = 1
+    while True:
         try:
-            return await asyncio.wait_for(agent.run(prompt), timeout=config.agent_timeout)
+            run_coro = agent.run(prompt)
+            if config.agent_timeout is None:
+                return await run_coro
+            return await asyncio.wait_for(run_coro, timeout=config.agent_timeout)
         except asyncio.TimeoutError:
             if attempt == config.agent_retries:
                 raise RuntimeError(f"[{label}] timed out after {config.agent_retries} attempts")
@@ -807,11 +1119,17 @@ async def _call(agent: Agent, prompt: str, label: str, config: RuntimeConfig) ->
             print(f"  [{label}] timed out, retrying in {wait_seconds}s...")
             await asyncio.sleep(wait_seconds)
         except Exception as exc:
-            if attempt == config.agent_retries:
+            retry_limit = _retry_limit_for_exception(config, exc)
+            if attempt >= retry_limit:
                 raise
-            wait_seconds = 5 * attempt
-            print(f"  [{label}] error: {exc} - retrying in {wait_seconds}s...")
+            wait_seconds = _retry_wait_seconds(exc, attempt)
+            reason = "provider overload" if _is_overload_error(exc) else "error"
+            print(
+                f"  [{label}] {reason}: {exc} - retrying in {wait_seconds}s "
+                f"(attempt {attempt + 1}/{retry_limit})..."
+            )
             await asyncio.sleep(wait_seconds)
+        attempt += 1
 
 
 def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
@@ -832,7 +1150,7 @@ def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
         }
         if feedback_map:
             payload["retry_feedback"] = feedback_map
-        result = await _call(agents["sql"], json.dumps(payload), "sql", config)
+        result = await _call(agents["sql"], _json_dumps(payload), "sql", config)
         answers: list[QueryResult] = []
         for answer in result.output.answers:
             if not answer.error:
@@ -854,7 +1172,7 @@ def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
         if cache_key in _SEMANTIC_CACHE:
             validated = _SEMANTIC_CACHE[cache_key]
         else:
-            payload = json.dumps({"dataset_name": dataset_name, "profile": profile_dataframe(df)})
+            payload = _json_dumps({"dataset_name": dataset_name, "profile": profile_dataframe(df)})
             result = await _call(agents["semantic"], payload, "semantic", config)
             validated = validate_semantics(result.output, df)
             _SEMANTIC_CACHE[cache_key] = validated
@@ -897,7 +1215,7 @@ def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
                     (payload.get("refinement_feedback") or "")
                     + f"\nThe previous pass produced too few useful questions. Return at least {floor} non-redundant questions."
                 ).strip()
-            result = await _call(agents["question"], json.dumps(payload), "question", config)
+            result = await _call(agents["question"], _json_dumps(payload), "question", config)
             output = result.output
             deduped, removed = dedup_questions(output.questions)
             output = output.model_copy(update={"questions": deduped})
@@ -987,6 +1305,7 @@ def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
 
     async def insights_node(state: MasterState) -> dict[str, Any]:
         questions_output = state["questions"]
+        semantic = state["semantic_model"]
         answers = state["answers"]
         feedback = state.get("refinement_feedback")
         print("  [insights] Building business report...")
@@ -1000,12 +1319,14 @@ def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
             for answer in answers
         ]
         payload: dict[str, Any] = {
+            "semantic_model": semantic.model_dump(),
             "dataset_understanding": questions_output.dataset_understanding,
             "qa_pairs": qa_pairs,
+            "pipeline_context_log": list(state.get("pipeline_log") or []),
         }
         if feedback:
             payload["refinement_feedback"] = feedback
-        result = await _call(agents["insights"], json.dumps(payload), "insights", config)
+        result = await _call(agents["insights"], _json_dumps(payload), "insights", config)
         insights = result.output
         deduped_actions, removed = dedup_actions(insights.action_items)
         if removed:
@@ -1017,17 +1338,15 @@ def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
         return {"insights": insights, "refinement_feedback": None, "pipeline_log": log}
 
     async def refinement_node(state: MasterState) -> dict[str, Any]:
-        questions_output = state["questions"]
+        semantic = state["semantic_model"]
         answers = state["answers"]
         insights = state["insights"]
         print("  [refinement] Reviewing outputs...")
         payload = {
-            "question_floor": state.get("question_floor"),
-            "questions": [question.model_dump() for question in questions_output.questions],
-            "answers": [
+            "semantic_model": semantic.model_dump(),
+            "qa_pairs": [
                 {
                     "question": answer.question,
-                    "query": answer.query,
                     "actual_result": answer.actual_result,
                     "error": answer.error,
                     "explanation": answer.explanation,
@@ -1036,7 +1355,7 @@ def build_pipeline(config: RuntimeConfig, df: pd.DataFrame, dataset_name: str):
             ],
             "insights": insights.model_dump(),
         }
-        result = await _call(agents["refinement"], json.dumps(payload), "refinement", config)
+        result = await _call(agents["refinement"], _json_dumps(payload), "refinement", config)
         decision = result.output
         status = "approved" if decision.approved else "needs changes"
         print(f"  [refinement] {status}: {decision.reasoning}")

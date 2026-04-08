@@ -1,3 +1,5 @@
+name: ownermate-google-maps-api
+
 services:
   scraper:
     image: gosom/google-maps-scraper:latest
@@ -11,7 +13,7 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "${HOST_PORT:-8000}:8000"
     environment:
       - SCRAPER_BASE_URL=http://scraper:8080
     depends_on:
@@ -23,7 +25,7 @@ services:
       uvicorn app.main:app
       --host 0.0.0.0
       --port 8000
-      --workers 4
+      --workers 1
       --timeout-keep-alive 800
       --timeout-graceful-shutdown 900
 

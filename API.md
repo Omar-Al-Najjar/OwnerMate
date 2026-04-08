@@ -41,6 +41,8 @@ It explicitly excludes:
 - `GET /reviews/{review_id}`
 - `POST /reviews/import`
 - `POST /reviews/import/google`
+- `GET /reviews/import/google/{run_id}`
+- `POST /reviews/import/google/{run_id}/selection`
 - `POST /reviews/import/facebook`
 - `PATCH /reviews/{review_id}/status`
 
@@ -61,6 +63,8 @@ It explicitly excludes:
 - `POST /agents/run`
 - `GET /agents/runs/{run_id}`
 
+`GET /agents/runs/{run_id}` is now business-scoped and no longer returns `initiated_by_user_id`.
+
 ### Settings / User Preferences
 - `GET /settings`
 - `PATCH /settings/theme`
@@ -74,10 +78,17 @@ It explicitly excludes:
   "business_id": "uuid",
   "source": "google",
   "source_config": {
+    "business_name": "required",
     "location_id": "optional"
   }
 }
 ```
+For Google review import, `business_name` should be supplied. The current flow does not rely on a Google Maps URL.
+The current Google import path is async: the backend creates a provider job,
+polls provider status, and may require place selection before downloading
+reviews. The downstream `google-maps-api` service resolves the raw Google place
+token from the matched place link because `query_place_id` values alone are not
+always valid for review download.
 
 ### Review Response
 ```json
@@ -190,15 +201,33 @@ When an endpoint is added, removed, or behavior changes, the agent must:
 The repository currently includes a frontend handoff prototype in `Agent prototype/`.
 This prototype is not yet the final OwnerMate review workflow. It is a dataset-analysis contract intended to help a frontend engineer integrate the current AI orchestration safely.
 
-### Suggested prototype route
+### Prototype analysis service routes
 
-- `POST /prototype/analyze-dataset`
+- `GET /health`
+- `POST /jobs`
+- `GET /jobs/{job_id}`
+
+`GET /jobs/{job_id}` now also accepts an optional `locale` query parameter:
+- `locale=en`
+- `locale=ar`
+
+### Website proxy routes
+
+- `POST /api/dataset-analysis/jobs`
+- `GET /api/dataset-analysis/jobs/{jobId}`
+
+`GET /api/dataset-analysis/jobs/{jobId}` also accepts the same optional `locale` query parameter and forwards it to the prototype service.
+
+`POST /api/dataset-analysis/jobs` now requires a `datasetName` form field between 3 and 25 characters before a job can be created.
 
 ### Prototype input
 
-Multipart upload or equivalent server-side handoff containing:
-- CSV file
-- optional dataset name override
+Multipart upload containing:
+- one CSV file
+- required `dataset_name`
+- optional `source_name`
+- optional `owner_user_id`
+- optional `business_id`
 
 ### Prototype response shape
 
@@ -232,6 +261,13 @@ Multipart upload or equivalent server-side handoff containing:
 - `partial_success`
 - `error`
 
+### Prototype job status values
+
+- `queued`
+- `running`
+- `success`
+- `error`
+
 ### Prototype error shape
 
 ```json
@@ -246,3 +282,8 @@ Multipart upload or equivalent server-side handoff containing:
 
 This contract is suitable for the current Streamlit shell and for a future frontend port.
 It should not be confused with the final in-scope OwnerMate APIs for review ingestion, sentiment analysis, and content generation.
+
+The main OwnerMate backend remains untouched for this flow. The website proxies requests to the separate prototype service so long CSV analyses do not slow down the core application server.
+
+Completed dataset-analysis jobs may now return locale-specific localized `result` content for Arabic UI consumers without changing the envelope shape or rerunning the analysis job.
+The website also treats the user-provided dataset name as the canonical display name across overview and semantic-model result cards.

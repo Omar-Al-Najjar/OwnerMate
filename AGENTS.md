@@ -39,6 +39,7 @@ It explicitly excludes:
 - classify sentiment
 - attach confidence and theme tags
 - support Arabic and English workflows
+- backfill missing sentiment results for imported or newly viewed reviews when no prior classification exists
 
 ### 2.4 Content Generation Agent
 **Responsibilities:**
@@ -121,6 +122,13 @@ Each meaningful agent run should ideally log:
 * success or failure
 * key references to inputs and outputs
 
+### Current runtime behavior note
+
+- newly imported reviews may be classified automatically through the sentiment analysis service after import
+- reviews returned to the main application may trigger best-effort sentiment backfill when a stored sentiment result is missing
+- the main backend can now use either a mock sentiment provider or the separate Dockerized sentiment model service under `Sentiment analysis model/`
+- the Google Maps review-ingestion helper under `google-maps-api/` currently uses `business_name` only for business lookup
+
 ## 10. Documentation Rule for Agents
 
 Whenever an agent is added, changed, rerouted, or removed, the coding agent must:
@@ -177,3 +185,35 @@ The prototype now expects server-side environment configuration for the model pr
 - `OWNERMATE_LLM_API_KEY`
 - `OWNERMATE_LLM_MODEL`
 - `OWNERMATE_LLM_BASE_URL`
+
+### Separate service note
+
+The prototype can now be exposed through a lightweight async service wrapper inside `Agent prototype/`:
+- `GET /health`
+- `POST /jobs`
+- `GET /jobs/{job_id}`
+
+This wrapper:
+- keeps CSV analysis out of the main OwnerMate backend
+- stores short-lived job state in memory for v1
+- is intended to be called only by trusted server-side proxies using an internal secret
+- can localize completed job results for Arabic consumers through `GET /jobs/{job_id}?locale=ar` without rerunning the analysis
+
+### Current UI integration note
+
+- the website now exposes a dedicated authenticated page for this prototype under `/{locale}/dataset-analysis`
+- the website reaches the prototype only through thin Next.js proxy routes
+- this change affects UI behavior and frontend-facing API routes, but it does not move the dataset-analysis agent into the main backend
+- the website can now rehydrate the same completed dataset-analysis job in Arabic when the locale changes, while the findings tab shows answered findings only
+- the authenticated dataset-analysis proxy now mirrors prototype job lifecycle into the shared `agent_runs` table when business scope is available, so analysis runs are traceable beside the rest of the product agents
+- the website now requires a user-provided dataset name before starting dataset analysis, and that provided name is the unified dataset name shown across the dataset-analysis results UI
+- dataset-analysis run logging now relies on resolved `business_id` scope, and it supports schemas that require explicit `agent_runs.id` values on insert
+- dataset-analysis run logging no longer populates `initiated_by_user_id`; `business_id` is the sole linkage used for these run records
+
+### Current reliability note
+
+- the dataset-analysis prototype now retries transient provider overload failures before returning an error
+- the prototype continues to return the same structured envelope, but error `details` may now surface provider overload messages more clearly in the website UI
+- the prototype runtime is also kept compatible with newer pandas string dtypes so CSV profiling does not fail before the orchestrator runs
+- the prototype now normalizes pandas timestamp-like values before agent handoffs and final envelopes so long-running jobs do not fail during JSON serialization
+- the prototype SQL stage now calls the SQL agent for both normal batches and retry batches, avoiding unbound local failures when no retry feedback is present

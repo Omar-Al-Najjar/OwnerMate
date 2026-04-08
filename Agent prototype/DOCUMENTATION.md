@@ -531,3 +531,116 @@ The public contract exposed by `pipeline.py` is:
 ```
 
 This prototype contract is for the current CSV-analysis handoff only and is not yet the final OwnerMate product API.
+
+## 9. Website Integration Service
+
+The prototype can also run as a lightweight FastAPI service for the main website integration.
+
+### Service purpose
+
+- accept a CSV upload from the authenticated website
+- queue the analysis in memory
+- run `run_analysis(...)` in the background
+- return the same public envelope that `pipeline.py` already exposes
+
+### Service routes
+
+```text
+GET /health
+POST /jobs
+GET /jobs/{job_id}
+```
+
+### Service security
+
+The service is not intended for direct browser access.
+The website calls it with:
+
+- `X-OwnerMate-Service-Secret`
+- `X-OwnerMate-Owner-User-Id`
+
+### Local service run
+
+From the `Agent prototype/` folder:
+
+```powershell
+.\run-service.ps1
+```
+
+or:
+
+```bat
+run-service.bat
+```
+
+Both launch:
+
+```bash
+python -m uvicorn api_service:app --host 127.0.0.1 --port 8020
+```
+
+### Additional env variables
+
+- `DATASET_ANALYSIS_SERVICE_SECRET`
+- `DATASET_ANALYSIS_MAX_FILE_MB`
+- `DATASET_ANALYSIS_MAX_CONCURRENCY`
+
+## 10. Troubleshooting Notes
+
+The website integration for dataset analysis surfaced several real runtime issues during end-to-end testing. These are now documented here so the next debug pass is faster.
+
+### 10.1 Provider overload from the model service
+
+Symptom:
+- jobs failed after several minutes with provider-side `429` errors such as `engine_overloaded_error`
+
+Root cause:
+- the analysis pipeline was healthy, but the configured model provider could temporarily reject requests under load
+
+Fix:
+- the retry loop in `pipeline.py` now gives overload and rate-limit style failures more retry attempts than ordinary errors
+- the website now prefers detailed error text from the returned envelope so the user sees the real provider reason instead of a generic failure message
+
+### 10.2 Pandas `StringDtype` profiling failure
+
+Symptom:
+- jobs failed early with:
+  - `Cannot interpret '<StringDtype(na_value=nan)>' as a data type`
+
+Root cause:
+- dataframe profiling used numeric detection paths that were not fully compatible with modern pandas string dtypes
+
+Fix:
+- numeric column discovery now uses pandas dtype-safe checks per column instead of unsafe dataframe-wide numeric detection logic
+
+### 10.3 `Timestamp` JSON serialization failure
+
+Symptom:
+- long-running jobs failed late with:
+  - `Object of type Timestamp is not JSON serializable`
+
+Root cause:
+- pandas timestamp-like values could reach intermediate agent payloads or final envelope sections such as preview rows
+
+Fix:
+- the prototype now normalizes pandas timestamps, Python datetime values, pandas missing values, and numpy scalars before every agent handoff and before final envelope output
+
+### 10.4 Unbound SQL batch result
+
+Symptom:
+- jobs failed in the SQL stage with:
+  - `cannot access local variable 'result' where it is not associated with a value`
+
+Root cause:
+- the SQL agent call inside `run_sql_batch(...)` was mistakenly nested under the retry-feedback branch, so ordinary batches could skip the call entirely
+
+Fix:
+- the SQL agent call now runs for both normal batches and retry batches
+
+### 10.5 Runtime guidance
+
+- keep `OWNERMATE_AGENT_TIMEOUT=0` to allow long analyses to finish
+- keep `OWNERMATE_AGENT_RETRIES=5` or higher if your provider is unstable
+- if a job fails, check both:
+  - the website job response under `/api/dataset-analysis/jobs/{jobId}`
+  - the service logs from the `api_service:app` process on port `8020`
