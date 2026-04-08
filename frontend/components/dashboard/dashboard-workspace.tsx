@@ -2,7 +2,7 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -77,6 +77,31 @@ const ACTIVITY_TONE_STYLES: Record<DashboardActivityItem["type"], string> = {
   positive_signal: "bg-emerald-500",
 };
 
+const CHART_RESET_BUTTON_CLASS =
+  "rounded-full border border-primary/15 bg-primary/8 px-4 py-2 text-foreground shadow-sm hover:border-primary/30 hover:bg-primary/12 hover:text-foreground dark:bg-primary/10 dark:hover:bg-primary/15";
+
+function ChartLegend({
+  items,
+}: {
+  items: Array<{ label: string; colorClass: string }>;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+      {items.map((item) => (
+        <div className="inline-flex items-center gap-2" key={item.label}>
+          <span
+            className={cn(
+              "h-2.5 w-2.5 rounded-full shadow-sm",
+              item.colorClass
+            )}
+          />
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const PRIORITY_BADGE_STYLES: Record<DashboardPriorityReview["priority"], string> = {
   high: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300",
   medium:
@@ -125,10 +150,18 @@ export function DashboardWorkspace({
   dictionary,
   data,
 }: DashboardWorkspaceProps) {
+  const isRTL = locale === "ar";
   const pathname = usePathname();
   const [filters, setFilters] = useState<DashboardFilters>(
     DEFAULT_DASHBOARD_FILTERS
   );
+  const [numberDisplayMode, setNumberDisplayMode] = useState<"compact" | "full">(
+    "full"
+  );
+  const [selectedSalesPointDate, setSelectedSalesPointDate] = useState<string | null>(
+    null
+  );
+  const [salesChartResetToken, setSalesChartResetToken] = useState(0);
 
   useEffect(() => {
     if (!data) {
@@ -183,6 +216,24 @@ export function DashboardWorkspace({
     return getDashboardView(data.reviews, data.salesRecords, filters);
   }, [data, filters]);
 
+  useEffect(() => {
+    if (!view?.sales.revenueSeries.length) {
+      setSelectedSalesPointDate(null);
+      return;
+    }
+
+    setSelectedSalesPointDate((current) => {
+      if (
+        current &&
+        view.sales.revenueSeries.some((point) => point.date === current)
+      ) {
+        return current;
+      }
+
+      return null;
+    });
+  }, [view]);
+
   const activeFilterCount = [
     filters.range !== DEFAULT_DASHBOARD_FILTERS.range ? filters.range : "",
     filters.source !== "all" ? filters.source : "",
@@ -231,9 +282,18 @@ export function DashboardWorkspace({
     filters.sentiment === "all"
       ? dictionary.dashboard.allSentiments
       : dictionary.sentimentLabels[filters.sentiment];
+  const selectedSalesPoint =
+    view.sales.revenueSeries.find((point) => point.date === selectedSalesPointDate) ??
+    null;
+
+  const handleClearFilters = () => {
+    setFilters(DEFAULT_DASHBOARD_FILTERS);
+    setSelectedSalesPointDate(null);
+    setSalesChartResetToken((current) => current + 1);
+  };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" dir={isRTL ? "rtl" : "ltr"}>
       <SectionHeader
         description={dictionary.dashboard.description}
         eyebrow={dictionary.navigation.dashboard}
@@ -268,7 +328,10 @@ export function DashboardWorkspace({
               {hasSalesData ? (
                 <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
                   {dictionary.dashboard.totalRevenue}:{" "}
-                  {formatCurrencyCompact(view.sales.summary.totalRevenue)}
+                  {formatCurrencyValue(
+                    view.sales.summary.totalRevenue,
+                    numberDisplayMode
+                  )}
                 </span>
               ) : (
                 <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
@@ -277,7 +340,8 @@ export function DashboardWorkspace({
                 </span>
               )}
               <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
-                {view.review.reviewCount} {dictionary.dashboard.reviewsInScope}
+                {formatCountValue(view.review.reviewCount, numberDisplayMode)}{" "}
+                {dictionary.dashboard.reviewsInScope}
               </span>
             </div>
           </div>
@@ -287,7 +351,10 @@ export function DashboardWorkspace({
               <HeroSummaryCard
                 helper={dictionary.dashboard.salesPerformanceDescription}
                 label={dictionary.dashboard.totalRevenue}
-                value={formatCurrencyCompact(view.sales.summary.totalRevenue)}
+                value={formatCurrencyValue(
+                  view.sales.summary.totalRevenue,
+                  numberDisplayMode
+                )}
               />
             ) : (
               <HeroSummaryCard
@@ -305,13 +372,16 @@ export function DashboardWorkspace({
               <HeroSummaryCard
                 helper={dictionary.dashboard.filterSummary}
                 label={dictionary.dashboard.totalOrders}
-                value={String(view.sales.summary.totalOrders)}
+                value={formatCountValue(
+                  view.sales.summary.totalOrders,
+                  numberDisplayMode
+                )}
               />
             ) : (
               <HeroSummaryCard
                 helper={dictionary.dashboard.reviewVolume}
                 label={dictionary.dashboard.totalReviews}
-                value={String(view.review.reviewCount)}
+                value={formatCountValue(view.review.reviewCount, numberDisplayMode)}
               />
             )}
             <HeroSummaryCard
@@ -330,7 +400,17 @@ export function DashboardWorkspace({
               {dictionary.dashboard.filterSummary}
             </p>
             <p className="text-sm text-muted">
-              {dictionary.dashboard.reviewsInScope}: {view.review.reviewCount}
+              {dictionary.dashboard.reviewsInScope}:{" "}
+              {formatCountValue(view.review.reviewCount, numberDisplayMode)}
+            </p>
+            <p className="text-xs text-muted">
+              {activeFilterCount > 0
+                ? getLocalizedActiveFilterSummary(
+                    locale,
+                    activeFilterCount,
+                    numberDisplayMode
+                  )
+                : dictionary.dashboard.datasetBaseline}
             </p>
             <div className="flex flex-wrap gap-2">
               {data.filterOptions.timeRanges.map((range) => {
@@ -339,10 +419,10 @@ export function DashboardWorkspace({
                 return (
                   <button
                     className={cn(
-                      "rounded-full border px-4 py-2 text-sm font-medium transition",
+                      "cursor-pointer rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15",
                       isActive
-                        ? "border-primary bg-primary text-white"
-                        : "border-border bg-background text-foreground hover:border-primary/40 hover:bg-surface"
+                        ? "border-primary bg-primary text-white shadow-sm"
+                        : "border-border bg-background text-foreground hover:-translate-y-px hover:border-primary/40 hover:bg-surface hover:shadow-sm"
                     )}
                     key={range}
                     onClick={() =>
@@ -420,8 +500,9 @@ export function DashboardWorkspace({
             />
             <div className="flex items-end">
               <Button
-                className="w-full bg-surface text-foreground hover:bg-slate-200 dark:hover:bg-slate-700"
-                onClick={() => setFilters(DEFAULT_DASHBOARD_FILTERS)}
+                className="w-full rounded-xl border border-border bg-surface text-foreground shadow-none hover:bg-slate-100 dark:bg-slate-900/70 dark:hover:bg-slate-800 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100 dark:disabled:border-slate-800 dark:disabled:bg-slate-900 dark:disabled:text-slate-400"
+                disabled={activeFilterCount === 0}
+                onClick={handleClearFilters}
                 type="button"
               >
                 {dictionary.dashboard.clearFilters}
@@ -432,13 +513,37 @@ export function DashboardWorkspace({
       </section>
 
       <section className="space-y-4">
-        <SectionLead
-          description={dictionary.dashboard.executiveSummaryDescription}
-          title={dictionary.dashboard.executiveSummary}
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <SectionLead
+            description={dictionary.dashboard.executiveSummaryDescription}
+            title={dictionary.dashboard.executiveSummary}
+          />
+          <div className="inline-flex w-fit rounded-full border border-border bg-background p-1">
+            {(["full", "compact"] as const).map((mode) => (
+              <button
+                className={cn(
+                  "cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15",
+                  numberDisplayMode === mode
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-muted hover:-translate-y-px hover:bg-surface hover:text-foreground"
+                )}
+                key={mode}
+                onClick={() => setNumberDisplayMode(mode)}
+                type="button"
+              >
+                {getLocalizedNumberDisplayModeLabel(locale, mode)}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {executiveMetrics.map((metric) => (
-            <MetricCard dictionary={dictionary} key={metric.id} metric={metric} />
+            <MetricCard
+              dictionary={dictionary}
+              key={metric.id}
+              metric={metric}
+              numberDisplayMode={numberDisplayMode}
+            />
           ))}
         </div>
       </section>
@@ -451,27 +556,51 @@ export function DashboardWorkspace({
           />
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <RevenueTrendPanel
+              key={`revenue-${salesChartResetToken}-${filters.range}`}
               dictionary={dictionary}
+              locale={locale}
+              onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
               points={view.sales.revenueSeries}
+              numberDisplayMode={numberDisplayMode}
+              onSelectPoint={setSelectedSalesPointDate}
+              selectedPoint={selectedSalesPoint}
             />
             <ChannelMixPanel
               channels={view.sales.channelMix}
               dictionary={dictionary}
+              isRTL={isRTL}
+              numberDisplayMode={numberDisplayMode}
             />
           </div>
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <OrdersRevenuePanel
+              key={`orders-${salesChartResetToken}-${filters.range}`}
               dictionary={dictionary}
+              isRTL={isRTL}
+              locale={locale}
+              onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
               points={view.sales.revenueSeries}
+              numberDisplayMode={numberDisplayMode}
+              onSelectPoint={setSelectedSalesPointDate}
+              selectedPoint={selectedSalesPoint}
             />
             <RefundPanel
+              key={`refund-${salesChartResetToken}-${filters.range}`}
               dictionary={dictionary}
+              isRTL={isRTL}
+              locale={locale}
+              onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
+              onSelectPoint={setSelectedSalesPointDate}
               points={view.sales.refundSeries}
+              numberDisplayMode={numberDisplayMode}
+              selectedPoint={selectedSalesPoint}
               summary={view.sales.summary}
             />
           </div>
           <TopProductsPanel
             dictionary={dictionary}
+            isRTL={isRTL}
+            numberDisplayMode={numberDisplayMode}
             products={view.sales.topProducts}
           />
         </section>
@@ -510,12 +639,14 @@ export function DashboardWorkspace({
               <SentimentPanel
                 buckets={view.review.distributions.sentiment}
                 dictionary={dictionary}
+                isRTL={isRTL}
               />
               <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
                 <DistributionPanel
                   buckets={view.review.distributions.ratings}
                   description={dictionary.dashboard.sentimentHelper}
                   dictionary={dictionary}
+                  isRTL={isRTL}
                   title={dictionary.dashboard.ratingMix}
                   variant="rating"
                 />
@@ -523,6 +654,7 @@ export function DashboardWorkspace({
                   buckets={view.review.distributions.sources}
                   description={dictionary.dashboard.sourcesHelper}
                   dictionary={dictionary}
+                  isRTL={isRTL}
                   title={dictionary.dashboard.sourceMix}
                   variant="source"
                 />
@@ -530,6 +662,7 @@ export function DashboardWorkspace({
                   buckets={view.review.distributions.languages}
                   description={dictionary.common.language}
                   dictionary={dictionary}
+                  isRTL={isRTL}
                   title={dictionary.dashboard.languageMix}
                   variant="language"
                 />
@@ -591,7 +724,7 @@ function HeroSummaryCard({
   helper: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/80 bg-background/85 p-4 text-start shadow-sm backdrop-blur">
+    <div className="rounded-2xl border border-border/80 bg-background/85 p-4 text-start shadow-sm backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-panel">
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
@@ -619,9 +752,11 @@ function SectionLead({
 function MetricCard({
   metric,
   dictionary,
+  numberDisplayMode,
 }: {
   metric: DashboardMetric;
   dictionary: Dictionary;
+  numberDisplayMode: "compact" | "full";
 }) {
   const tone = metric.tone ?? "default";
   const trendTone =
@@ -634,7 +769,7 @@ function MetricCard({
   return (
     <article
       className={cn(
-        "rounded-2xl border p-5 shadow-panel transition hover:-translate-y-0.5",
+        "rounded-2xl border p-5 shadow-panel transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg",
         METRIC_TONE_STYLES[tone]
       )}
     >
@@ -644,7 +779,7 @@ function MetricCard({
             {getMetricLabel(metric.id, dictionary)}
           </p>
           <p className="text-3xl font-semibold tracking-tight text-foreground">
-            {metric.displayValue}
+            {formatMetricValue(metric, numberDisplayMode)}
           </p>
         </div>
         <Sparkline values={metric.sparkline} />
@@ -656,7 +791,7 @@ function MetricCard({
         </p>
         <p className={cn("text-sm font-medium", trendTone)}>
           {metric.trend
-            ? `${metric.trend.displayValue} ${dictionary.dashboard.vsPreviousWindow}`
+            ? `${formatMetricTrend(metric, numberDisplayMode)} ${dictionary.dashboard.vsPreviousWindow}`
             : dictionary.dashboard.datasetBaseline}
         </p>
       </div>
@@ -704,19 +839,42 @@ function Sparkline({ values }: { values: number[] }) {
 function RevenueTrendPanel({
   points,
   dictionary,
+  locale,
+  selectedPoint,
+  onSelectPoint,
+  onResetSelectedPoint,
+  numberDisplayMode,
 }: {
   points: DashboardSalesSeriesPoint[];
   dictionary: Dictionary;
+  locale: string;
+  selectedPoint: DashboardSalesSeriesPoint | null;
+  onSelectPoint: (date: string) => void;
+  onResetSelectedPoint: () => void;
+  numberDisplayMode: "compact" | "full";
 }) {
+  const activePoint = selectedPoint ?? points[points.length - 1] ?? null;
+
   return (
     <section className="panel p-6">
-      <div className="space-y-1 text-start">
-        <h3 className="text-lg font-semibold text-foreground">
-          {dictionary.dashboard.revenueTrend}
-        </h3>
-        <p className="text-sm text-muted">
-          {dictionary.dashboard.revenueTrendDescription}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1 text-start">
+          <h3 className="text-lg font-semibold text-foreground">
+            {dictionary.dashboard.revenueTrend}
+          </h3>
+          <p className="text-sm text-muted">
+            {dictionary.dashboard.revenueTrendDescription}
+          </p>
+        </div>
+        {selectedPoint ? (
+          <Button
+            className={CHART_RESET_BUTTON_CLASS}
+            onClick={onResetSelectedPoint}
+            type="button"
+          >
+            {dictionary.dashboard.resetSelectedTime}
+          </Button>
+        ) : null}
       </div>
       {points.length === 0 ? (
         <div className="mt-5">
@@ -727,16 +885,45 @@ function RevenueTrendPanel({
         </div>
       ) : (
         <div className="mt-5 space-y-4">
-          <LineAreaChart
-            colorClass="text-primary"
-            points={points}
-            valueSelector={(point) => point.revenue}
+          <ChartLegend
+            items={[
+              {
+                colorClass: "bg-primary",
+                label: dictionary.dashboard.revenueLabel,
+              },
+            ]}
           />
-          <div className="flex items-center justify-between gap-3 text-xs text-muted">
+          <div dir="ltr">
+            <LineAreaChart
+              colorClass="text-primary"
+              formatTooltipValue={(point) =>
+                formatCurrencyValue(point.revenue, numberDisplayMode)
+              }
+              locale={locale}
+              onSelectPoint={onSelectPoint}
+              points={points}
+              selectedDate={selectedPoint?.date ?? null}
+              valueSelector={(point) => point.revenue}
+            />
+          </div>
+          <div
+            className="flex items-center justify-between gap-3 text-xs text-muted"
+            dir="ltr"
+          >
             <span>{points[0]?.label}</span>
             <span>{points[Math.floor(points.length / 2)]?.label}</span>
             <span>{points[points.length - 1]?.label}</span>
           </div>
+          {activePoint ? (
+            <div className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:border-primary/20 hover:shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                {formatDate(activePoint.date, locale)}
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
+                {formatCurrencyValue(activePoint.revenue, numberDisplayMode)}
+              </p>
+            </div>
+          ) : null}
         </div>
       )}
     </section>
@@ -746,21 +933,51 @@ function RevenueTrendPanel({
 function OrdersRevenuePanel({
   points,
   dictionary,
+  isRTL,
+  locale,
+  selectedPoint,
+  onSelectPoint,
+  onResetSelectedPoint,
+  numberDisplayMode,
 }: {
   points: DashboardSalesSeriesPoint[];
   dictionary: Dictionary;
+  isRTL: boolean;
+  locale: string;
+  selectedPoint: DashboardSalesSeriesPoint | null;
+  onSelectPoint: (date: string) => void;
+  onResetSelectedPoint: () => void;
+  numberDisplayMode: "compact" | "full";
 }) {
+  const visiblePoints = points.slice(-30);
+  const activePoint =
+    selectedPoint &&
+    visiblePoints.some((point) => point.date === selectedPoint.date)
+      ? selectedPoint
+      : visiblePoints[visiblePoints.length - 1] ?? null;
+
   return (
     <section className="panel p-6">
-      <div className="space-y-1 text-start">
-        <h3 className="text-lg font-semibold text-foreground">
-          {dictionary.dashboard.ordersRevenueView}
-        </h3>
-        <p className="text-sm text-muted">
-          {dictionary.dashboard.ordersRevenueDescription}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1 text-start">
+          <h3 className="text-lg font-semibold text-foreground">
+            {dictionary.dashboard.ordersRevenueView}
+          </h3>
+          <p className="text-sm text-muted">
+            {dictionary.dashboard.ordersRevenueDescription}
+          </p>
+        </div>
+        {selectedPoint ? (
+          <Button
+            className={CHART_RESET_BUTTON_CLASS}
+            onClick={onResetSelectedPoint}
+            type="button"
+          >
+            {dictionary.dashboard.resetSelectedTime}
+          </Button>
+        ) : null}
       </div>
-      {points.length === 0 ? (
+      {visiblePoints.length === 0 ? (
         <div className="mt-5">
           <EmptyState
             description={dictionary.dashboard.noSalesDataDescription}
@@ -768,25 +985,44 @@ function OrdersRevenuePanel({
           />
         </div>
       ) : (
-        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-          <RevenueOrdersComboChart points={points} />
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-            {points.slice(-3).map((point) => (
-              <div
-                className="rounded-2xl border border-border bg-background p-4 text-start"
-                key={point.date}
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                  {point.label}
+        <div className="mt-5 space-y-4">
+          {activePoint ? (
+            <div className={cn("flex", isRTL ? "justify-start" : "justify-end")}>
+              <div className="inline-flex h-fit w-fit min-w-[10rem] flex-col rounded-3xl border border-border bg-background px-3 py-2 text-start transition-all duration-200 hover:border-primary/20 hover:shadow-sm lg:min-w-[10.5rem]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  {formatDate(activePoint.date, locale)}
                 </p>
-                <p className="mt-3 text-lg font-semibold text-foreground">
-                  {formatCurrency(point.revenue)}
+                <p className="mt-1.5 text-[1.05rem] font-semibold text-foreground">
+                  {formatCurrencyValue(activePoint.revenue, numberDisplayMode)}
                 </p>
-                <p className="mt-1 text-sm text-muted">
-                  {point.orders} {dictionary.dashboard.ordersLabel}
+                <p className="mt-0.5 text-[13px] text-muted">
+                  {formatCountValue(activePoint.orders, numberDisplayMode)}{" "}
+                  {dictionary.dashboard.ordersLabel}
                 </p>
               </div>
-            ))}
+            </div>
+          ) : null}
+          <div className="min-w-0 space-y-3" dir="ltr">
+            <ChartLegend
+              items={[
+                {
+                  colorClass: "bg-primary",
+                  label: dictionary.dashboard.revenueLabel,
+                },
+                {
+                  colorClass: "bg-emerald-500",
+                  label: dictionary.dashboard.ordersLabel,
+                },
+              ]}
+            />
+            <div dir="ltr">
+              <RevenueOrdersComboChart
+                onSelectPoint={onSelectPoint}
+                numberDisplayMode={numberDisplayMode}
+                points={visiblePoints}
+                selectedDate={activePoint?.date ?? null}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -797,9 +1033,13 @@ function OrdersRevenuePanel({
 function ChannelMixPanel({
   channels,
   dictionary,
+  isRTL,
+  numberDisplayMode,
 }: {
   channels: DashboardSalesChannelBreakdown[];
   dictionary: Dictionary;
+  isRTL: boolean;
+  numberDisplayMode: "compact" | "full";
 }) {
   return (
     <section className="panel p-6">
@@ -824,7 +1064,7 @@ function ChannelMixPanel({
           <div className="grid grid-cols-2 gap-3">
             {channels.map((channel) => (
               <div
-                className="rounded-2xl border border-border bg-background p-4 text-start"
+                className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-sm"
                 key={channel.id}
               >
                 <div className="flex items-center gap-2">
@@ -842,7 +1082,7 @@ function ChannelMixPanel({
                   {Math.round(channel.share * 100)}%
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  {formatCurrency(channel.revenue)}
+                  {formatCurrencyValue(channel.revenue, numberDisplayMode)}
                 </p>
               </div>
             ))}
@@ -856,10 +1096,14 @@ function ChannelMixPanel({
                     {dictionary.dashboard.salesChannels[channel.id]}
                   </span>
                   <span className="text-muted">
-                    {channel.orders} {dictionary.dashboard.ordersLabel}
+                    {formatCountValue(channel.orders, numberDisplayMode)}{" "}
+                    {dictionary.dashboard.ordersLabel}
                   </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-surface">
+                <div
+                  className="h-2 overflow-hidden rounded-full bg-surface"
+                  dir={isRTL ? "rtl" : "ltr"}
+                >
                   <div
                     className={cn(
                       "h-full rounded-full",
@@ -881,22 +1125,52 @@ function RefundPanel({
   points,
   summary,
   dictionary,
+  isRTL,
+  locale,
+  selectedPoint,
+  numberDisplayMode,
+  onSelectPoint,
+  onResetSelectedPoint,
 }: {
   points: DashboardSalesSeriesPoint[];
   summary: DashboardView["sales"]["summary"];
   dictionary: Dictionary;
+  isRTL: boolean;
+  locale: string;
+  selectedPoint: DashboardSalesSeriesPoint | null;
+  numberDisplayMode: "compact" | "full";
+  onSelectPoint: (date: string) => void;
+  onResetSelectedPoint: () => void;
 }) {
+  const visiblePoints = points.slice(-30);
+  const activePoint =
+    selectedPoint &&
+    visiblePoints.some((point) => point.date === selectedPoint.date)
+      ? selectedPoint
+      : visiblePoints[visiblePoints.length - 1] ?? null;
+
   return (
     <section className="panel p-6">
-      <div className="space-y-1 text-start">
-        <h3 className="text-lg font-semibold text-foreground">
-          {dictionary.dashboard.refundTrend}
-        </h3>
-        <p className="text-sm text-muted">
-          {dictionary.dashboard.refundTrendDescription}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1 text-start">
+          <h3 className="text-lg font-semibold text-foreground">
+            {dictionary.dashboard.refundTrend}
+          </h3>
+          <p className="text-sm text-muted">
+            {dictionary.dashboard.refundTrendDescription}
+          </p>
+        </div>
+        {selectedPoint ? (
+          <Button
+            className={CHART_RESET_BUTTON_CLASS}
+            onClick={onResetSelectedPoint}
+            type="button"
+          >
+            {dictionary.dashboard.resetSelectedTime}
+          </Button>
+        ) : null}
       </div>
-      {points.length === 0 ? (
+      {visiblePoints.length === 0 ? (
         <div className="mt-5">
           <EmptyState
             description={dictionary.dashboard.noSalesDataDescription}
@@ -904,16 +1178,51 @@ function RefundPanel({
           />
         </div>
       ) : (
-        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-          <LineAreaChart
-            colorClass="text-amber-500"
-            points={points}
-            valueSelector={(point) => point.refundValue}
-          />
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+        <div className="mt-5 space-y-4">
+          <div className="space-y-3">
+            <ChartLegend
+              items={[
+                {
+                  colorClass: "bg-amber-500",
+                  label: dictionary.dashboard.refundsLabel,
+                },
+              ]}
+            />
+            <div dir="ltr">
+              <LineAreaChart
+                colorClass="text-amber-500"
+                containerClassName="px-2 py-6 lg:px-1"
+                formatTooltipValue={(point) =>
+                  formatCurrencyValue(point.refundValue, numberDisplayMode)
+                }
+                locale={locale}
+                onSelectPoint={onSelectPoint}
+                points={visiblePoints}
+                selectedDate={activePoint?.date ?? null}
+                svgClassName="h-64"
+                valueSelector={(point) => point.refundValue}
+              />
+            </div>
+          </div>
+          <div
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            dir={isRTL ? "rtl" : "ltr"}
+          >
             <RefundStatCard
               label={dictionary.dashboard.refundValue}
-              value={formatCurrency(summary.refundValue)}
+              value={formatCurrencyValue(summary.refundValue, numberDisplayMode)}
+            />
+            <RefundStatCard
+              label={
+                activePoint
+                  ? formatDate(activePoint.date, locale)
+                  : dictionary.dashboard.focusWindow
+              }
+              value={
+                activePoint
+                  ? formatCurrencyValue(activePoint.refundValue, numberDisplayMode)
+                  : formatCurrencyValue(summary.refundValue, numberDisplayMode)
+              }
             />
             <RefundStatCard
               label={dictionary.dashboard.refundRate}
@@ -921,7 +1230,7 @@ function RefundPanel({
             />
             <RefundStatCard
               label={dictionary.dashboard.refundCount}
-              value={String(summary.refundCount)}
+              value={formatCountValue(summary.refundCount, numberDisplayMode)}
             />
           </div>
         </div>
@@ -932,7 +1241,7 @@ function RefundPanel({
 
 function RefundStatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-background p-4 text-start">
+    <div className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
@@ -944,9 +1253,13 @@ function RefundStatCard({ label, value }: { label: string; value: string }) {
 function TopProductsPanel({
   products,
   dictionary,
+  isRTL,
+  numberDisplayMode,
 }: {
   products: DashboardSalesProduct[];
   dictionary: Dictionary;
+  isRTL: boolean;
+  numberDisplayMode: "compact" | "full";
 }) {
   return (
     <section className="panel p-6">
@@ -970,7 +1283,7 @@ function TopProductsPanel({
           <div className="space-y-3">
             {products.map((product, index) => (
               <div
-                className="rounded-2xl border border-border bg-background p-4"
+                className="rounded-2xl border border-border bg-background p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-sm"
                 key={product.id}
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -989,14 +1302,18 @@ function TopProductsPanel({
                   </div>
                   <div className="text-end">
                     <p className="text-sm font-semibold text-foreground">
-                      {formatCurrency(product.revenue)}
+                      {formatCurrencyValue(product.revenue, numberDisplayMode)}
                     </p>
                     <p className="text-xs text-muted">
-                      {product.units} {dictionary.dashboard.unitsLabel}
+                      {formatCountValue(product.units, numberDisplayMode)}{" "}
+                      {dictionary.dashboard.unitsLabel}
                     </p>
                   </div>
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
+                <div
+                  className="mt-3 h-2 overflow-hidden rounded-full bg-surface"
+                  dir={isRTL ? "rtl" : "ltr"}
+                >
                   <div
                     className="h-full rounded-full bg-primary"
                     style={{ width: `${Math.max(product.share * 100, 0)}%` }}
@@ -1005,7 +1322,7 @@ function TopProductsPanel({
               </div>
             ))}
           </div>
-          <div className="rounded-3xl border border-border bg-background px-5 py-6">
+          <div className="rounded-3xl border border-border bg-background px-5 py-6 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
             <p className="text-sm font-semibold text-foreground">
               {dictionary.dashboard.productSnapshot}
             </p>
@@ -1017,10 +1334,13 @@ function TopProductsPanel({
                       {dictionary.dashboard.productCategories[category.id]}
                     </span>
                     <span className="text-muted">
-                      {formatCurrency(category.revenue)}
+                      {formatCurrencyValue(category.revenue, numberDisplayMode)}
                     </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-surface">
+                  <div
+                    className="h-2 overflow-hidden rounded-full bg-surface"
+                    dir={isRTL ? "rtl" : "ltr"}
+                  >
                     <div
                       className="h-full rounded-full bg-emerald-500"
                       style={{ width: `${Math.max(category.share * 100, 0)}%` }}
@@ -1039,9 +1359,11 @@ function TopProductsPanel({
 function SentimentPanel({
   buckets,
   dictionary,
+  isRTL,
 }: {
   buckets: DashboardDistributionBucket[];
   dictionary: Dictionary;
+  isRTL: boolean;
 }) {
   return (
     <section className="panel p-6">
@@ -1054,7 +1376,10 @@ function SentimentPanel({
         </p>
       </div>
 
-      <div className="mt-5 flex h-4 overflow-hidden rounded-full bg-surface">
+      <div
+        className="mt-5 flex h-4 overflow-hidden rounded-full bg-surface"
+        dir={isRTL ? "rtl" : "ltr"}
+      >
         {buckets.map((bucket) => (
           <div
             className={cn(
@@ -1070,7 +1395,7 @@ function SentimentPanel({
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {buckets.map((bucket) => (
           <div
-            className="rounded-2xl border border-border bg-background p-4 text-start"
+            className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-sm"
             key={bucket.id}
           >
             <div className="flex items-center gap-2">
@@ -1100,12 +1425,14 @@ function DistributionPanel({
   description,
   buckets,
   dictionary,
+  isRTL,
   variant,
 }: {
   title: string;
   description: string;
   buckets: DashboardDistributionBucket[];
   dictionary: Dictionary;
+  isRTL: boolean;
   variant: "rating" | "source" | "language" | "sentiment";
 }) {
   return (
@@ -1116,14 +1443,20 @@ function DistributionPanel({
       </div>
       <div className="mt-5 space-y-4">
         {buckets.map((bucket) => (
-          <div className="space-y-2" key={bucket.id}>
+          <div
+            className="space-y-2 rounded-xl px-3 py-2 transition-colors duration-200 hover:bg-surface/60"
+            key={bucket.id}
+          >
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="font-medium text-foreground">
                 {getBucketLabel(bucket, dictionary, variant)}
               </span>
               <span className="text-muted">{bucket.value}</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-surface">
+            <div
+              className="h-2 overflow-hidden rounded-full bg-surface"
+              dir={isRTL ? "rtl" : "ltr"}
+            >
               <div
                 className={cn(
                   "h-full rounded-full",
@@ -1171,7 +1504,7 @@ function PriorityQueuePanel({
         <div className="mt-5 space-y-4">
           {reviews.map((review) => (
             <article
-              className="rounded-2xl border border-border bg-background p-4 text-start"
+              className="group rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-panel"
               key={review.reviewId}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1210,7 +1543,7 @@ function PriorityQueuePanel({
                   </p>
                 </div>
                 <Link
-                  className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 font-medium text-foreground transition hover:border-primary/40 hover:bg-surface hover:text-primary"
+                  className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 font-medium text-foreground transition-all duration-200 hover:border-primary/40 hover:bg-surface hover:text-primary group-hover:border-primary/25"
                   href={`/${locale}/reviews/${review.reviewId}` as Route}
                 >
                   {dictionary.dashboard.openReviewAction}
@@ -1255,7 +1588,7 @@ function ActivityFeedPanel({
         <div className="mt-5 space-y-4">
           {items.map((item) => (
             <Link
-              className="block rounded-2xl border border-border bg-background p-4 transition hover:border-primary/30 hover:bg-surface"
+              className="group block cursor-pointer rounded-2xl border border-border bg-background p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-surface hover:shadow-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15"
               href={`/${locale}/reviews/${item.reviewId}` as Route}
               key={item.id}
             >
@@ -1311,7 +1644,7 @@ function QuickActionsPanel({
       </div>
 
       <div className="mt-5 space-y-4">
-        <article className="rounded-2xl border border-border bg-background p-4 text-start">
+        <article className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-panel">
           <p className="text-sm font-semibold text-foreground">
             {dictionary.dashboard.openReviewAction}
           </p>
@@ -1319,14 +1652,14 @@ function QuickActionsPanel({
             {dictionary.common.viewReviews}
           </p>
           <Link
-            className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-hover"
+            className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:-translate-y-px hover:bg-primary-hover hover:shadow-sm"
             href={`/${locale}/reviews?sentiment=negative` as Route}
           >
             {dictionary.dashboard.jumpToReviewsAction}
           </Link>
         </article>
 
-        <article className="rounded-2xl border border-border bg-background p-4 text-start">
+        <article className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-panel">
           <p className="text-sm font-semibold text-foreground">
             {dictionary.dashboard.openContentAction}
           </p>
@@ -1334,7 +1667,7 @@ function QuickActionsPanel({
             {dictionary.common.generateContent}
           </p>
           <Link
-            className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-primary/20 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-primary transition hover:bg-indigo-100 dark:border-transparent dark:bg-primary dark:text-white dark:hover:bg-primary-hover"
+            className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-primary/20 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-primary transition-all duration-200 hover:-translate-y-px hover:bg-indigo-100 hover:shadow-sm dark:border-transparent dark:bg-primary dark:text-white dark:hover:bg-primary-hover"
             href={`/${locale}/ai-content` as Route}
           >
             {dictionary.dashboard.jumpToContentAction}
@@ -1347,30 +1680,84 @@ function QuickActionsPanel({
 
 function RevenueOrdersComboChart({
   points,
+  selectedDate,
+  onSelectPoint,
+  numberDisplayMode,
 }: {
   points: DashboardSalesSeriesPoint[];
+  selectedDate: string | null;
+  onSelectPoint: (date: string) => void;
+  numberDisplayMode: "compact" | "full";
 }) {
-  const bars = points.slice(-8);
+  const bars = points;
+  const isDense = bars.length > 12;
+  const isUltraDense = bars.length > 24;
   const maxRevenue = Math.max(...bars.map((point) => point.revenue), 1);
   const maxOrders = Math.max(...bars.map((point) => point.orders), 1);
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-5">
-      <div className="flex h-56 items-end gap-3">
+    <div className="w-full rounded-3xl border border-border bg-background px-2 py-6 transition-colors duration-200 hover:border-primary/10 lg:px-1.5">
+      <div
+        className={cn(
+          "flex h-72 items-end",
+          isUltraDense ? "gap-0.5" : isDense ? "gap-1" : "gap-3"
+        )}
+      >
         {bars.map((point) => (
-          <div className="flex min-w-0 flex-1 flex-col items-center gap-2" key={point.date}>
-            <div className="flex h-44 w-full items-end justify-center gap-1">
+          <button
+            aria-label={`Inspect ${point.label}`}
+            className={cn(
+              "group flex min-w-0 flex-1 cursor-pointer flex-col items-center rounded-2xl py-4 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15 hover:bg-surface/80",
+              isUltraDense
+                ? "gap-0.5 px-0.5"
+                : isDense
+                  ? "gap-1 px-1"
+                  : "gap-2 px-2",
+              selectedDate === point.date ? "bg-surface/70 shadow-sm" : ""
+            )}
+            key={point.date}
+            onClick={() => onSelectPoint(point.date)}
+            type="button"
+          >
+            <div
+              className={cn(
+                "flex h-60 w-full items-end justify-center",
+                isUltraDense ? "gap-px" : isDense ? "gap-0.5" : "gap-1"
+              )}
+            >
               <div
-                className="w-3 rounded-full bg-primary/85"
+                className={cn(
+                  "rounded-full bg-primary/85 transition-all duration-200 group-hover:opacity-100",
+                  isUltraDense ? "w-1.5" : isDense ? "w-2" : "w-3",
+                  selectedDate === point.date ? "ring-2 ring-primary/30" : ""
+                )}
                 style={{ height: `${(point.revenue / maxRevenue) * 100}%` }}
               />
               <div
-                className="w-3 rounded-full bg-emerald-500/85"
+                className={cn(
+                  "rounded-full bg-emerald-500/85 transition-all duration-200 group-hover:opacity-100",
+                  isUltraDense ? "w-1.5" : isDense ? "w-2" : "w-3",
+                  selectedDate === point.date ? "ring-2 ring-emerald-500/30" : ""
+                )}
                 style={{ height: `${(point.orders / maxOrders) * 100}%` }}
               />
             </div>
-            <span className="text-[11px] text-muted">{point.label}</span>
-          </div>
+            <span
+              className={cn(
+                "w-full text-center text-muted transition-colors duration-200",
+                isUltraDense
+                  ? "text-[8px] leading-tight"
+                  : isDense
+                    ? "text-[10px] leading-tight"
+                    : "text-[11px]",
+                selectedDate === point.date
+                  ? "font-medium text-foreground"
+                  : "group-hover:text-foreground"
+              )}
+            >
+              {point.label}
+            </span>
+          </button>
         ))}
       </div>
     </div>
@@ -1381,44 +1768,168 @@ function LineAreaChart({
   points,
   valueSelector,
   colorClass,
+  formatTooltipValue,
+  locale,
+  selectedDate,
+  onSelectPoint,
+  containerClassName,
+  svgClassName,
 }: {
   points: DashboardSalesSeriesPoint[];
   valueSelector: (point: DashboardSalesSeriesPoint) => number;
   colorClass: string;
+  formatTooltipValue: (point: DashboardSalesSeriesPoint) => string;
+  locale: string;
+  selectedDate: string | null;
+  onSelectPoint: (date: string) => void;
+  containerClassName?: string;
+  svgClassName?: string;
 }) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const values = points.map(valueSelector);
   const maxValue = Math.max(...values, 1);
   const minValue = Math.min(...values, 0);
   const range = maxValue - minValue || 1;
-  const polylinePoints = points
-    .map((point, index) => {
-      const x = points.length === 1 ? 50 : (index / (points.length - 1)) * 100;
-      const y = 90 - ((valueSelector(point) - minValue) / range) * 72;
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const chartPoints = points.map((point, index) => {
+    const x = points.length === 1 ? 50 : (index / (points.length - 1)) * 100;
+    const y = 90 - ((valueSelector(point) - minValue) / range) * 72;
+
+    return {
+      ...point,
+      metricValue: valueSelector(point),
+      x,
+      y,
+    };
+  });
+  const polylinePoints = chartPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const areaPath = `M0,90 ${polylinePoints} 100,90 Z`;
+  const activeDate = hoveredDate ?? selectedDate;
+  const activePoint =
+    chartPoints.find((point) => point.date === activeDate) ?? null;
+  const hoveredPoint =
+    chartPoints.find((point) => point.date === hoveredDate) ?? null;
+  const activeIndex =
+    chartPoints.findIndex((point) => point.date === activeDate);
+  const activePointXPercent =
+    activeIndex <= 0 || chartPoints.length <= 1
+      ? activePoint?.x ?? null
+      : (activeIndex / (chartPoints.length - 1)) * 100;
+
+  const updateHoveredPointFromClientX = (
+    clientX: number,
+    commitSelection = false
+  ) => {
+    const svg = svgRef.current;
+
+    if (!svg || chartPoints.length === 0) {
+      return;
+    }
+
+    const rect = svg.getBoundingClientRect();
+
+    if (!rect.width) {
+      return;
+    }
+
+    const relativeX = Math.min(Math.max(clientX - rect.left, 0), rect.width);
+    const normalizedX = relativeX / rect.width;
+    const rawIndex = normalizedX * Math.max(chartPoints.length - 1, 0);
+    const nextIndex = Math.round(rawIndex);
+    const nextPoint = chartPoints[nextIndex];
+
+    if (!nextPoint) {
+      return;
+    }
+
+    setHoveredDate((current) =>
+      current === nextPoint.date ? current : nextPoint.date
+    );
+
+    if (commitSelection) {
+      onSelectPoint(nextPoint.date);
+    }
+  };
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-5">
+    <div
+      className={cn(
+        "relative rounded-3xl border border-border bg-background p-5 transition-colors duration-200 hover:border-primary/10",
+        containerClassName
+      )}
+    >
+      {hoveredPoint ? (
+        <div
+          className="pointer-events-none absolute z-10 rounded-xl border border-border/80 bg-background/95 px-3 py-2 text-start shadow-lg backdrop-blur"
+          style={{
+            left: `${hoveredPoint.x}%`,
+            top: `${hoveredPoint.y}%`,
+            transform: "translate(-50%, -115%)",
+          }}
+        >
+          <p className="text-[11px] font-medium text-muted">
+            {formatDate(hoveredPoint.date, locale)}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-foreground">
+            {formatTooltipValue(hoveredPoint)}
+          </p>
+        </div>
+      ) : null}
       <svg
         aria-hidden="true"
-        className={cn("h-60 w-full", colorClass)}
+        className={cn("h-60 w-full", colorClass, svgClassName)}
         fill="none"
+        onClick={(event) => updateHoveredPointFromClientX(event.clientX, true)}
+        onMouseMove={(event) => updateHoveredPointFromClientX(event.clientX)}
+        onMouseLeave={() => setHoveredDate(null)}
         viewBox="0 0 100 90"
         preserveAspectRatio="none"
+        ref={svgRef}
       >
         <path d="M0 90H100" stroke="currentColor" strokeOpacity="0.14" />
         <path d="M0 60H100" stroke="currentColor" strokeOpacity="0.08" />
         <path d="M0 30H100" stroke="currentColor" strokeOpacity="0.08" />
-        <path d={areaPath} fill="currentColor" fillOpacity="0.12" />
+        {activePoint && activePointXPercent !== null ? (
+          <path
+            d={`M${activePointXPercent} 12V90`}
+            stroke="currentColor"
+            strokeDasharray="3 3"
+            strokeOpacity="0.18"
+          />
+        ) : null}
+        <path
+          d={areaPath}
+          fill="currentColor"
+          fillOpacity={hoveredPoint ? "0.18" : "0.12"}
+        />
         <polyline
           points={polylinePoints}
           stroke="currentColor"
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth="2.5"
+          strokeWidth={hoveredPoint ? "2.8" : "2.5"}
         />
+        {chartPoints.map((point) => {
+          const isActive = activeDate === point.date;
+          return (
+            <g key={point.date}>
+              <circle
+                className="cursor-pointer"
+                cx={point.x}
+                cy={point.y}
+                fill="transparent"
+                r="5.5"
+              />
+              <circle
+                cx={point.x}
+                cy={point.y}
+                fill="currentColor"
+                fillOpacity={isActive ? 1 : 0.32}
+                r={isActive ? 2.9 : 1.8}
+              />
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
@@ -1432,6 +1943,58 @@ function getRangeLabel(range: DashboardTimeRange, dictionary: Dictionary) {
     return dictionary.dashboard.last30Days;
   }
   return dictionary.dashboard.allTime;
+}
+
+function getNumberDisplayModeLabel(
+  locale: string,
+  mode: "compact" | "full"
+) {
+  if (locale === "ar") {
+    return mode === "full" ? "كامل" : "مختصر";
+  }
+
+  return mode === "full" ? "Full" : "Compact";
+}
+
+function getActiveFilterSummary(
+  locale: string,
+  count: number,
+  mode: "compact" | "full"
+) {
+  const formattedCount = formatCountValue(count, mode);
+
+  if (locale === "ar") {
+    return `${formattedCount} فلاتر نشطة`;
+  }
+
+  return `${formattedCount} active filters`;
+}
+
+function getLocalizedNumberDisplayModeLabel(
+  locale: string,
+  mode: "compact" | "full"
+) {
+  if (locale === "ar") {
+    return mode === "full"
+      ? "\u0643\u0627\u0645\u0644"
+      : "\u0645\u062e\u062a\u0635\u0631";
+  }
+
+  return mode === "full" ? "Full" : "Compact";
+}
+
+function getLocalizedActiveFilterSummary(
+  locale: string,
+  count: number,
+  mode: "compact" | "full"
+) {
+  const formattedCount = formatCountValue(count, mode);
+
+  if (locale === "ar") {
+    return `${formattedCount} \u0641\u0644\u0627\u062a\u0631 \u0646\u0634\u0637\u0629`;
+  }
+
+  return `${formattedCount} active filters`;
 }
 
 function getMetricLabel(
@@ -1563,6 +2126,72 @@ function aggregateProductCategories(products: DashboardSalesProduct[]) {
     units: value.units,
     share: totalRevenue ? value.revenue / totalRevenue : 0,
   }));
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatCompactNumber(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    notation: Math.abs(value) >= 1000 ? "compact" : "standard",
+    maximumFractionDigits: Math.abs(value) >= 1000 ? 1 : 0,
+  }).format(value);
+}
+
+function formatCountValue(
+  value: number,
+  mode: "compact" | "full"
+) {
+  return mode === "compact" ? formatCompactNumber(value) : formatNumber(value);
+}
+
+function formatCurrencyValue(
+  value: number,
+  mode: "compact" | "full"
+) {
+  return mode === "compact"
+    ? formatCurrencyCompact(value)
+    : formatCurrency(value);
+}
+
+function formatMetricValue(
+  metric: DashboardMetric,
+  mode: "compact" | "full"
+) {
+  if (metric.id === "total_revenue" || metric.id === "average_order_value") {
+    return formatCurrencyValue(metric.value, mode);
+  }
+
+  if (metric.id === "total_orders" || metric.id === "total_reviews") {
+    return formatCountValue(metric.value, mode);
+  }
+
+  return metric.displayValue;
+}
+
+function formatMetricTrend(
+  metric: DashboardMetric,
+  mode: "compact" | "full"
+) {
+  if (!metric.trend) {
+    return "";
+  }
+
+  const sign = metric.trend.delta > 0 ? "+" : metric.trend.delta < 0 ? "-" : "";
+  const absoluteValue = Math.abs(metric.trend.delta);
+
+  if (metric.id === "total_revenue" || metric.id === "average_order_value") {
+    return `${sign}${formatCurrencyValue(absoluteValue, mode)}`;
+  }
+
+  if (metric.id === "total_orders" || metric.id === "total_reviews") {
+    return `${sign}${formatCountValue(absoluteValue, mode)}`;
+  }
+
+  return metric.trend.displayValue;
 }
 
 function formatCurrency(value: number) {

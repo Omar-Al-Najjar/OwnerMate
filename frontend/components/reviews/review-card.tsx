@@ -26,7 +26,7 @@ export function ReviewCard({
   const summaryTags = review.sentiment.summaryTags.slice(0, 3);
 
   return (
-    <article className="panel overflow-hidden p-5">
+    <article className="panel group overflow-hidden p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-panel">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-2 text-start">
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -76,7 +76,7 @@ export function ReviewCard({
         </div>
 
         <Link
-          className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-surface hover:text-primary"
+          className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-all duration-200 hover:border-primary/30 hover:bg-surface hover:text-primary group-hover:border-primary/25"
           href={`/${locale}/reviews/${review.id}` as Route}
         >
           {detailLabel}

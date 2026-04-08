@@ -59,6 +59,16 @@ type BackendSentimentRead = {
   summary_tags: string[] | null;
 };
 
+type BackendBusinessSettings = {
+  id: string;
+  name: string;
+  google_review_business_name: string | null;
+};
+
+type BackendReviewWithSentimentRead = BackendReviewRead & {
+  sentiment?: BackendSentimentRead | null;
+};
+
 type BackendDashboardOverview = {
   business_id: string;
   generated_at: string;
@@ -186,39 +196,6 @@ async function getJson<T>(path: string, init?: RequestInit) {
   return success(body.data as T, "backend");
 }
 
-async function getOptionalJson<T>(
-  path: string,
-  allowedErrorCodes: string[],
-  init?: RequestInit
-) {
-  const response = await fetch(`${getBackendBaseUrl()}${path}`, {
-    ...init,
-    headers: init?.headers,
-    cache: "no-store",
-  });
-
-  const body = (await response.json().catch(() => null)) as
-    | {
-        success?: boolean;
-        data?: T;
-        error?: { code?: string; message?: string };
-      }
-    | null;
-
-  if (response.ok && body?.success) {
-    return success(body.data as T, "backend");
-  }
-
-  if (body?.error?.code && allowedErrorCodes.includes(body.error.code)) {
-    return null;
-  }
-
-  return error(
-    body?.error?.code ?? "BACKEND_REQUEST_FAILED",
-    body?.error?.message ?? "Backend request failed."
-  );
-}
-
 async function getBackendReviewsForBusiness(
   headers: Headers,
   businessId: string
@@ -228,7 +205,7 @@ async function getBackendReviewsForBusiness(
     limit: "100",
   });
 
-  const reviewsResponse = await getJson<BackendReviewRead[]>(
+  const reviewsResponse = await getJson<BackendReviewWithSentimentRead[]>(
     `/reviews?${searchParams.toString()}`,
     {
       headers,
@@ -243,24 +220,9 @@ async function getBackendReviewsForBusiness(
     return error("BACKEND_REQUEST_FAILED", "Backend request failed.");
   }
 
-  const sentiments = await Promise.all(
-    reviewsResponse.data.map((review) =>
-      getOptionalJson<BackendSentimentRead>(
-        `/sentiment/reviews/${review.id}`,
-        ["SENTIMENT_RESULT_NOT_FOUND"],
-        { headers }
-      )
-    )
-  );
-
   return success(
-    reviewsResponse.data.map((review, index) =>
-      toFrontendReview(
-        review,
-        sentiments[index] && sentiments[index]?.status === "success"
-          ? sentiments[index].data
-          : null
-      )
+    reviewsResponse.data.map((review) =>
+      toFrontendReview(review, review.sentiment ?? null)
     ),
     "backend"
   );
@@ -394,7 +356,7 @@ export const apiClient = {
       const detailQuery = new URLSearchParams({
         business_id: authContext.businessId,
       });
-      const reviewResponse = await getJson<BackendReviewRead>(
+      const reviewResponse = await getJson<BackendReviewWithSentimentRead>(
         `/reviews/${reviewId}?${detailQuery.toString()}`,
         {
           headers: authContext.headers,
@@ -412,19 +374,8 @@ export const apiClient = {
         return error("BACKEND_REQUEST_FAILED", "Backend request failed.");
       }
 
-      const sentimentResponse = await getOptionalJson<BackendSentimentRead>(
-        `/sentiment/reviews/${reviewId}`,
-        ["SENTIMENT_RESULT_NOT_FOUND"],
-        { headers: authContext.headers }
-      );
-
       return success(
-        toFrontendReview(
-          reviewResponse.data,
-          sentimentResponse && sentimentResponse.status === "success"
-            ? sentimentResponse.data
-            : null
-        ),
+        toFrontendReview(reviewResponse.data, reviewResponse.data.sentiment ?? null),
         "backend"
       );
     }
@@ -470,6 +421,7 @@ export const apiClient = {
     const response = await getJson<{
       language_preference: "en" | "ar" | null;
       theme_preference: "light" | "dark" | "system" | null;
+      business: BackendBusinessSettings | null;
     }>("/settings", {
       headers: authContext.headers,
     });
@@ -499,6 +451,19 @@ export const apiClient = {
           role:
             authContext.session.role.charAt(0).toUpperCase() +
             authContext.session.role.slice(1),
+        },
+        business: {
+          id:
+            response.data.business?.id ??
+            authContext.businessId ??
+            settingsProfile.business.id,
+          name:
+            response.data.business?.name ??
+            authContext.authSession.businesses[0]?.name ??
+            settingsProfile.business.name,
+          googleReviewBusinessName:
+            response.data.business?.google_review_business_name ??
+            settingsProfile.business.googleReviewBusinessName,
         },
       },
       "backend"

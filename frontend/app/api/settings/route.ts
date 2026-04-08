@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/auth/supabase-server";
+import { getNameValidationIssue } from "@/lib/validation/name-validation";
 import {
   BackendRouteError,
   fetchBackendJson,
@@ -9,6 +10,11 @@ import {
 type SettingsRead = {
   language_preference: "en" | "ar" | null;
   theme_preference: "light" | "dark" | "system" | null;
+  business?: {
+    id: string;
+    name: string;
+    google_review_business_name: string | null;
+  } | null;
 };
 
 export async function PATCH(request: Request) {
@@ -17,9 +23,28 @@ export async function PATCH(request: Request) {
       fullName?: string;
       language?: "en" | "ar";
       theme?: "light" | "dark" | "system";
+      googleReviewBusinessName?: string;
     };
     const normalizedFullName =
       typeof payload.fullName === "string" ? payload.fullName.trim() : undefined;
+    const normalizedGoogleReviewBusinessName =
+      typeof payload.googleReviewBusinessName === "string"
+        ? payload.googleReviewBusinessName.trim()
+        : undefined;
+
+    if (
+      typeof normalizedFullName === "string" &&
+      getNameValidationIssue(normalizedFullName, {
+        maxLength: 25,
+      }) !== null
+    ) {
+      throw new BackendRouteError(
+        "INVALID_FULL_NAME",
+        "Full name must be between 3 and 25 characters.",
+        422
+      );
+    }
+
     const headers = await getAuthenticatedBackendHeaders();
     const supabase = await createServerSupabaseClient();
 
@@ -64,6 +89,17 @@ export async function PATCH(request: Request) {
       });
     }
 
+    if (normalizedGoogleReviewBusinessName !== undefined) {
+      settings = await fetchBackendJson<SettingsRead>("/settings/business", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          google_review_business_name:
+            normalizedGoogleReviewBusinessName || null,
+        }),
+      });
+    }
+
     if (!settings) {
       settings = await fetchBackendJson<SettingsRead>("/settings", {
         headers,
@@ -76,6 +112,14 @@ export async function PATCH(request: Request) {
         fullName: normalizedFullName ?? null,
         locale: settings.language_preference,
         theme: settings.theme_preference,
+        business: settings.business
+          ? {
+              id: settings.business.id,
+              name: settings.business.name,
+              googleReviewBusinessName:
+                settings.business.google_review_business_name ?? "",
+            }
+          : null,
       },
     });
   } catch (error) {

@@ -8,8 +8,15 @@ export type UserProfile = {
   avatarUrl?: string;
 };
 
+export type BusinessProfile = {
+  id: string;
+  name: string;
+  googleReviewBusinessName: string;
+};
+
 export type SettingsPayload = {
   locale: Locale;
   theme: ThemePreference;
   profile: UserProfile;
+  business: BusinessProfile;
 };

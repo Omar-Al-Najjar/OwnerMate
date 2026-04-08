@@ -29,8 +29,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-sans)"],
-        arabic: ["var(--font-arabic)"],
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        arabic: ["var(--font-arabic)", "Tahoma", "Arial", "sans-serif"],
+        display: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["ui-monospace", "SFMono-Regular", "monospace"],
       },
       boxShadow: {

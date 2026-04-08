@@ -264,7 +264,8 @@ export function ReviewsWorkspace({
             {dictionary.reviews.activeFilters}: {activeFilterCount}
           </span>
           <Button
-            className="bg-surface text-foreground hover:bg-slate-200 dark:hover:bg-slate-700"
+            className="rounded-xl border border-border bg-surface text-foreground shadow-none hover:bg-slate-100 dark:bg-slate-900/70 dark:hover:bg-slate-800 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100 dark:disabled:border-slate-800 dark:disabled:bg-slate-900 dark:disabled:text-slate-400"
+            disabled={activeFilterCount === 0}
             onClick={() => {
               setFilters(getDefaultFilters());
               setPage(1);

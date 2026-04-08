@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/forms/button";
 import { Input } from "@/components/forms/input";
 import { createBrowserSupabaseClient } from "@/lib/auth/supabase-browser";
+import { getPasswordValidationIssues } from "@/lib/auth/password-validation";
+import { getNameValidationIssue } from "@/lib/validation/name-validation";
 import type { Locale } from "@/lib/i18n/config";
 import type { AuthDictionary } from "@/types/i18n";
 
@@ -14,6 +16,8 @@ type AuthFormProps = {
   locale: Locale;
   mode: "sign-in" | "sign-up";
 };
+
+const FULL_NAME_MAX_LENGTH = 25;
 
 export function AuthForm({ dictionary, locale, mode }: AuthFormProps) {
   const router = useRouter();
@@ -90,6 +94,20 @@ export function AuthForm({ dictionary, locale, mode }: AuthFormProps) {
 
     const supabase = createBrowserSupabaseClient();
     const redirectTo = `${window.location.origin}/auth/callback?next=/${locale}/dashboard`;
+
+    if (mode === "sign-up" && getPasswordValidationIssues(password).length > 0) {
+      setError(dictionary.passwordWeakError);
+      return;
+    }
+
+    if (
+      mode === "sign-up" &&
+      getNameValidationIssue(fullName, { maxLength: FULL_NAME_MAX_LENGTH }) !==
+        null
+    ) {
+      setError(dictionary.nameLengthError);
+      return;
+    }
 
     const result =
       mode === "sign-up"
@@ -180,6 +198,7 @@ export function AuthForm({ dictionary, locale, mode }: AuthFormProps) {
             name="fullName"
             onChange={(event) => setFullName(event.target.value)}
             placeholder={dictionary.fullName}
+            maxLength={FULL_NAME_MAX_LENGTH}
             type="text"
             value={fullName}
           />
@@ -202,6 +221,9 @@ export function AuthForm({ dictionary, locale, mode }: AuthFormProps) {
           type="password"
           value={password}
         />
+        {isSignUp ? (
+          <p className="text-sm text-muted">{dictionary.passwordStrengthHint}</p>
+        ) : null}
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         {notice ? <p className="text-sm text-emerald-700">{notice}</p> : null}
         <Button className="w-full" disabled={isPending} type="submit">

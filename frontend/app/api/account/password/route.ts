@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getPasswordValidationIssues } from "@/lib/auth/password-validation";
 import { createServerSupabaseClient } from "@/lib/auth/supabase-server";
 import { getAppSession } from "@/lib/auth/session";
 
@@ -30,6 +31,36 @@ export async function POST(request: Request) {
           error: {
             code: "PASSWORD_INPUT_REQUIRED",
             message: "Both current and new passwords are required.",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    if (payload.currentPassword === payload.newPassword) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "PASSWORD_REUSE_NOT_ALLOWED",
+            message: "Choose a new password that is different from the current password.",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    const passwordIssues = getPasswordValidationIssues(payload.newPassword);
+
+    if (passwordIssues.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "WEAK_PASSWORD",
+            message:
+              "Choose a stronger password with at least 8 characters, including uppercase, lowercase, a number, and a special character.",
+            issues: passwordIssues,
           },
         },
         { status: 400 }

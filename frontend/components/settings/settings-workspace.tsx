@@ -1,10 +1,12 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useProfile } from "@/components/providers/profile-provider";
 import { Button } from "@/components/forms/button";
 import { Input } from "@/components/forms/input";
 import { Select } from "@/components/forms/select";
+import { getPasswordValidationIssues } from "@/lib/auth/password-validation";
+import { getNameValidationIssue } from "@/lib/validation/name-validation";
 import { cn } from "@/lib/utils/cn";
 import type { SettingsPayload, ThemePreference } from "@/types/settings";
 
@@ -49,6 +51,10 @@ type SettingsWorkspaceProps = {
       passwordAction: string;
       emailReadOnlyHint: string;
       passwordPlaceholderHint: string;
+      passwordStrengthHint: string;
+      passwordWeakError: string;
+      passwordReuseError: string;
+      nameLengthError: string;
       salesSection: string;
       salesDescription: string;
       salesDateLabel: string;
@@ -64,6 +70,22 @@ type SettingsWorkspaceProps = {
       salesUpdatedLabel: string;
       salesRecentTitle: string;
       salesEmptyLabel: string;
+      googleImportSection: string;
+      googleImportDescription: string;
+      businessNameInputLabel: string;
+      businessNameInputHint: string;
+      googleImportSaveHint: string;
+      googleImportButton: string;
+      googleImportSavingLabel: string;
+      googleImportRunningLabel: string;
+      googleImportSuccessLabel: string;
+      googleImportEmptyLabel: string;
+      googleImportDuplicateOnlyLabel: string;
+      googleImportErrorLabel: string;
+      googleImportResultImported: string;
+      googleImportResultDuplicates: string;
+      googleImportChoosePlaceLabel: string;
+      googleImportConfirmPlaceButton: string;
     };
   };
 };
@@ -81,6 +103,36 @@ type ThemeHandle = {
   theme: ThemePreference;
   setTheme: (theme: ThemePreference) => void;
 };
+
+type GoogleImportCandidate = {
+  candidateId: string;
+  title: string;
+  category: string | null;
+  address: string | null;
+  reviewCount: number | null;
+  reviewRating: number | null;
+  placeId: string | null;
+  link: string | null;
+};
+
+type GoogleImportJobStatus = "queued" | "running" | "needs_selection" | "success" | "failed";
+
+type GoogleImportJob = {
+  id: string;
+  status: GoogleImportJobStatus;
+  businessName: string;
+  providerStatus: string | null;
+  message: string;
+  importedCount: number | null;
+  duplicateCount: number | null;
+  processedCount: number | null;
+  candidates: GoogleImportCandidate[];
+  selectedCandidateId: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+const FULL_NAME_MAX_LENGTH = 25;
 
 function getInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
@@ -107,6 +159,26 @@ function SettingsSectionHeader({
   );
 }
 
+function GooglePinIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M12 21c4.2-4.3 6.3-7.7 6.3-10.3a6.3 6.3 0 1 0-12.6 0C5.7 13.3 7.8 16.7 12 21Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <circle cx="12" cy="10.7" r="2.7" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
 export function SettingsWorkspace({
   settings,
   dictionary,
@@ -115,9 +187,15 @@ export function SettingsWorkspace({
   const [language, setLanguage] = useState(settings.locale);
   const [theme, setTheme] = useState<ThemePreference>(settings.theme);
   const [fullName, setFullName] = useState(profile.fullName);
+  const [googleReviewBusinessName, setGoogleReviewBusinessName] = useState(
+    settings.business.googleReviewBusinessName
+  );
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [passwordNotice, setPasswordNotice] = useState("");
+  const [passwordNoticeTone, setPasswordNoticeTone] = useState<
+    "default" | "error" | "success"
+  >("default");
   const [saveNotice, setSaveNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
@@ -135,11 +213,24 @@ export function SettingsWorkspace({
   const [salesNotice, setSalesNotice] = useState("");
   const [isSavingSales, setIsSavingSales] = useState(false);
   const [recentSales, setRecentSales] = useState<SalesRecordSummary[]>([]);
+  const [googleImportNotice, setGoogleImportNotice] = useState("");
+  const [googleImportJob, setGoogleImportJob] = useState<GoogleImportJob | null>(null);
+  const [selectedGoogleCandidateId, setSelectedGoogleCandidateId] = useState("");
+  const themeInitializedRef = useRef(false);
 
   useEffect(() => {
     const handle = (window as Window & { __OWNERMATE_THEME__?: ThemeHandle })
       .__OWNERMATE_THEME__;
-    if (handle) {
+
+    if (!themeInitializedRef.current) {
+      themeInitializedRef.current = true;
+      if (handle?.theme) {
+        setTheme(handle.theme);
+      }
+      return;
+    }
+
+    if (handle && handle.theme !== theme) {
       handle.setTheme(theme);
     }
   }, [theme]);
@@ -147,6 +238,10 @@ export function SettingsWorkspace({
   useEffect(() => {
     setFullName(profile.fullName);
   }, [profile.fullName]);
+
+  useEffect(() => {
+    setGoogleReviewBusinessName(settings.business.googleReviewBusinessName);
+  }, [settings.business.googleReviewBusinessName]);
 
   useEffect(() => {
     let isMounted = true;
@@ -199,6 +294,11 @@ export function SettingsWorkspace({
   };
 
   const handleSave = async () => {
+    if (getNameValidationIssue(fullName, { maxLength: FULL_NAME_MAX_LENGTH }) !== null) {
+      setSaveNotice(dictionary.settings.nameLengthError);
+      return;
+    }
+
     setIsSaving(true);
     setSaveNotice("");
 
@@ -212,6 +312,7 @@ export function SettingsWorkspace({
           fullName,
           language,
           theme,
+          googleReviewBusinessName,
         }),
       });
 
@@ -222,6 +323,11 @@ export function SettingsWorkspace({
               fullName?: string | null;
               locale?: "en" | "ar" | null;
               theme?: ThemePreference | null;
+              business?: {
+                id: string;
+                name: string;
+                googleReviewBusinessName: string;
+              } | null;
             };
             error?: {
               message?: string;
@@ -243,6 +349,9 @@ export function SettingsWorkspace({
       if (body.data?.theme) {
         setTheme(body.data.theme);
       }
+      if (body.data?.business) {
+        setGoogleReviewBusinessName(body.data.business.googleReviewBusinessName);
+      }
       setSaveNotice(dictionary.settings.updatedLabel);
     } finally {
       setIsSaving(false);
@@ -252,11 +361,25 @@ export function SettingsWorkspace({
   const handlePasswordChange = async () => {
     if (!currentPassword.trim() || !newPassword.trim()) {
       setPasswordNotice(dictionary.settings.passwordPlaceholderHint);
+      setPasswordNoticeTone("error");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setPasswordNotice(dictionary.settings.passwordReuseError);
+      setPasswordNoticeTone("error");
+      return;
+    }
+
+    if (getPasswordValidationIssues(newPassword).length > 0) {
+      setPasswordNotice(dictionary.settings.passwordWeakError);
+      setPasswordNoticeTone("error");
       return;
     }
 
     setIsUpdatingPassword(true);
     setPasswordNotice("");
+    setPasswordNoticeTone("default");
 
     try {
       const response = await fetch("/api/account/password", {
@@ -274,6 +397,7 @@ export function SettingsWorkspace({
         | {
             success?: boolean;
             error?: {
+              code?: string;
               message?: string;
             };
           }
@@ -281,12 +405,19 @@ export function SettingsWorkspace({
 
       if (!response.ok || !body?.success) {
         setPasswordNotice(
-          body?.error?.message ?? dictionary.settings.passwordPlaceholderHint
+          body?.error?.code === "WEAK_PASSWORD"
+            ? dictionary.settings.passwordWeakError
+            : body?.error?.code === "PASSWORD_REUSE_NOT_ALLOWED"
+              ? dictionary.settings.passwordReuseError
+              : body?.error?.message ??
+                dictionary.settings.passwordPlaceholderHint
         );
+        setPasswordNoticeTone("error");
         return;
       }
 
       setPasswordNotice(dictionary.settings.updatedLabel);
+      setPasswordNoticeTone("success");
       setCurrentPassword("");
       setNewPassword("");
     } finally {
@@ -298,11 +429,201 @@ export function SettingsWorkspace({
     setLanguage(settings.locale);
     setTheme(settings.theme);
     setFullName(profile.fullName);
+    setGoogleReviewBusinessName(settings.business.googleReviewBusinessName);
     setCurrentPassword("");
     setNewPassword("");
     setPasswordNotice("");
+    setPasswordNoticeTone("default");
     setSaveNotice("");
+    setGoogleImportNotice("");
+    setGoogleImportJob(null);
+    setSelectedGoogleCandidateId("");
   };
+
+  useEffect(() => {
+    if (!googleImportJob || !["queued", "running"].includes(googleImportJob.status)) {
+      return;
+    }
+
+    const interval = window.setInterval(async () => {
+      const response = await fetch(`/api/reviews/import/google/${googleImportJob.id}`, {
+        cache: "no-store",
+      });
+
+      const body = (await response.json().catch(() => null)) as
+        | {
+            success?: boolean;
+            data?: {
+              job?: GoogleImportJob;
+            };
+            error?: {
+              message?: string;
+            };
+          }
+        | null;
+
+      if (!response.ok || !body?.success || !body.data?.job) {
+        setGoogleImportNotice(
+          body?.error?.message ?? dictionary.settings.googleImportErrorLabel
+        );
+        setGoogleImportJob((current) =>
+          current
+            ? {
+                ...current,
+                status: "failed",
+              }
+            : current
+        );
+        return;
+      }
+
+      const nextJob = body.data.job;
+      setGoogleImportJob(nextJob);
+      setGoogleImportNotice(nextJob.message);
+      setSelectedGoogleCandidateId(
+        nextJob.selectedCandidateId ?? nextJob.candidates[0]?.candidateId ?? ""
+      );
+
+      if (nextJob.status === "success") {
+        const importedCount = nextJob.importedCount ?? 0;
+        const duplicateCount = nextJob.duplicateCount ?? 0;
+
+        if (importedCount === 0 && duplicateCount > 0) {
+          setGoogleImportNotice(
+            `${dictionary.settings.googleImportDuplicateOnlyLabel} ${dictionary.settings.googleImportResultDuplicates}: ${duplicateCount}.`
+          );
+          return;
+        }
+
+        if (importedCount === 0) {
+          setGoogleImportNotice(dictionary.settings.googleImportEmptyLabel);
+          return;
+        }
+
+        setGoogleImportNotice(
+          `${dictionary.settings.googleImportSuccessLabel} ${dictionary.settings.googleImportResultImported}: ${importedCount}. ${dictionary.settings.googleImportResultDuplicates}: ${duplicateCount}.`
+        );
+        return;
+      }
+
+      if (nextJob.status === "failed") {
+        setGoogleImportNotice(nextJob.message);
+      }
+    }, 3000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [dictionary.settings, googleImportJob]);
+
+  const handleGoogleImport = async () => {
+    if (!googleReviewBusinessName.trim()) {
+      setGoogleImportNotice(dictionary.settings.googleImportErrorLabel);
+      return;
+    }
+
+    setGoogleImportNotice("");
+    setGoogleImportJob(null);
+    setSelectedGoogleCandidateId("");
+
+    try {
+      const response = await fetch("/api/reviews/import/google", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          businessId: settings.business.id,
+          businessName: googleReviewBusinessName,
+          lang: language,
+          depth: 1,
+          limit: 20,
+        }),
+      });
+
+      const body = (await response.json().catch(() => null)) as
+        | {
+            success?: boolean;
+            data?: {
+              job?: GoogleImportJob;
+            };
+            error?: {
+              message?: string;
+            };
+          }
+        | null;
+
+      if (!response.ok || !body?.success) {
+        setGoogleImportNotice(
+          body?.error?.message ?? dictionary.settings.googleImportErrorLabel
+        );
+        return;
+      }
+      if (!body.data?.job) {
+        setGoogleImportNotice(dictionary.settings.googleImportErrorLabel);
+        return;
+      }
+
+      setGoogleImportJob(body.data.job);
+      setGoogleImportNotice(body.data.job.message);
+      setSelectedGoogleCandidateId(
+        body.data.job.selectedCandidateId ?? body.data.job.candidates[0]?.candidateId ?? ""
+      );
+    } catch {
+      setGoogleImportNotice(dictionary.settings.googleImportErrorLabel);
+    }
+  };
+
+  const handleGoogleCandidateSelection = async () => {
+    if (!googleImportJob || !selectedGoogleCandidateId.trim()) {
+      return;
+    }
+
+    setGoogleImportNotice("");
+
+    try {
+      const response = await fetch(
+        `/api/reviews/import/google/${googleImportJob.id}/selection`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            candidateId: selectedGoogleCandidateId,
+          }),
+        }
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | {
+            success?: boolean;
+            data?: {
+              job?: GoogleImportJob;
+            };
+            error?: {
+              message?: string;
+            };
+          }
+        | null;
+
+      if (!response.ok || !body?.success || !body.data?.job) {
+        setGoogleImportNotice(
+          body?.error?.message ?? dictionary.settings.googleImportErrorLabel
+        );
+        return;
+      }
+
+      setGoogleImportJob(body.data.job);
+      setGoogleImportNotice(body.data.job.message);
+      setSelectedGoogleCandidateId(body.data.job.selectedCandidateId ?? selectedGoogleCandidateId);
+    } catch {
+      setGoogleImportNotice(dictionary.settings.googleImportErrorLabel);
+    }
+  };
+
+  const isImportingGoogleReviews =
+    googleImportJob?.status === "queued" || googleImportJob?.status === "running";
 
   const handleSalesSave = async () => {
     setIsSavingSales(true);
@@ -366,6 +687,7 @@ export function SettingsWorkspace({
             <div className="space-y-5">
               <Input
                 label={dictionary.settings.fullNameLabel}
+                maxLength={FULL_NAME_MAX_LENGTH}
                 onChange={(event) => setFullName(event.target.value)}
                 value={fullName}
               />
@@ -503,6 +825,116 @@ export function SettingsWorkspace({
                   ]}
                   value={language}
                 />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm md:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-xl text-start">
+                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+                  <GooglePinIcon />
+                  Google
+                </div>
+                <h3 className="text-lg font-semibold uppercase tracking-[0.08em] text-foreground">
+                  {dictionary.settings.googleImportSection}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {dictionary.settings.googleImportDescription}
+                </p>
+              </div>
+              <div className="w-full max-w-2xl space-y-4">
+                <Input
+                  label={dictionary.settings.businessNameInputLabel}
+                  onChange={(event) =>
+                    setGoogleReviewBusinessName(event.target.value)
+                  }
+                  placeholder={settings.business.name}
+                  value={googleReviewBusinessName}
+                />
+                <p className="-mt-1 text-sm text-muted">
+                  {dictionary.settings.businessNameInputHint}
+                </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-4">
+                  <p className="max-w-xl text-sm text-muted">
+                    {googleImportJob?.status === "queued"
+                      ? googleImportJob.message
+                      : googleImportJob?.status === "running"
+                        ? googleImportJob.message
+                        : dictionary.settings.googleImportSaveHint}
+                  </p>
+                  <Button
+                    disabled={isImportingGoogleReviews}
+                    onClick={handleGoogleImport}
+                    type="button"
+                  >
+                    {isImportingGoogleReviews
+                      ? dictionary.settings.googleImportRunningLabel
+                      : dictionary.settings.googleImportButton}
+                  </Button>
+                </div>
+                {googleImportNotice ? (
+                  <p className="text-sm text-muted">{googleImportNotice}</p>
+                ) : null}
+                {googleImportJob?.status === "needs_selection" &&
+                googleImportJob.candidates.length > 0 ? (
+                  <div className="space-y-3 rounded-2xl border border-border bg-background px-4 py-4">
+                    <p className="text-sm font-medium text-foreground">
+                      {dictionary.settings.googleImportChoosePlaceLabel}
+                    </p>
+                    <div className="space-y-2">
+                      {googleImportJob.candidates.map((candidate) => (
+                        <label
+                          key={candidate.candidateId}
+                          className="flex cursor-pointer items-start gap-3 rounded-xl border border-border px-3 py-3 text-sm text-foreground"
+                        >
+                          <input
+                            checked={selectedGoogleCandidateId === candidate.candidateId}
+                            name="google-import-candidate"
+                            onChange={() =>
+                              setSelectedGoogleCandidateId(candidate.candidateId)
+                            }
+                            type="radio"
+                            value={candidate.candidateId}
+                          />
+                          <span className="space-y-1">
+                            <span className="block font-medium">{candidate.title}</span>
+                            {candidate.category ? (
+                              <span className="block text-muted">{candidate.category}</span>
+                            ) : null}
+                            {candidate.address ? (
+                              <span className="block text-muted">{candidate.address}</span>
+                            ) : null}
+                            {candidate.reviewRating !== null ||
+                            candidate.reviewCount !== null ? (
+                              <span className="block text-muted">
+                                Rating: {candidate.reviewRating ?? "n/a"} | Reviews:{" "}
+                                {candidate.reviewCount ?? 0}
+                              </span>
+                            ) : null}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <Button
+                      disabled={!selectedGoogleCandidateId.trim()}
+                      onClick={handleGoogleCandidateSelection}
+                      type="button"
+                    >
+                      {dictionary.settings.googleImportConfirmPlaceButton}
+                    </Button>
+                  </div>
+                ) : null}
+                {googleImportJob ? (
+                  <div className="rounded-2xl border border-border bg-background px-4 py-4 text-sm text-muted">
+                    <p>
+                      {dictionary.common.status}: {googleImportJob.status}
+                    </p>
+                    {googleImportJob.providerStatus ? (
+                      <p>Provider: {googleImportJob.providerStatus}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -651,19 +1083,36 @@ export function SettingsWorkspace({
               <div className="w-full max-w-xl space-y-4">
                 <Input
                   label={dictionary.settings.currentPasswordLabel}
-                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  onChange={(event) => {
+                    setCurrentPassword(event.target.value);
+                    setPasswordNotice("");
+                    setPasswordNoticeTone("default");
+                  }}
                   type="password"
                   value={currentPassword}
                 />
                 <Input
                   label={dictionary.settings.newPasswordLabel}
-                  onChange={(event) => setNewPassword(event.target.value)}
+                  onChange={(event) => {
+                    setNewPassword(event.target.value);
+                    setPasswordNotice("");
+                    setPasswordNoticeTone("default");
+                  }}
                   type="password"
                   value={newPassword}
                 />
-                {passwordNotice ? (
-                  <p className="text-sm text-muted">{passwordNotice}</p>
-                ) : null}
+                <p
+                  className={cn(
+                    "text-sm",
+                    passwordNoticeTone === "error"
+                      ? "text-red-600"
+                      : passwordNoticeTone === "success"
+                        ? "text-emerald-700"
+                        : "text-muted"
+                  )}
+                >
+                  {passwordNotice || dictionary.settings.passwordStrengthHint}
+                </p>
                 <Button
                   disabled={isUpdatingPassword}
                   onClick={handlePasswordChange}
@@ -690,7 +1139,9 @@ export function SettingsWorkspace({
             {dictionary.settings.discardButton}
           </Button>
           <Button disabled={isSaving} onClick={handleSave} type="button">
-            {dictionary.settings.saveButton}
+            {isSaving
+              ? dictionary.settings.googleImportSavingLabel
+              : dictionary.settings.saveButton}
           </Button>
         </div>
       </div>

@@ -36,21 +36,25 @@ export function ThemeProvider({
   dir,
   locale,
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<ThemeMode>(defaultTheme);
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") {
+      return defaultTheme;
+    }
 
-  useEffect(() => {
     const storedTheme = window.localStorage.getItem(
       STORAGE_KEY
     ) as ThemeMode | null;
-    const nextTheme = storedTheme ?? defaultTheme;
-    setTheme(nextTheme);
+    return storedTheme ?? defaultTheme;
+  });
+
+  useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = dir;
     document.documentElement.classList.toggle(
       "dark",
-      resolveTheme(nextTheme) === "dark"
+      resolveTheme(theme) === "dark"
     );
-  }, [defaultTheme, dir, locale]);
+  }, [dir, locale, theme]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");

@@ -45,6 +45,11 @@ export type SettingsResponse = ApiResult<{
   locale: Locale;
   theme: ThemePreference;
   profile: UserProfile;
+  business: {
+    id: string;
+    name: string;
+    googleReviewBusinessName: string;
+  };
 }>;
 
 export type HealthResponse = ApiResult<{

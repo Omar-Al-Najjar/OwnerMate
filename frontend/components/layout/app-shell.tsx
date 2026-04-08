@@ -24,12 +24,18 @@ type AppShellProps = {
   signOutPendingLabel: string;
 };
 
-type SectionKey = "dashboard" | "reviews" | "ai-content" | "settings";
+type SectionKey =
+  | "dashboard"
+  | "reviews"
+  | "ai-content"
+  | "dataset-analysis"
+  | "settings";
 
 const sectionOrder: SectionKey[] = [
   "dashboard",
   "reviews",
   "ai-content",
+  "dataset-analysis",
   "settings",
 ];
 
@@ -68,6 +74,11 @@ export function AppShell({
         label: navigation.aiContent,
       },
       {
+        key: "dataset-analysis" as const,
+        href: `/${locale}/dataset-analysis` as Route,
+        label: navigation.datasetAnalysis,
+      },
+      {
         key: "settings" as const,
         href: `/${locale}/settings` as Route,
         label: navigation.settings,
@@ -77,6 +88,7 @@ export function AppShell({
       locale,
       navigation.aiContent,
       navigation.dashboard,
+      navigation.datasetAnalysis,
       navigation.reviews,
       navigation.settings,
     ]
@@ -98,6 +110,8 @@ export function AppShell({
           ? navigation.reviews
           : currentSection === "ai-content"
             ? navigation.aiContent
+            : currentSection === "dataset-analysis"
+              ? navigation.datasetAnalysis
             : navigation.settings,
     description:
       currentSection === "dashboard"
@@ -106,6 +120,8 @@ export function AppShell({
           ? shell.reviewsDescription
           : currentSection === "ai-content"
             ? shell.aiContentDescription
+            : currentSection === "dataset-analysis"
+              ? shell.datasetAnalysisDescription
             : shell.settingsDescription,
   };
 

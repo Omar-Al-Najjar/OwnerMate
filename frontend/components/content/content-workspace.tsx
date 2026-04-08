@@ -184,7 +184,7 @@ export function ContentWorkspace({
                 {dictionary.aiContent.marketingInputLabel}
               </span>
               <textarea
-                className="min-h-[220px] w-full resize-none rounded-2xl border border-border bg-surface px-4 py-4 text-base text-foreground outline-none transition placeholder:text-muted focus:border-primary"
+                className="min-h-[220px] w-full min-w-0 resize-y rounded-2xl border border-border bg-surface px-4 py-4 text-base leading-7 text-foreground outline-none transition placeholder:text-muted focus:border-primary"
                 onChange={(event) => setMarketingInput(event.target.value)}
                 placeholder={dictionary.aiContent.marketingInputPlaceholder}
                 value={marketingInput}
@@ -286,7 +286,7 @@ export function ContentWorkspace({
                 {dictionary.common.save}
               </span>
               <textarea
-                className="min-h-[220px] w-full resize-none rounded-2xl border border-border bg-surface px-4 py-4 text-base text-foreground outline-none transition placeholder:text-muted focus:border-primary"
+                className="min-h-[220px] w-full min-w-0 resize-y rounded-2xl border border-border bg-surface px-4 py-4 text-base leading-7 text-foreground outline-none transition placeholder:text-muted focus:border-primary"
                 onChange={(event) => setEditableText(event.target.value)}
                 value={editableText}
               />

@@ -311,4 +311,9 @@ export const settingsProfile: SettingsPayload = {
     email: "user@ownermate.local",
     role: "Business Owner",
   },
+  business: {
+    id: "business_mock_001",
+    name: "OwnerMate Demo Business",
+    googleReviewBusinessName: "",
+  },
 };

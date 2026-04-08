@@ -4,7 +4,12 @@ import type { Route } from "next";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 
-type NavIconKey = "dashboard" | "reviews" | "ai-content" | "settings";
+type NavIconKey =
+  | "dashboard"
+  | "reviews"
+  | "ai-content"
+  | "dataset-analysis"
+  | "settings";
 
 type NavItemProps = {
   active: boolean;
@@ -61,6 +66,36 @@ function NavIcon({ icon }: { icon: NavIconKey }) {
       >
         <path d="M12 3L13.88 8.12L19 10L13.88 11.88L12 17L10.12 11.88L5 10L10.12 8.12L12 3Z" />
         <path d="M18 14.5L18.86 16.64L21 17.5L18.86 18.36L18 20.5L17.14 18.36L15 17.5L17.14 16.64L18 14.5Z" />
+      </svg>
+    );
+  }
+
+  if (icon === "dataset-analysis") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <path
+          d="M5.25 5.5C5.25 4.81 5.81 4.25 6.5 4.25H17.5C18.19 4.25 18.75 4.81 18.75 5.5V18.5C18.75 19.19 18.19 19.75 17.5 19.75H6.5C5.81 19.75 5.25 19.19 5.25 18.5V5.5Z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        />
+        <path
+          d="M8 15.5L10.6 12.9L12.45 14.75L16 11.2"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.8"
+        />
+        <path
+          d="M8 8.5H16"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="1.8"
+        />
       </svg>
     );
   }

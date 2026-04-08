@@ -184,3 +184,15 @@ When an endpoint is added, removed, or behavior changes, the agent must:
 * Update this file (`API.md`).
 * Record the change in `WORK_LOG.md`.
 * Note whether frontend consumers were updated too.
+
+## 10. Current Frontend Proxy Notes
+
+The frontend worktree now proxies dataset-analysis jobs through:
+- `POST /api/dataset-analysis/jobs`
+- `GET /api/dataset-analysis/jobs/{jobId}`
+
+`GET /api/dataset-analysis/jobs/{jobId}` accepts an optional `locale` query parameter:
+- `locale=en`
+- `locale=ar`
+
+This allows completed dataset-analysis jobs to return localized Arabic `result` content without changing the envelope shape or rerunning the original job.

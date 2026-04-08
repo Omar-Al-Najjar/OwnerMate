@@ -15,7 +15,12 @@ type SidebarProps = {
   pathname: string;
   placementClass: string;
   sections: Array<{
-    key: "dashboard" | "reviews" | "ai-content" | "settings";
+    key:
+      | "dashboard"
+      | "reviews"
+      | "ai-content"
+      | "dataset-analysis"
+      | "settings";
     href: Route;
     label: string;
   }>;

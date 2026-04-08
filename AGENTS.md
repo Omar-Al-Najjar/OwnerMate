@@ -133,3 +133,16 @@ Whenever an agent is added, changed, rerouted, or removed, the coding agent must
 If a task can be solved with a simple service layer before full multi-agent abstraction, that is acceptable. 
 
 However, the documentation and code should still preserve a clear orchestration boundary so the project can scale later.
+
+## 12. Current Frontend Prototype Note
+
+The frontend worktree now consumes the dataset-analysis prototype through localized proxy reads.
+
+Current behavior:
+- completed dataset-analysis jobs can be rehydrated in Arabic through the proxy without rerunning the original analysis
+- the findings view intentionally shows answered findings only
+- these changes affect both frontend UI behavior and the frontend-facing dataset-analysis proxy route contract
+- dataset-analysis job create/read proxy routes now best-effort mirror the prototype job lifecycle into the shared `agent_runs` table when authenticated business context is available
+- dataset-analysis now requires a user-provided dataset name before job creation, and that provided name is used as the unified dataset name shown across the results UI
+- dataset-analysis run logging now relies on resolved `business_id` scope and generates explicit `agent_runs.id` values for schemas that do not auto-generate primary keys
+- dataset-analysis run logging no longer populates `initiated_by_user_id`; `business_id` is the only linkage used for these run records
