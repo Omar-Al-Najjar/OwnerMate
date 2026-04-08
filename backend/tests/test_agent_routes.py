@@ -46,7 +46,6 @@ class FakeOrchestratorAgent:
         return {
             "id": run_id,
             "business_id": uuid4(),
-            "initiated_by_user_id": None,
             "agent_name": "review_ingestion",
             "task_type": "import_reviews",
             "status": "success",

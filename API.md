@@ -189,6 +189,7 @@ Dashboard overview example:
 - `POST /reviews/import`
 - `POST /reviews/import/upload`
 - `POST /reviews/import/google`
+- `GET /reviews/import/google/{run_id}`
 - `POST /reviews/import/facebook`
 - `PATCH /reviews/{review_id}/status`
 
@@ -199,6 +200,8 @@ All review routes:
 `GET /reviews` query parameters:
 - required: `business_id`
 - optional: `review_source_id`, `source_type`, `status`, `language`, `min_rating`, `max_rating`, `reviewer_name`, `search_text`, `created_from`, `created_to`, `limit`, `offset`
+- response items include the latest stored sentiment embedded at `sentiment` when available so frontend list views do not need per-review sentiment follow-up requests
+- when a listed review has no stored sentiment yet, the backend may run best-effort sentiment classification before building the response
 
 Normalization:
 - `source_type`, `language`, `reviewer_name`, and `search_text` are trimmed and lowercased
@@ -207,6 +210,8 @@ Normalization:
 
 `GET /reviews/{review_id}`:
 - requires query parameter `business_id`
+- returns the review with the latest stored sentiment embedded at `sentiment` when one exists
+- when the target review has no stored sentiment yet, the backend may run best-effort sentiment classification before returning it
 
 `POST /reviews/import`:
 - accepts `business_id`, optional `review_source_id`, `source`, and `reviews`
@@ -230,7 +235,14 @@ Normalization:
 `POST /reviews/import/google` and `POST /reviews/import/facebook`:
 - accept source-specific fetch payloads
 - normalize provider results into the shared review import path
-- are currently backed by mock providers only
+- `POST /reviews/import/google` now acknowledges quickly with `202 Accepted` and creates a tracked import job instead of holding the request open until scraping finishes
+- `GET /reviews/import/google/{run_id}` returns the current job status (`queued`, `running`, `success`, or `failed`) plus provider progress metadata and final import counts when available
+- `POST /reviews/import/google` supports either the mock provider or the `google_maps_api` provider
+- when `google_maps_api` is enabled, the request should provide `connection.business_name`
+- `connection.lang` and `connection.depth` are forwarded to the external Google Maps reviews service
+- when the provider job reaches `success`, the backend downloads the scraped reviews, runs the shared deduping import path, and stores the final result on the tracked `agent_runs` record
+- Google Maps imports may still return zero imported reviews when the upstream lookup finds no review text to persist or when all matching reviews were already imported earlier
+- newly imported reviews may be sentiment-classified automatically when no stored sentiment exists yet
 
 `PATCH /reviews/{review_id}/status`:
 - requires query parameter `business_id`
@@ -257,6 +269,19 @@ Review object shape:
   "ingested_at": "2026-03-19T05:44:00Z",
   "status": "pending",
   "response_status": null,
+  "sentiment": {
+    "id": "uuid",
+    "review_id": "uuid",
+    "label": "positive",
+    "confidence": 0.91,
+    "detected_language": "en",
+    "summary_tags": [
+      "service"
+    ],
+    "model_name": "mock_sentiment",
+    "processed_at": "2026-03-19T05:45:00Z",
+    "created_at": "2026-03-19T05:45:00Z"
+  },
   "created_at": "2026-03-19T05:44:00Z",
   "updated_at": "2026-03-19T05:44:00Z"
 }
@@ -546,18 +571,33 @@ Invalid orchestrated payloads:
 - `GET /settings`
 - `PATCH /settings/theme`
 - `PATCH /settings/language`
+- `PATCH /settings/profile`
+- `PATCH /settings/business`
 
 All settings routes:
 - require a verified bearer token
 
 `GET /settings`:
 - returns the authenticated user's stored preferences
+- also returns the primary business settings used for Google review import:
+  - `business.id`
+  - `business.name`
+  - `business.google_review_business_name`
 
 `PATCH /settings/theme`:
 - request body: `{ "theme_preference": "light" | "dark" | "system" }`
 
 `PATCH /settings/language`:
 - request body: `{ "language_preference": "ar" | "en" }`
+
+`PATCH /settings/profile`:
+- request body: `{ "full_name": "Owner Name" | null }`
+
+`PATCH /settings/business`:
+- request body:
+  - `{ "google_review_business_name": "Cafe Amal Amman" | null }`
+- updates the authenticated user's primary business import settings
+- these values can be reused by the frontend Settings screen when starting Google review import
 
 Settings example:
 
@@ -568,6 +608,11 @@ Settings example:
     "user_id": "uuid",
     "language_preference": "en",
     "theme_preference": "dark",
+    "business": {
+      "id": "uuid",
+      "name": "Cafe Amal",
+      "google_review_business_name": "Cafe Amal Amman"
+    },
     "updated_at": "2026-03-19T09:25:00Z"
   }
 }
@@ -628,11 +673,14 @@ Currently used directly by the backend runtime:
 - `SENTIMENT_PROVIDER`
 - `CONTENT_PROVIDER`
 - `GOOGLE_REVIEW_PROVIDER`
+- `GOOGLE_MAPS_API_BASE_URL`
+- `GOOGLE_MAPS_API_TIMEOUT_SECONDS`
 - `FACEBOOK_REVIEW_PROVIDER`
 - `REVIEW_INTELLIGENCE_PROVIDER`
 
 Current provider support:
-- `mock` is the only implemented provider value for all provider settings
+- `mock` is implemented for all provider settings
+- `google_maps_api` is also implemented for `GOOGLE_REVIEW_PROVIDER`
 
 ## 7. Documentation Rule
 

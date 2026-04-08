@@ -12,7 +12,13 @@ def create_db_engine() -> Engine:
     settings = get_settings()
     if not settings.database_url:
         raise ValueError("DATABASE_URL is required to initialize the database engine.")
-    return create_engine(settings.database_url, pool_pre_ping=True)
+    return create_engine(
+        settings.database_url,
+        pool_pre_ping=True,
+        # Supabase pooler runs through PgBouncer and can reject psycopg prepared
+        # statements with "DuplicatePreparedStatement" errors unless they are disabled.
+        connect_args={"prepare_threshold": None},
+    )
 
 
 @lru_cache

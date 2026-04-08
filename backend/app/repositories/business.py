@@ -24,3 +24,9 @@ class BusinessRepository(Repository):
         self.session.flush()
         self.session.refresh(business)
         return business
+
+    def save(self) -> None:
+        self.session.commit()
+
+    def refresh(self, business: Business) -> None:
+        self.session.refresh(business)

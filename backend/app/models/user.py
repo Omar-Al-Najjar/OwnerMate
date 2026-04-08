@@ -25,4 +25,3 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, UpdatedAtMixin, Base):
 
     businesses = relationship("Business", back_populates="owner")
     generated_contents = relationship("GeneratedContent", back_populates="created_by")
-    initiated_agent_runs = relationship("AgentRun", back_populates="initiated_by")

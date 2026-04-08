@@ -22,6 +22,12 @@ class AgentRunRepository(Repository):
     def refresh(self, agent_run: AgentRun) -> None:
         self.session.refresh(agent_run)
 
+    def mark_running(self, agent_run: AgentRun) -> AgentRun:
+        agent_run.status = "running"
+        self.session.flush()
+        self.session.refresh(agent_run)
+        return agent_run
+
     def mark_success(self, agent_run: AgentRun, *, output_reference: dict) -> AgentRun:
         agent_run.status = "success"
         agent_run.output_reference = output_reference

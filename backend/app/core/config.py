@@ -31,11 +31,15 @@ class Settings(BaseSettings):
     database_url: str | None = None
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
-    sentiment_provider: Literal["mock"] = "mock"
+    sentiment_provider: Literal["mock", "sentiment_api"] = "mock"
     content_provider: Literal["mock"] = "mock"
-    google_review_provider: Literal["mock"] = "mock"
+    google_review_provider: Literal["mock", "google_maps_api"] = "mock"
     facebook_review_provider: Literal["mock"] = "mock"
     review_intelligence_provider: Literal["mock"] = "mock"
+    sentiment_api_base_url: str | None = None
+    sentiment_api_timeout_seconds: int = 60
+    google_maps_api_base_url: str | None = None
+    google_maps_api_timeout_seconds: int = 900
     supabase_service_role_key: str | None = Field(
         default=None, alias="SUPABASE_SERVICE_ROLE_KEY"
     )

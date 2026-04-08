@@ -27,6 +27,7 @@ class FakeSettingsService:
         self.last_theme_payload = None
         self.last_language_payload = None
         self.last_profile_payload = None
+        self.last_business_payload = None
         self.now = datetime.now(timezone.utc)
 
     def get_settings(self, user):
@@ -35,6 +36,11 @@ class FakeSettingsService:
             user_id=user.id,
             language_preference="en",
             theme_preference="light",
+            business={
+                "id": str(uuid4()),
+                "name": "OwnerMate Test Business",
+                "google_review_business_name": "Cafe Amal Amman",
+            },
             updated_at=self.now,
         )
 
@@ -45,6 +51,11 @@ class FakeSettingsService:
             user_id=user.id,
             language_preference="en",
             theme_preference=payload.theme_preference,
+            business={
+                "id": str(uuid4()),
+                "name": "OwnerMate Test Business",
+                "google_review_business_name": None,
+            },
             updated_at=self.now,
         )
 
@@ -55,6 +66,11 @@ class FakeSettingsService:
             user_id=user.id,
             language_preference=payload.language_preference,
             theme_preference="light",
+            business={
+                "id": str(uuid4()),
+                "name": "OwnerMate Test Business",
+                "google_review_business_name": None,
+            },
             updated_at=self.now,
         )
 
@@ -65,6 +81,26 @@ class FakeSettingsService:
             user_id=user.id,
             language_preference="en",
             theme_preference="light",
+            business={
+                "id": str(uuid4()),
+                "name": "OwnerMate Test Business",
+                "google_review_business_name": None,
+            },
+            updated_at=self.now,
+        )
+
+    def update_business_settings(self, user, payload):
+        self.last_user = user
+        self.last_business_payload = payload
+        return SettingsRead(
+            user_id=user.id,
+            language_preference="en",
+            theme_preference="light",
+            business={
+                "id": str(uuid4()),
+                "name": "OwnerMate Test Business",
+                "google_review_business_name": payload.google_review_business_name,
+            },
             updated_at=self.now,
         )
 
@@ -131,6 +167,7 @@ class SettingsRouteTests(unittest.TestCase):
         self.assertTrue(body["success"])
         self.assertEqual(body["data"]["user_id"], str(self.user.id))
         self.assertEqual(body["data"]["theme_preference"], "light")
+        self.assertEqual(body["data"]["business"]["name"], "OwnerMate Test Business")
 
     def test_patch_theme_updates_authenticated_user_preference(self) -> None:
         response = self.client.patch("/settings/theme", json={"theme_preference": "dark"})
@@ -161,6 +198,22 @@ class SettingsRouteTests(unittest.TestCase):
         body = response.json()
         self.assertTrue(body["success"])
         self.assertEqual(self.fake_service.last_profile_payload.full_name, "Owner Mate")
+
+    def test_patch_business_updates_authenticated_business_settings(self) -> None:
+        response = self.client.patch(
+            "/settings/business",
+            json={
+                "google_review_business_name": "Cafe Amal Amman",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(
+            self.fake_service.last_business_payload.google_review_business_name,
+            "Cafe Amal Amman",
+        )
 
     def test_authentication_required_returns_structured_error(self) -> None:
         app.dependency_overrides.clear()

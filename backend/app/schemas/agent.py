@@ -60,7 +60,6 @@ class AgentRunRead(BaseModel):
 
     id: UUID
     business_id: UUID
-    initiated_by_user_id: UUID | None
     agent_name: str
     task_type: str
     status: str

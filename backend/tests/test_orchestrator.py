@@ -132,7 +132,6 @@ class FakeAgentRunRepository:
             {
                 "id": run_id,
                 "business_id": uuid4(),
-                "initiated_by_user_id": None,
                 "agent_name": "sentiment_analysis",
                 "task_type": "analyze_review",
                 "status": "success",

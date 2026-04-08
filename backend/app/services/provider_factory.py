@@ -2,6 +2,7 @@ from ..core.config import get_settings
 from .providers import (
     ContentGenerationProvider,
     FacebookReviewImportProvider,
+    GoogleMapsApiReviewImportProvider,
     GoogleReviewImportProvider,
     MockContentGenerationProvider,
     MockFacebookReviewImportProvider,
@@ -10,6 +11,7 @@ from .providers import (
     MockSentimentProvider,
     ReviewIntelligenceProvider,
     SentimentAnalysisProvider,
+    SentimentApiProvider,
 )
 
 
@@ -17,6 +19,16 @@ def get_sentiment_provider() -> SentimentAnalysisProvider:
     settings = get_settings()
     if settings.sentiment_provider == "mock":
         return MockSentimentProvider()
+    if settings.sentiment_provider == "sentiment_api":
+        if not settings.sentiment_api_base_url:
+            raise ValueError(
+                "SENTIMENT_API_BASE_URL must be configured when "
+                "SENTIMENT_PROVIDER=sentiment_api."
+            )
+        return SentimentApiProvider(
+            base_url=settings.sentiment_api_base_url,
+            timeout_seconds=settings.sentiment_api_timeout_seconds,
+        )
     raise ValueError(f"Unsupported sentiment provider: {settings.sentiment_provider}")
 
 
@@ -31,6 +43,16 @@ def get_google_review_provider() -> GoogleReviewImportProvider:
     settings = get_settings()
     if settings.google_review_provider == "mock":
         return MockGoogleReviewImportProvider()
+    if settings.google_review_provider == "google_maps_api":
+        if not settings.google_maps_api_base_url:
+            raise ValueError(
+                "GOOGLE_MAPS_API_BASE_URL must be configured when "
+                "GOOGLE_REVIEW_PROVIDER=google_maps_api."
+            )
+        return GoogleMapsApiReviewImportProvider(
+            base_url=settings.google_maps_api_base_url,
+            timeout_seconds=settings.google_maps_api_timeout_seconds,
+        )
     raise ValueError(f"Unsupported Google review provider: {settings.google_review_provider}")
 
 

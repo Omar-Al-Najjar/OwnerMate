@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -8,6 +9,7 @@ from ..core.exceptions import AppError
 from ..models.review import Review
 from ..repositories.business import BusinessRepository
 from ..repositories.review import ReviewRepository
+from ..repositories.sentiment_result import SentimentResultRepository
 from ..schemas.review import (
     ReviewImportDuplicate,
     ReviewImportRequest,
@@ -19,6 +21,19 @@ from ..schemas.review import (
     ReviewRead,
     ReviewStatusUpdateRequest,
 )
+from ..schemas.sentiment import (
+    SentimentAnalyzeBatchRequest,
+    SentimentAnalyzeRequest,
+    SentimentResultRead,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SentimentAnalysisServiceLike:
+    def analyze_review(self, payload: SentimentAnalyzeRequest): ...
+
+    def analyze_review_batch(self, payload: SentimentAnalyzeBatchRequest): ...
 
 
 class ReviewService:
@@ -27,9 +42,13 @@ class ReviewService:
         *,
         review_repository: ReviewRepository,
         business_repository: BusinessRepository,
+        sentiment_result_repository: SentimentResultRepository,
+        sentiment_analysis_service: SentimentAnalysisServiceLike | None = None,
     ) -> None:
         self.review_repository = review_repository
         self.business_repository = business_repository
+        self.sentiment_result_repository = sentiment_result_repository
+        self.sentiment_analysis_service = sentiment_analysis_service
 
     def list_reviews(self, query: ReviewListQuery) -> list[ReviewRead]:
         self._ensure_business_exists(query.business_id)
@@ -48,7 +67,26 @@ class ReviewService:
             limit=query.limit,
             offset=query.offset,
         )
-        return [ReviewRead.model_validate(review) for review in reviews]
+        self._ensure_sentiments_for_reviews(reviews)
+        latest_sentiments = self.sentiment_result_repository.get_latest_by_review_ids(
+            [review.id for review in reviews]
+        )
+        results: list[ReviewRead] = []
+        for review in reviews:
+            review_payload = ReviewRead.model_validate(review)
+            sentiment_result = latest_sentiments.get(review.id)
+            results.append(
+                review_payload.model_copy(
+                    update={
+                        "sentiment": (
+                            SentimentResultRead.model_validate(sentiment_result)
+                            if sentiment_result
+                            else None
+                        )
+                    }
+                )
+            )
+        return results
 
     def get_review(self, review_id: UUID, scope: ReviewBusinessScope) -> ReviewDetailResponse:
         self._ensure_business_exists(scope.business_id)
@@ -59,7 +97,16 @@ class ReviewService:
                 message="Review not found.",
                 status_code=status.HTTP_404_NOT_FOUND,
             )
-        return ReviewDetailResponse.model_validate(review)
+        self._ensure_sentiments_for_reviews([review])
+        sentiment = self.sentiment_result_repository.get_latest_by_review_id(review.id)
+        review_payload = ReviewDetailResponse.model_validate(review)
+        return review_payload.model_copy(
+            update={
+                "sentiment": (
+                    SentimentResultRead.model_validate(sentiment) if sentiment else None
+                )
+            },
+        )
 
     def import_reviews(self, payload: ReviewImportRequest) -> ReviewImportResult:
         self._ensure_business_exists(payload.business_id)
@@ -117,7 +164,22 @@ class ReviewService:
                 details={"reason": str(exc.orig)},
             ) from exc
 
-        imported_reviews = [ReviewRead.model_validate(review) for review in created]
+        self._ensure_sentiments_for_reviews(created)
+        latest_sentiments = self.sentiment_result_repository.get_latest_by_review_ids(
+            [review.id for review in created]
+        )
+        imported_reviews = [
+            ReviewRead.model_validate(review).model_copy(
+                update={
+                    "sentiment": (
+                        SentimentResultRead.model_validate(latest_sentiments.get(review.id))
+                        if latest_sentiments.get(review.id)
+                        else None
+                    )
+                }
+            )
+            for review in created
+        ]
         unique_duplicates = self._deduplicate_duplicate_results(duplicates)
         return ReviewImportResult(
             source=payload.source,
@@ -205,3 +267,52 @@ class ReviewService:
             unique_by_key.values(),
             key=lambda duplicate: (duplicate.source_review_id, duplicate.reason),
         )
+
+    def _ensure_sentiments_for_reviews(self, reviews: Sequence[Review]) -> None:
+        if not reviews or self.sentiment_analysis_service is None:
+            return
+
+        latest_sentiments = self.sentiment_result_repository.get_latest_by_review_ids(
+            [review.id for review in reviews]
+        )
+        missing_review_ids = [
+            review.id for review in reviews if latest_sentiments.get(review.id) is None
+        ]
+        if not missing_review_ids:
+            return
+
+        try:
+            if len(missing_review_ids) == 1:
+                target_review = next(
+                    review for review in reviews if review.id == missing_review_ids[0]
+                )
+                self.sentiment_analysis_service.analyze_review(
+                    SentimentAnalyzeRequest(
+                        review_id=target_review.id,
+                        language_hint=target_review.language,
+                    )
+                )
+            else:
+                language_hints = {
+                    review.language.lower()
+                    for review in reviews
+                    if review.id in missing_review_ids and review.language
+                }
+                self.sentiment_analysis_service.analyze_review_batch(
+                    SentimentAnalyzeBatchRequest(
+                        review_ids=missing_review_ids,
+                        language_hint=next(iter(language_hints))
+                        if len(language_hints) == 1
+                        else None,
+                    )
+                )
+        except AppError:
+            logger.warning(
+                "Sentiment backfill skipped for %s reviews due to application error.",
+                len(missing_review_ids),
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected sentiment backfill failure for %s reviews.",
+                len(missing_review_ids),
+            )

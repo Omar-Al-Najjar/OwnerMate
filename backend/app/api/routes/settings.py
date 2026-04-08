@@ -4,6 +4,7 @@ from ...core.responses import success_response
 from ...models.user import User
 from ...schemas.common import SuccessResponse
 from ...schemas.settings import (
+    BusinessSettingsUpdateRequest,
     LanguagePreferenceUpdateRequest,
     ProfileUpdateRequest,
     ThemePreferenceUpdateRequest,
@@ -47,3 +48,12 @@ async def update_profile(
     service: SettingsService = Depends(get_settings_service),
 ):
     return success_response(service.update_profile(current_user, payload))
+
+
+@router.patch("/business", response_model=SuccessResponse)
+async def update_business_settings(
+    payload: BusinessSettingsUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    service: SettingsService = Depends(get_settings_service),
+):
+    return success_response(service.update_business_settings(current_user, payload))

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 
 from ...core.responses import success_response
 from ...models.user import User
@@ -8,6 +8,8 @@ from ...schemas.common import SuccessResponse
 from ...schemas.review import (
     FacebookReviewImportSourceRequest,
     GoogleReviewImportSourceRequest,
+    GoogleReviewImportJobRead,
+    GoogleReviewImportSelectionRequest,
     ReviewBusinessScope,
     ReviewImportRequest,
     ReviewUploadImportRequest,
@@ -90,16 +92,51 @@ async def import_uploaded_reviews(
 @router.post(
     "/import/google",
     response_model=SuccessResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def import_google_reviews(
     payload: GoogleReviewImportSourceRequest,
+    response: Response,
     current_user: User = Depends(get_current_user),
     authorization: AuthorizationService = Depends(get_authorization_service),
     service: SourceReviewImportService = Depends(get_source_review_import_service),
 ):
     authorization.ensure_business_access(current_user, payload.business_id)
+    if hasattr(service, "create_google_import_job"):
+        return success_response(service.create_google_import_job(payload))
+    response.status_code = status.HTTP_201_CREATED
     return success_response(service.import_google_reviews(payload))
+
+
+@router.get(
+    "/import/google/{run_id}",
+    response_model=SuccessResponse,
+)
+async def get_google_review_import_job(
+    run_id: UUID,
+    current_user: User = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
+    service: SourceReviewImportService = Depends(get_source_review_import_service),
+):
+    authorization.ensure_agent_run_access(current_user, run_id)
+    result: GoogleReviewImportJobRead = service.get_google_import_job(run_id)
+    return success_response(result)
+
+
+@router.post(
+    "/import/google/{run_id}/selection",
+    response_model=SuccessResponse,
+)
+async def select_google_review_import_candidate(
+    run_id: UUID,
+    payload: GoogleReviewImportSelectionRequest,
+    current_user: User = Depends(get_current_user),
+    authorization: AuthorizationService = Depends(get_authorization_service),
+    service: SourceReviewImportService = Depends(get_source_review_import_service),
+):
+    authorization.ensure_agent_run_access(current_user, run_id)
+    result: GoogleReviewImportJobRead = service.select_google_import_job_candidate(run_id, payload)
+    return success_response(result)
 
 
 @router.post(

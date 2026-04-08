@@ -26,11 +26,6 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("businesses.id", ondelete="CASCADE"),
         nullable=False,
     )
-    initiated_by_user_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
     agent_name: Mapped[str] = mapped_column(String, nullable=False)
     task_type: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
@@ -48,4 +43,3 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     business = relationship("Business", back_populates="agent_runs")
-    initiated_by = relationship("User", back_populates="initiated_agent_runs")

@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from backend.app.core.exceptions import AppError
 from backend.app.models.review import Review
+from backend.app.models.sentiment_result import SentimentResult
 from backend.app.schemas.review import (
     ReviewBusinessScope,
     ReviewImportItem,
@@ -14,6 +15,7 @@ from backend.app.schemas.review import (
     ReviewStatusUpdateRequest,
 )
 from backend.app.services.review import ReviewService
+from backend.app.schemas.sentiment import SentimentAnalysisBatchResult, SentimentAnalysisResult, SentimentResultRead
 
 
 class FakeBusinessRepository:
@@ -72,14 +74,66 @@ class FakeReviewRepository:
         return None
 
 
+class FakeSentimentResultRepository:
+    def __init__(self) -> None:
+        self.by_review_id: dict = {}
+
+    def get_latest_by_review_ids(self, review_ids):
+        return {
+            review_id: self.by_review_id.get(review_id)
+            for review_id in review_ids
+            if self.by_review_id.get(review_id) is not None
+        }
+
+    def get_latest_by_review_id(self, review_id):
+        return self.by_review_id.get(review_id)
+
+
+class FakeSentimentAnalysisService:
+    def __init__(self, repository: FakeSentimentResultRepository) -> None:
+        self.repository = repository
+        self.analyzed_review_ids: list = []
+        self.batch_review_ids: list = []
+
+    def analyze_review(self, payload):
+        self.analyzed_review_ids.append(payload.review_id)
+        now = datetime.now(timezone.utc)
+        result = SentimentResult(
+            review_id=payload.review_id,
+            label="positive",
+            confidence=0.91,
+            detected_language=payload.language_hint or "en",
+            summary_tags=["customer_praise"],
+            model_name="mock_sentiment",
+        )
+        result.id = uuid4()
+        result.created_at = now
+        result.updated_at = now
+        result.processed_at = now
+        self.repository.by_review_id[payload.review_id] = result
+        return SentimentAnalysisResult(
+            review_id=payload.review_id,
+            sentiment_result=SentimentResultRead.model_validate(result),
+            agent_run_id=uuid4(),
+        )
+
+    def analyze_review_batch(self, payload):
+        self.batch_review_ids.extend(payload.review_ids)
+        results = [self.analyze_review(type("Payload", (), {"review_id": review_id, "language_hint": payload.language_hint})()) for review_id in payload.review_ids]
+        return SentimentAnalysisBatchResult(results=results, failures=[])
+
+
 class ReviewServiceTests(unittest.TestCase):
     def test_import_reviews_normalizes_and_skips_duplicates(self) -> None:
         business_id = uuid4()
         review_source_id = uuid4()
         review_repository = FakeReviewRepository(existing_source_ids={"ext-2"})
+        sentiment_repository = FakeSentimentResultRepository()
         service = ReviewService(
             review_repository=review_repository,
             business_repository=FakeBusinessRepository({business_id}),
+            sentiment_result_repository=sentiment_repository,
+            sentiment_analysis_service=FakeSentimentAnalysisService(sentiment_repository),
         )
 
         payload = ReviewImportRequest(
@@ -128,11 +182,17 @@ class ReviewServiceTests(unittest.TestCase):
         self.assertEqual(created_review.language, "en")
         self.assertEqual(created_review.review_text, "Great service")
         self.assertEqual(created_review.source_metadata, {"location_id": "abc"})
+        self.assertIsNotNone(result.imported_reviews[0].sentiment)
+        self.assertEqual(result.imported_reviews[0].sentiment.label, "positive")
 
     def test_import_reviews_requires_existing_business(self) -> None:
         service = ReviewService(
             review_repository=FakeReviewRepository(),
             business_repository=FakeBusinessRepository(set()),
+            sentiment_result_repository=FakeSentimentResultRepository(),
+            sentiment_analysis_service=FakeSentimentAnalysisService(
+                FakeSentimentResultRepository()
+            ),
         )
 
         with self.assertRaises(AppError) as raised:
@@ -156,6 +216,10 @@ class ReviewServiceTests(unittest.TestCase):
         service = ReviewService(
             review_repository=FakeReviewRepository(),
             business_repository=FakeBusinessRepository({business_id}),
+            sentiment_result_repository=FakeSentimentResultRepository(),
+            sentiment_analysis_service=FakeSentimentAnalysisService(
+                FakeSentimentResultRepository()
+            ),
         )
 
         with self.assertRaises(AppError) as raised:
@@ -172,6 +236,7 @@ class ReviewServiceTests(unittest.TestCase):
         other_business_id = uuid4()
         review_id = uuid4()
         review_repository = FakeReviewRepository()
+        sentiment_repository = FakeSentimentResultRepository()
         review_repository.review_by_id[review_id] = Review(
             id=review_id,
             business_id=business_id,
@@ -183,6 +248,8 @@ class ReviewServiceTests(unittest.TestCase):
         service = ReviewService(
             review_repository=review_repository,
             business_repository=FakeBusinessRepository({business_id, other_business_id}),
+            sentiment_result_repository=sentiment_repository,
+            sentiment_analysis_service=FakeSentimentAnalysisService(sentiment_repository),
         )
 
         with self.assertRaises(AppError) as raised:
@@ -196,12 +263,32 @@ class ReviewServiceTests(unittest.TestCase):
     def test_list_reviews_passes_supported_filters(self) -> None:
         business_id = uuid4()
         review_repository = FakeReviewRepository()
+        sentiment_repository = FakeSentimentResultRepository()
+        review_id = uuid4()
+        review_repository.listed_reviews = [
+            Review(
+                id=review_id,
+                business_id=business_id,
+                source_type="google",
+                source_review_id="ext-1",
+                reviewer_name="Jane",
+                language="en",
+                review_text="Great service",
+                ingested_at=datetime.now(timezone.utc),
+                status="pending",
+            )
+        ]
+        review_repository.listed_reviews[0].created_at = datetime.now(timezone.utc)
+        review_repository.listed_reviews[0].updated_at = datetime.now(timezone.utc)
+        sentiment_service = FakeSentimentAnalysisService(sentiment_repository)
         service = ReviewService(
             review_repository=review_repository,
             business_repository=FakeBusinessRepository({business_id}),
+            sentiment_result_repository=sentiment_repository,
+            sentiment_analysis_service=sentiment_service,
         )
 
-        service.list_reviews(
+        results = service.list_reviews(
             ReviewListQuery(
                 business_id=business_id,
                 source_type="google",
@@ -234,6 +321,8 @@ class ReviewServiceTests(unittest.TestCase):
                 "offset": 5,
             },
         )
+        self.assertEqual(sentiment_service.analyzed_review_ids, [review_id])
+        self.assertEqual(results[0].sentiment.label, "positive")
 
 
 if __name__ == "__main__":

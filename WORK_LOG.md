@@ -98,6 +98,95 @@ The project needs stable documentation before implementation begins so coding ag
 * tailor these docs further once the repository structure is finalized
 * update API and architecture docs as implementation becomes concrete
 
+## 2026-04-06 21:45 - Add complete dashboard database seed scripts
+
+### Task
+Create database seeding scripts that populate all data needed for the dashboard experience to render with meaningful review and sales content.
+
+### Files Changed
+* `backend/scripts/seed_helpers.py`
+* `backend/scripts/seed_dashboard_data.py`
+* `backend/scripts/seed_smoke_data.py`
+* `WORK_LOG.md`
+
+### What Was Done
+* added reusable SQLAlchemy-based seeding helpers for users, businesses, reviews, sentiment results, and sales records
+* added a comprehensive `seed_dashboard_data.py` script that populates a dashboard-ready demo business with seeded reviews, sentiments, and 30 days of sales records
+* updated `seed_smoke_data.py` to reuse the same helper flow instead of raw SQL inserts
+* made the dashboard seed idempotent for the seeded review IDs and business identity so it can be re-run safely
+* verified the script against the configured database and confirmed seeded counts for reviews, sentiments, and sales records
+
+### Why
+The dashboard UI needs a complete dataset, not just a placeholder user and business, in order to show metrics, distributions, priority queues, activity feed, and sales panels correctly.
+
+### Testing
+* `python -m py_compile backend\scripts\seed_helpers.py backend\scripts\seed_dashboard_data.py backend\scripts\seed_smoke_data.py`
+* `python scripts\seed_dashboard_data.py`
+* manual verification query confirmed `12` reviews, `12` sentiment rows, and `30` sales records for the seeded demo business
+
+### Migrations / Env Changes
+* no schema migrations were added
+* no committed env files were changed
+
+### Remaining Work / Notes
+* no API payload shape changed
+* no UI code changed directly, but the dashboard can now render against seeded backend data
+* local runtime log files under `backend/` remain untracked and were not committed
+
+## 2026-04-06 21:58 - Disable psycopg prepared statements for Supabase pooler
+
+### Task
+Fix backend database connections failing against the Supabase pooler with `DuplicatePreparedStatement` errors during seeding.
+
+### Files Changed
+* `backend/app/core/db.py`
+* `WORK_LOG.md`
+
+### What Was Done
+* updated SQLAlchemy engine creation to pass `prepare_threshold=None` to psycopg connections
+* disabled prepared statements at the driver level so PgBouncer-backed Supabase pooler connections can execute repeatedly without prepared statement collisions
+
+### Why
+The seeding workflow failed on the real database because the connection path through the Supabase pooler rejected psycopg prepared statement reuse.
+
+### Testing
+* not rerun yet in this entry; next step is to rerun `python scripts\seed_dashboard_data.py`
+
+### Migrations / Env Changes
+* none
+
+### Remaining Work / Notes
+* this affects backend DB connectivity behavior but does not change API payloads or UI behavior directly
+
+## 2026-04-06 22:08 - Reuse existing owner business for dashboard seeding
+
+### Task
+Prevent dashboard seeding from creating extra businesses for the same account and keep seeded data attached to the owner’s existing business.
+
+### Files Changed
+* `backend/scripts/seed_helpers.py`
+* `WORK_LOG.md`
+
+### What Was Done
+* updated the seeding helper to reuse the owner’s oldest existing business when one already exists
+* stopped the seeding flow from creating an extra `OwnerMate Dashboard Demo` business for accounts that already have a business
+* cleaned up the extra demo business created earlier for `gaithdiabat11@gmail.com`
+* reran the dashboard seed so `Gaith Abedalaziz Diabat Business` now holds the seeded reviews, sentiments, and sales data
+
+### Why
+Repeated seeding should enrich one business per account instead of creating duplicate businesses that confuse the frontend selection flow.
+
+### Testing
+* reran `python scripts\seed_dashboard_data.py` for `gaithdiabat11@gmail.com`
+* verified the account now has exactly one business with `12` reviews, `12` sentiments, and `30` sales records
+
+### Migrations / Env Changes
+* none
+
+### Remaining Work / Notes
+* no API payloads changed
+* frontend behavior should now be more predictable because the account owns a single seeded business
+
 ## 2026-03-19 05:30 - FastAPI backend foundation scaffolded
 
 ### Task
@@ -2011,3 +2100,307 @@ These files were pure runtime noise and kept making `git status` look dirty even
 
 ### Remaining Work / Notes
 - local untracked `demo-cookie.txt` was left alone because it appears to be a user-local artifact rather than repository source
+
+## 2026-04-06 23:05 - Embedded latest sentiment into review responses
+
+### Task
+Fix the `reviews` page crash by removing the frontend's per-review sentiment fetch pattern and exposing the latest sentiment directly from the review API.
+
+### Files Changed
+- `API.md`
+- `backend/app/api/dependencies.py`
+- `backend/app/schemas/review.py`
+- `backend/app/services/review.py`
+- `backend/tests/test_review_service.py`
+
+### What Was Done
+- extended `ReviewRead` and `ReviewDetailResponse` to include an optional embedded `sentiment`
+- updated `ReviewService.list_reviews()` and `ReviewService.get_review()` to attach each review's latest stored sentiment result
+- wired every `ReviewService` dependency constructor to pass `SentimentResultRepository`
+- updated review service tests to match the new dependency shape
+- documented the `/reviews` response contract change
+
+### Why
+The frontend `reviews` page was loading `/reviews` and then calling `/sentiment/reviews/{id}` for every row. A single failed network request caused the whole page to crash. Returning sentiment inline removes that N+1 pattern and makes the page more stable.
+
+### Testing
+- pending in this step: backend compile and route verification after the paired frontend update
+
+### Migrations / Env Changes
+- no schema migration
+- no env changes
+
+### Remaining Work / Notes
+- frontend consumers must now read `review.sentiment` from `/reviews` and `/reviews/{review_id}`
+- UI behavior changes: the reviews list should no longer depend on separate sentiment requests per row
+
+## 2026-04-07 00:20 - Integrated Google Maps reviews provider into backend review import
+
+### Task
+Integrate the standalone `google-maps-api` service into the existing backend review import flow in the simplest practical way for deployment.
+
+### Files Changed
+- `API.md`
+- `WORK_LOG.md`
+- `backend/.env.example`
+- `backend/.env.supabase.example`
+- `backend/app/core/config.py`
+- `backend/app/schemas/review.py`
+- `backend/app/services/provider_factory.py`
+- `backend/app/services/providers/__init__.py`
+- `backend/app/services/providers/review_import.py`
+- `backend/app/services/source_review_import.py`
+- `backend/requirements.txt`
+- `backend/tests/test_google_maps_review_provider.py`
+- `backend/tests/test_source_review_import_service.py`
+
+### What Was Done
+- added a real `google_maps_api` review provider option alongside the existing mock provider
+- wired the provider factory to instantiate the new backend-to-backend integration using `GOOGLE_MAPS_API_BASE_URL`
+- extended the Google import request connection payload with `business_name`, `lang`, and `depth`
+- mapped the external Google Maps reviews API response into internal `GoogleFetchedReview` items
+- generated deterministic `source_review_id` values for scraped reviews so re-imports can deduplicate cleanly
+- made source import return an empty structured result when the upstream provider returns no usable reviews instead of failing request validation
+- added provider tests and source import tests for the new integration path
+
+### Why
+This keeps deployment practical. The main backend remains the only service the frontend needs to know about, while the slower Google scraping service stays behind the backend as an optional integration.
+
+### Testing
+- pending in this step: backend unit tests and compile verification after code changes
+
+### Migrations / Env Changes
+- no schema migration
+- new backend env variables:
+  - `GOOGLE_MAPS_API_BASE_URL`
+  - `GOOGLE_MAPS_API_TIMEOUT_SECONDS`
+- `GOOGLE_REVIEW_PROVIDER` now also supports `google_maps_api`
+
+### Remaining Work / Notes
+- API payload change: `POST /reviews/import/google` can now accept `connection.business_name`, `connection.lang`, and `connection.depth`
+- UI behavior did not change in this step
+- no agent routing changes were required for this integration
+
+## 2026-04-07 10:55 - Added business-level Google import settings and Settings screen support
+
+### Task
+Let users store a Google business name or Google Maps link in Settings, then trigger Google review import from the existing Settings page.
+
+### Files Changed
+- `API.md`
+- `WORK_LOG.md`
+- `backend/.env`
+- `backend/app/api/dependencies.py`
+- `backend/app/api/routes/settings.py`
+- `backend/app/models/business.py`
+- `backend/app/repositories/business.py`
+- `backend/app/schemas/review.py`
+- `backend/app/schemas/settings.py`
+- `backend/app/services/providers/review_import.py`
+- `backend/app/services/settings.py`
+- `backend/migrations/versions/20260407_1030_add_google_business_fields_to_businesses.py`
+- `backend/tests/test_google_maps_review_provider.py`
+- `backend/tests/test_settings_routes.py`
+- `backend/tests/test_settings_service.py`
+
+### What Was Done
+- added `google_review_business_name` and `google_maps_url` fields to the `businesses` table
+- extended backend settings responses to include the authenticated user's primary business import settings
+- added `PATCH /settings/business` to persist Google review import settings on the business record
+- updated the Google review import connection schema to accept `google_maps_url`
+- taught the Google Maps provider to extract a business lookup string from a Google Maps link when a direct name is not provided
+- set the local backend `.env` to use the live `google_maps_api` provider by default for local development
+
+### Why
+Business names are often ambiguous. Storing either an exact Google business name or a direct Google Maps link makes imports more reliable and keeps the Google scraping configuration tied to the business instead of the individual user.
+
+### Testing
+- `python -m unittest backend.tests.test_settings_service backend.tests.test_settings_routes backend.tests.test_google_maps_review_provider`
+- `python -m py_compile backend\\app\\services\\settings.py backend\\app\\schemas\\settings.py backend\\app\\services\\providers\\review_import.py backend\\app\\api\\routes\\settings.py`
+- `python -m alembic upgrade head`
+
+### Migrations / Env Changes
+- schema migration added:
+  - `businesses.google_review_business_name`
+  - `businesses.google_maps_url`
+- local backend env updated:
+  - `GOOGLE_REVIEW_PROVIDER=google_maps_api`
+  - `GOOGLE_MAPS_API_BASE_URL=http://127.0.0.1:8010`
+  - `GOOGLE_MAPS_API_TIMEOUT_SECONDS=900`
+
+### Remaining Work / Notes
+- API payload change: `GET /settings` and `PATCH /settings/business` now expose business-level Google import settings
+- UI behavior changes are handled in the frontend work log
+- no agent routing changes were required in this step
+
+## 2026-04-07 11:35 - Enabled automatic sentiment backfill for imported and viewed reviews
+
+### Task
+Connect the live website review flow to sentiment analysis so missing review classifications are generated automatically.
+
+### Files Changed
+- `API.md`
+- `WORK_LOG.md`
+- `backend/app/api/dependencies.py`
+- `backend/app/services/review.py`
+- `backend/tests/test_review_service.py`
+
+### What Was Done
+- injected the sentiment analysis service into the review service dependency graph
+- added best-effort sentiment backfill when reviews are listed or fetched individually and no sentiment row exists yet
+- added automatic sentiment analysis for newly imported reviews after they are saved
+- kept review responses resilient so UI pages still load even if sentiment classification fails temporarily
+
+### Why
+The frontend already expects sentiment data in the reviews and dashboard flows. This removes the need for a separate manual sentiment step and keeps review surfaces populated automatically.
+
+### Testing
+- `python -m unittest backend.tests.test_review_service backend.tests.test_sentiment_service backend.tests.test_sentiment_routes`
+
+### Migrations / Env Changes
+- none
+
+### Remaining Work / Notes
+- API payloads did not change, but review and import responses may now contain sentiment values more consistently
+- UI behavior changed indirectly: reviews without prior sentiment can now appear classified after import or after first load
+
+## 2026-04-07 20:35 - Switched backend sentiment provider to the real sentiment API service
+
+### Task
+Replace the backend's mock-only sentiment path with the real Dockerized sentiment model service that lives in the `AI-system` branch.
+
+### Files Changed
+- `WORK_LOG.md`
+- `backend/.env`
+- `backend/app/core/config.py`
+- `backend/app/services/provider_factory.py`
+- `backend/app/services/providers/__init__.py`
+- `backend/app/services/providers/sentiment.py`
+- `backend/tests/test_sentiment_provider.py`
+
+### What Was Done
+- added a new `sentiment_api` provider mode to backend settings
+- added a real HTTP provider that calls the separate sentiment model service `/predict` endpoint
+- mapped the model's uppercase labels into the backend's lowercase sentiment schema
+- surfaced model-loading and upstream service failures as structured app errors
+- switched the local backend `.env` from `mock` to `sentiment_api`
+
+### Why
+The repository already includes a real bilingual sentiment model service, and the backend needed to use that service instead of mock classification for local and production-like runs.
+
+### Testing
+- `python -m unittest backend.tests.test_sentiment_provider backend.tests.test_sentiment_service`
+- `python -m unittest backend.tests.test_sentiment_routes`
+- `python -m py_compile backend\\app\\core\\config.py backend\\app\\services\\provider_factory.py backend\\app\\services\\providers\\sentiment.py`
+
+### Migrations / Env Changes
+- local backend env updated:
+  - `SENTIMENT_PROVIDER=sentiment_api`
+  - `SENTIMENT_API_BASE_URL=http://127.0.0.1:8030`
+  - `SENTIMENT_API_TIMEOUT_SECONDS=60`
+
+### Remaining Work / Notes
+- API payloads did not change
+- UI behavior did not change directly, but sentiment labels and confidence now come from the real model service instead of the mock keyword heuristic
+
+## 2026-04-07 22:35 - Reverted backend Google import to business-name-only lookup
+
+### Task
+Align the backend Google review import flow with the restored business-name-only Google Maps lookup behavior.
+
+### Files Changed
+- `WORK_LOG.md`
+- `backend/app/schemas/review.py`
+- `backend/app/schemas/settings.py`
+- `backend/app/services/providers/review_import.py`
+- `backend/app/services/settings.py`
+- `backend/tests/test_google_maps_review_provider.py`
+- `backend/tests/test_settings_routes.py`
+- `backend/tests/test_settings_service.py`
+- `API.md`
+
+### What Was Done
+- removed `google_maps_url` from the Google review import connection schema
+- stopped deriving Google business lookup strings from Google Maps links in the provider
+- simplified business settings read/update payloads back to `google_review_business_name` only
+- updated backend tests and backend API documentation to match the restored contract
+
+### Why
+The preferred runtime behavior is once again the simpler business-name-only Google lookup flow, so the backend contract needed to stop advertising or using Google Maps links.
+
+### Testing
+- pending in this step: focused backend unit tests are run after the frontend and service revert is finished
+
+### Migrations / Env Changes
+- no new migrations
+- no env changes
+
+### Remaining Work / Notes
+- API payload changed for `POST /reviews/import/google` and `PATCH /settings/business`
+- UI behavior changed indirectly because the frontend no longer needs to collect or send a Google Maps link
+
+## 2026-04-08 10:20 - Converted Google review import to async tracked jobs
+
+### Task
+Replace the long blocking Google review import chain with a production-safe async job flow that acknowledges quickly, exposes progress, and finalizes imports through tracked backend state.
+
+### Files Changed
+- `API.md`
+- `WORK_LOG.md`
+- `backend/app/api/dependencies.py`
+- `backend/app/api/routes/reviews.py`
+- `backend/app/repositories/agent_run.py`
+- `backend/app/schemas/review.py`
+- `backend/app/services/providers/__init__.py`
+- `backend/app/services/providers/review_import.py`
+- `backend/app/services/source_review_import.py`
+- `backend/tests/test_google_maps_review_provider.py`
+- `backend/tests/test_review_routes.py`
+- `backend/tests/test_source_review_import_service.py`
+
+### What Was Done
+- changed `POST /reviews/import/google` to return `202 Accepted` with a tracked import job instead of waiting for scraper completion
+- added `GET /reviews/import/google/{run_id}` for polling backend-owned job status
+- persisted Google import jobs in `agent_runs` with provider metadata, progress state, and final import output
+- finalized completed provider jobs lazily through the shared review import path so deduping and sentiment behavior stay centralized
+- added backend test coverage for provider job creation, route status polling, and service-level job finalization
+
+### Why
+- the previous sync chain stretched across frontend, backend, and scraper with one long request, which made timeouts and misleading UX almost inevitable
+- moving to backend-owned async jobs keeps the web request fast while preserving a durable source of truth for progress and completion
+
+### Testing
+- `python -m pytest backend\\tests\\test_review_routes.py backend\\tests\\test_google_maps_review_provider.py backend\\tests\\test_source_review_import_service.py`
+
+### Migrations / Env Changes
+- no new migrations in this step
+- no contract-breaking env changes required for the async flow itself
+
+### Remaining Work / Notes
+- API behavior changed for Google review import: callers should now create a job and poll for status
+- UI behavior changed indirectly because the frontend no longer depends on one long blocking import request
+
+## 2026-04-08 03:45 - Propagated Google stale-job timeout failures through backend import status
+
+### Task
+Ensure stale Google scraper jobs stop the backend import flow cleanly and return a clear failed status instead of remaining `running` forever.
+
+### Files Changed
+- `WORK_LOG.md`
+- `backend/tests/test_google_maps_review_provider.py`
+
+### What Was Done
+- added provider coverage for `status=failed` with `provider_status=timed_out`
+- verified that the backend provider layer preserves the timeout state and message returned by `google-maps-api`
+
+### Why
+- the website validation showed that the UI and backend tracking were healthy, but a stale provider job could leave the import run spinning forever without a terminal state
+
+### Testing
+- `python -m pytest backend\\tests\\test_google_maps_review_provider.py backend\\tests\\test_review_routes.py backend\\tests\\test_source_review_import_service.py`
+
+### Migrations / Env Changes
+- none
+
+### Remaining Work / Notes
+- the backend still needs a future ambiguity-aware UX flow for multi-match searches, but timeout propagation is now explicit

@@ -18,6 +18,7 @@ from backend.app.main import app
 from backend.app.models.user import User
 from backend.app.schemas.review import (
     FacebookReviewImportSourceRequest,
+    GoogleReviewImportJobRead,
     GoogleReviewImportSourceRequest,
     ReviewBusinessScope,
     ReviewDetailResponse,
@@ -106,6 +107,38 @@ class FakeSourceReviewImportService:
     def __init__(self) -> None:
         self.last_google_payload: GoogleReviewImportSourceRequest | None = None
         self.last_facebook_payload: FacebookReviewImportSourceRequest | None = None
+        self.job = GoogleReviewImportJobRead(
+            agent_run_id=uuid4(),
+            business_id=uuid4(),
+            status="queued",
+            business_name="Cafe Amal",
+            provider_name="google_maps_api",
+            provider_job_id="provider-job-1",
+            provider_status="pending",
+            message="Google review import started for Cafe Amal.",
+            imported_count=None,
+            duplicate_count=None,
+            processed_count=None,
+            started_at=datetime.now(timezone.utc),
+            finished_at=None,
+        )
+
+    def create_google_import_job(
+        self, payload: GoogleReviewImportSourceRequest
+    ) -> GoogleReviewImportJobRead:
+        self.last_google_payload = payload
+        self.job = self.job.model_copy(
+            update={
+                "business_id": payload.business_id,
+                "business_name": payload.connection.business_name,
+            }
+        )
+        return self.job
+
+    def get_google_import_job(self, run_id) -> GoogleReviewImportJobRead:
+        if run_id == self.job.agent_run_id:
+            return self.job
+        return self.job.model_copy(update={"agent_run_id": run_id})
 
     def import_google_reviews(
         self, payload: GoogleReviewImportSourceRequest
@@ -169,12 +202,22 @@ class FakeAuthorizationService:
     def ensure_business_access(self, user, business_id):
         return None
 
+    def ensure_agent_run_access(self, user, run_id):
+        return None
+
 
 class RejectingAuthorizationService:
     def ensure_business_access(self, user, business_id):
         raise AppError(
             code="FORBIDDEN",
             message="You do not have access to this business.",
+            status_code=403,
+        )
+
+    def ensure_agent_run_access(self, user, run_id):
+        raise AppError(
+            code="FORBIDDEN",
+            message="You do not have access to this agent run.",
             status_code=403,
         )
 
@@ -313,7 +356,7 @@ class ReviewRouteTests(unittest.TestCase):
         self.assertEqual(str(self.fake_service.last_status_scope.business_id), business_id)
         self.assertEqual(self.fake_service.last_status_payload.status, "reviewed")
 
-    def test_import_google_reviews_returns_structured_result(self) -> None:
+    def test_import_google_reviews_creates_async_job(self) -> None:
         business_id = str(uuid4())
         review_source_id = str(uuid4())
 
@@ -338,16 +381,60 @@ class ReviewRouteTests(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 202)
         body = response.json()
         self.assertTrue(body["success"])
-        self.assertEqual(body["data"]["source"], "google")
+        self.assertEqual(body["data"]["status"], "queued")
+        self.assertEqual(body["data"]["provider_name"], "google_maps_api")
         self.assertIsNotNone(self.fake_source_service.last_google_payload)
         self.assertEqual(
             self.fake_source_service.last_google_payload.connection.location_id,
             "google-location-1",
         )
         self.assertEqual(len(self.fake_source_service.last_google_payload.mock_reviews), 1)
+
+    def test_get_google_import_job_returns_structured_status(self) -> None:
+        response = self.client.get(
+            f"/reviews/import/google/{self.fake_source_service.job.agent_run_id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["data"]["status"], "queued")
+        self.assertEqual(body["data"]["provider_status"], "pending")
+        self.assertEqual(
+            body["data"]["agent_run_id"],
+            str(self.fake_source_service.job.agent_run_id),
+        )
+
+    def test_get_google_import_job_returns_no_reviews_failure_status(self) -> None:
+        self.fake_source_service.job = self.fake_source_service.job.model_copy(
+            update={
+                "status": "failed",
+                "provider_status": "no_reviews",
+                "message": (
+                    "We found Zanjabeel, 30, street, Irbid successfully, "
+                    "but no Google reviews were available to import."
+                ),
+                "imported_count": 0,
+                "duplicate_count": 0,
+                "processed_count": 0,
+                "business_name": "Zanjabeel, 30, street, Irbid",
+            }
+        )
+
+        response = self.client.get(
+            f"/reviews/import/google/{self.fake_source_service.job.agent_run_id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["data"]["status"], "failed")
+        self.assertEqual(body["data"]["provider_status"], "no_reviews")
+        self.assertEqual(body["data"]["imported_count"], 0)
+        self.assertIn("no google reviews were available", body["data"]["message"].lower())
 
     def test_import_facebook_reviews_returns_structured_result(self) -> None:
         business_id = str(uuid4())

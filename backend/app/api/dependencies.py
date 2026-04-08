@@ -60,9 +60,17 @@ def get_token_verifier_factory() -> Callable[[], SupabaseTokenVerifier]:
 def get_review_service(
     session: Session = Depends(get_db_session),
 ) -> ReviewService:
+    sentiment_analysis_service = SentimentAnalysisService(
+        provider=get_sentiment_provider(),
+        review_repository=ReviewRepository(session),
+        sentiment_result_repository=SentimentResultRepository(session),
+        agent_run_repository=AgentRunRepository(session),
+    )
     return ReviewService(
         review_repository=ReviewRepository(session),
         business_repository=BusinessRepository(session),
+        sentiment_result_repository=SentimentResultRepository(session),
+        sentiment_analysis_service=sentiment_analysis_service,
     )
 
 
@@ -118,6 +126,13 @@ def get_review_ingestion_service(
     review_service = ReviewService(
         review_repository=ReviewRepository(session),
         business_repository=BusinessRepository(session),
+        sentiment_result_repository=SentimentResultRepository(session),
+        sentiment_analysis_service=SentimentAnalysisService(
+            provider=get_sentiment_provider(),
+            review_repository=ReviewRepository(session),
+            sentiment_result_repository=SentimentResultRepository(session),
+            agent_run_repository=AgentRunRepository(session),
+        ),
     )
     return ReviewIngestionService(
         review_service=review_service,
@@ -131,11 +146,19 @@ def get_source_review_import_service(
     review_service = ReviewService(
         review_repository=ReviewRepository(session),
         business_repository=BusinessRepository(session),
+        sentiment_result_repository=SentimentResultRepository(session),
+        sentiment_analysis_service=SentimentAnalysisService(
+            provider=get_sentiment_provider(),
+            review_repository=ReviewRepository(session),
+            sentiment_result_repository=SentimentResultRepository(session),
+            agent_run_repository=AgentRunRepository(session),
+        ),
     )
     return SourceReviewImportService(
         review_service=review_service,
         google_provider=get_google_review_provider(),
         facebook_provider=get_facebook_review_provider(),
+        agent_run_repository=AgentRunRepository(session),
     )
 
 
@@ -145,6 +168,13 @@ def get_review_upload_import_service(
     review_service = ReviewService(
         review_repository=ReviewRepository(session),
         business_repository=BusinessRepository(session),
+        sentiment_result_repository=SentimentResultRepository(session),
+        sentiment_analysis_service=SentimentAnalysisService(
+            provider=get_sentiment_provider(),
+            review_repository=ReviewRepository(session),
+            sentiment_result_repository=SentimentResultRepository(session),
+            agent_run_repository=AgentRunRepository(session),
+        ),
     )
     return ReviewUploadImportService(
         review_ingestion_service=ReviewIngestionService(
@@ -214,7 +244,10 @@ def get_content_generation_service(
 def get_settings_service(
     session: Session = Depends(get_db_session),
 ) -> SettingsService:
-    return SettingsService(user_repository=UserRepository(session))
+    return SettingsService(
+        user_repository=UserRepository(session),
+        business_repository=BusinessRepository(session),
+    )
 
 
 def get_dashboard_service(
@@ -242,6 +275,13 @@ def get_orchestrator_agent(
     review_service = ReviewService(
         review_repository=ReviewRepository(session),
         business_repository=BusinessRepository(session),
+        sentiment_result_repository=SentimentResultRepository(session),
+        sentiment_analysis_service=SentimentAnalysisService(
+            provider=get_sentiment_provider(),
+            review_repository=ReviewRepository(session),
+            sentiment_result_repository=SentimentResultRepository(session),
+            agent_run_repository=AgentRunRepository(session),
+        ),
     )
     agent_run_repository = AgentRunRepository(session)
     return OrchestratorAgent(

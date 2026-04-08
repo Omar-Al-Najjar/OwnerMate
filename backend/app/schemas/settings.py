@@ -15,7 +15,16 @@ class SettingsRead(BaseModel):
     user_id: UUID
     language_preference: LanguagePreference | None = None
     theme_preference: ThemePreference | None = None
+    business: "BusinessSettingsRead | None" = None
     updated_at: datetime
+
+
+class BusinessSettingsRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    google_review_business_name: str | None = None
 
 
 class ThemePreferenceUpdateRequest(BaseModel):
@@ -48,6 +57,18 @@ class ProfileUpdateRequest(BaseModel):
     @field_validator("full_name", mode="before")
     @classmethod
     def normalize_full_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class BusinessSettingsUpdateRequest(BaseModel):
+    google_review_business_name: str | None = None
+
+    @field_validator("google_review_business_name", mode="before")
+    @classmethod
+    def normalize_nullable_strings(cls, value: str | None) -> str | None:
         if value is None:
             return None
         normalized = value.strip()

@@ -119,7 +119,6 @@ All schema changes must be made through Alembic migrations.
 ### 8. agent_runs
 - `id` uuid primary key
 - `business_id` uuid not null
-- `initiated_by_user_id` uuid nullable
 - `agent_name` text not null
 - `task_type` text not null
 - `status` text not null

@@ -23,6 +23,9 @@ class Business(UUIDPrimaryKeyMixin, TimestampMixin, UpdatedAtMixin, Base):
     industry: Mapped[str | None] = mapped_column(String, nullable=True)
     country_code: Mapped[str | None] = mapped_column(String, nullable=True)
     default_language: Mapped[str | None] = mapped_column(String, nullable=True)
+    google_review_business_name: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )
 
     owner = relationship("User", back_populates="businesses")
     reviews = relationship("Review", back_populates="business")

@@ -5,9 +5,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .sentiment import SentimentResultRead
 
 ReviewStatus = Literal["pending", "reviewed", "responded"]
 FacebookRecommendation = Literal["positive", "negative", "neutral"]
+GoogleImportJobStatus = Literal["queued", "running", "needs_selection", "success", "failed"]
 
 
 class ReviewUploadFormat(str, Enum):
@@ -149,15 +151,38 @@ class ReviewSourceFetchOptions(BaseModel):
 
 class GoogleReviewImportConnection(BaseModel):
     account_id: str | None = None
+    business_name: str | None = None
+    lang: str | None = None
     location_id: str | None = None
+    depth: int = Field(default=1, ge=1, le=10)
 
-    @field_validator("account_id", "location_id", mode="before")
+    @field_validator(
+        "account_id",
+        "business_name",
+        "location_id",
+        mode="before",
+    )
     @classmethod
     def normalize_nullable_strings(cls, value: str | None) -> str | None:
         if value is None:
             return None
         normalized = value.strip()
         return normalized or None
+
+    @field_validator("lang", mode="before")
+    @classmethod
+    def normalize_lang(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        return normalized or None
+
+    @field_validator("lang")
+    @classmethod
+    def validate_lang(cls, value: str | None) -> str | None:
+        if value is not None and len(value) != 2:
+            raise ValueError("lang must be a 2-letter ISO 639-1 language code.")
+        return value
 
 
 class FacebookReviewImportConnection(BaseModel):
@@ -271,6 +296,7 @@ class ReviewRead(BaseModel):
     ingested_at: datetime
     status: ReviewStatus
     response_status: str | None
+    sentiment: SentimentResultRead | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -294,6 +320,49 @@ class ReviewImportResult(BaseModel):
     processed_count: int
     imported_reviews: list[ReviewRead]
     duplicates: list[ReviewImportDuplicate]
+
+
+class GoogleReviewImportCandidate(BaseModel):
+    candidate_id: str
+    title: str
+    category: str | None = None
+    address: str | None = None
+    review_count: int | None = None
+    review_rating: float | None = None
+    place_id: str | None = None
+    link: str | None = None
+
+
+class GoogleReviewImportJobRead(BaseModel):
+    agent_run_id: UUID
+    business_id: UUID
+    status: GoogleImportJobStatus
+    business_name: str
+    provider_name: str
+    provider_job_id: str | None = None
+    provider_status: str | None = None
+    message: str
+    imported_count: int | None = None
+    duplicate_count: int | None = None
+    processed_count: int | None = None
+    candidates: list[GoogleReviewImportCandidate] = Field(default_factory=list)
+    selected_candidate_id: str | None = None
+    imported_reviews: list[ReviewRead] = Field(default_factory=list)
+    duplicates: list[ReviewImportDuplicate] = Field(default_factory=list)
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class GoogleReviewImportSelectionRequest(BaseModel):
+    candidate_id: str
+
+    @field_validator("candidate_id")
+    @classmethod
+    def require_candidate_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("candidate_id must not be empty.")
+        return normalized
 
 
 class ReviewSummaryRequest(BaseModel):
