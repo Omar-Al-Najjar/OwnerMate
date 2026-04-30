@@ -338,6 +338,10 @@ export type DashboardDictionary = {
   datasetBaseline: string;
   openReviewAction: string;
   jumpToReviewsAction: string;
+  viewFullSalesAnalytics: string;
+  exploreReviewInsights: string;
+  openReviewQueue: string;
+  viewAllReviews: string;
   activeNow: string;
 };
 

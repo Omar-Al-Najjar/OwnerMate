@@ -302,6 +302,10 @@
     datasetBaseline: "خط أساس البيانات",
     openReviewAction: "افتح قائمة المراجعات",
     jumpToReviewsAction: "الانتقال إلى المراجعات",
+    viewFullSalesAnalytics: "عرض تحليلات المبيعات الكاملة ←",
+    exploreReviewInsights: "استكشاف رؤى المراجعات ←",
+    openReviewQueue: "افتح قائمة المراجعات ←",
+    viewAllReviews: "عرض كل المراجعات ←",
     activeNow: "نشط الآن",
     salesPerformance: "أداء المبيعات",
     salesPerformanceDescription:

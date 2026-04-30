@@ -302,6 +302,10 @@
     datasetBaseline: "Dataset baseline",
     openReviewAction: "Open the review queue",
     jumpToReviewsAction: "Go to Reviews",
+    viewFullSalesAnalytics: "View full sales analytics →",
+    exploreReviewInsights: "Explore review insights →",
+    openReviewQueue: "Open review queue →",
+    viewAllReviews: "View all reviews →",
     activeNow: "Active now",
     salesPerformance: "Sales performance",
     salesPerformanceDescription:

@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Header } from "@/components/layout/header";
 import { PageContainer } from "@/components/layout/page-container";
-import { Sidebar } from "@/components/layout/sidebar";
 import type { Locale } from "@/lib/i18n/config";
 import type {
   CommonDictionary,
@@ -47,12 +45,6 @@ export function AppShell({
   signOutPendingLabel,
 }: AppShellProps) {
   const pathname = usePathname();
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const isRtl = locale === "ar";
-
-  useEffect(() => {
-    setIsMobileNavOpen(false);
-  }, [pathname]);
 
   const navItems = useMemo(
     () => [
@@ -71,18 +63,12 @@ export function AppShell({
         href: `/${locale}/dataset-analysis` as Route,
         label: navigation.datasetAnalysis,
       },
-      {
-        key: "settings" as const,
-        href: `/${locale}/settings` as Route,
-        label: navigation.settings,
-      },
     ],
     [
       locale,
       navigation.dashboard,
       navigation.datasetAnalysis,
       navigation.reviews,
-      navigation.settings,
     ]
   );
 
@@ -94,28 +80,6 @@ export function AppShell({
       : "dashboard";
   }, [pathname]);
 
-  const pageContext = {
-    title:
-      currentSection === "dashboard"
-        ? navigation.dashboard
-        : currentSection === "reviews"
-          ? navigation.reviews
-          : currentSection === "dataset-analysis"
-              ? navigation.datasetAnalysis
-              : navigation.settings,
-    description:
-      currentSection === "dashboard"
-        ? shell.dashboardDescription
-        : currentSection === "reviews"
-          ? shell.reviewsDescription
-          : currentSection === "dataset-analysis"
-              ? shell.datasetAnalysisDescription
-              : shell.settingsDescription,
-  };
-
-  const sidebarPlacement = isRtl ? "md:right-0" : "md:left-0";
-  const contentOffset = isRtl ? "md:pr-72" : "md:pl-72";
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
@@ -123,34 +87,17 @@ export function AppShell({
         <div className="absolute -right-24 top-48 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(0,23,75,0.12),transparent_68%)] blur-3xl dark:bg-[radial-gradient(circle,rgba(106,152,255,0.16),transparent_68%)]" />
       </div>
 
-      <Sidebar
+      <Header
         common={common}
-        isMobileOpen={isMobileNavOpen}
-        isRtl={isRtl}
+        currentSection={currentSection}
         locale={locale}
         navigation={navigation}
-        onClose={() => setIsMobileNavOpen(false)}
-        pathname={pathname}
-        placementClass={sidebarPlacement}
         sections={navItems}
+        shell={shell}
+        signOutLabel={signOutLabel}
+        signOutPendingLabel={signOutPendingLabel}
       />
-
-      <div className={`${contentOffset} relative min-h-screen`}>
-        <Header
-          common={common}
-          isMobileNavOpen={isMobileNavOpen}
-          isRtl={isRtl}
-          locale={locale}
-          onOpenNavigation={() => setIsMobileNavOpen((value) => !value)}
-          pageContext={pageContext}
-          signOutAction={
-            <SignOutButton
-              label={signOutLabel}
-              locale={locale}
-              pendingLabel={signOutPendingLabel}
-            />
-          }
-        />
+      <div className="relative min-h-screen">
         <PageContainer>{children}</PageContainer>
       </div>
     </div>

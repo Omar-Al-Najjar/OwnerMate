@@ -9,10 +9,10 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { Button } from "@/components/forms/button";
 import { Select } from "@/components/forms/select";
-import { ReviewList } from "@/components/reviews/review-list";
 import {
   DEFAULT_DASHBOARD_FILTERS,
   getDashboardView,
+  normalizeTimeSeriesData,
 } from "@/lib/dashboard/derive";
 import type { Dictionary } from "@/lib/i18n/get-dictionary";
 import { cn } from "@/lib/utils/cn";
@@ -37,6 +37,7 @@ type DashboardWorkspaceProps = {
   locale: string;
   dictionary: Dictionary;
   data: DashboardPayload | null;
+  mode?: "overview" | "sales-detail" | "review-insights-detail";
 };
 
 const METRIC_TONE_STYLES: Record<
@@ -149,6 +150,7 @@ export function DashboardWorkspace({
   locale,
   dictionary,
   data,
+  mode = "overview",
 }: DashboardWorkspaceProps) {
   const isRTL = locale === "ar";
   const pathname = usePathname();
@@ -216,8 +218,19 @@ export function DashboardWorkspace({
     return getDashboardView(data.reviews, data.salesRecords, filters);
   }, [data, filters]);
 
+  const normalizedRevenueSeries = useMemo(
+    () =>
+      view ? normalizeTimeSeriesData(view.sales.revenueSeries, filters.range) : [],
+    [filters.range, view]
+  );
+  const normalizedRefundSeries = useMemo(
+    () =>
+      view ? normalizeTimeSeriesData(view.sales.refundSeries, filters.range) : [],
+    [filters.range, view]
+  );
+
   useEffect(() => {
-    if (!view?.sales.revenueSeries.length) {
+    if (!normalizedRevenueSeries.length) {
       setSelectedSalesPointDate(null);
       return;
     }
@@ -225,14 +238,14 @@ export function DashboardWorkspace({
     setSelectedSalesPointDate((current) => {
       if (
         current &&
-        view.sales.revenueSeries.some((point) => point.date === current)
+        normalizedRevenueSeries.some((point) => point.date === current)
       ) {
         return current;
       }
 
       return null;
     });
-  }, [view]);
+  }, [normalizedRevenueSeries]);
 
   const activeFilterCount = [
     filters.range !== DEFAULT_DASHBOARD_FILTERS.range ? filters.range : "",
@@ -283,8 +296,30 @@ export function DashboardWorkspace({
       ? dictionary.dashboard.allSentiments
       : dictionary.sentimentLabels[filters.sentiment];
   const selectedSalesPoint =
-    view.sales.revenueSeries.find((point) => point.date === selectedSalesPointDate) ??
+    normalizedRevenueSeries.find((point) => point.date === selectedSalesPointDate) ??
     null;
+  const salesAnalyticsHref = `/${locale}/dashboard/sales` as Route;
+  const reviewInsightsHref = `/${locale}/dashboard/reviews/insights` as Route;
+  const reviewQueueHref = `/${locale}/reviews?sentiment=negative` as Route;
+  const reviewsHref = `/${locale}/reviews` as Route;
+  const queuePreview = view.review.priorityReviews.slice(0, 2);
+  const activityPreview = view.review.activityFeed.slice(0, 3);
+  const latestReviewInsight =
+    view.review.priorityReviews[0] ?? view.review.recentReviews[0] ?? null;
+  const latestRevenuePoint =
+    normalizedRevenueSeries[normalizedRevenueSeries.length - 1] ?? null;
+  const pageTitle =
+    mode === "sales-detail"
+      ? dictionary.dashboard.salesPerformance
+      : mode === "review-insights-detail"
+        ? dictionary.dashboard.reviewInsights
+        : dictionary.dashboard.title;
+  const pageDescription =
+    mode === "sales-detail"
+      ? dictionary.dashboard.salesPerformanceDescription
+      : mode === "review-insights-detail"
+        ? dictionary.dashboard.reviewInsightsDescription
+        : dictionary.dashboard.description;
 
   const handleClearFilters = () => {
     setFilters(DEFAULT_DASHBOARD_FILTERS);
@@ -295,379 +330,278 @@ export function DashboardWorkspace({
   return (
     <div className="space-y-8" dir={isRTL ? "rtl" : "ltr"}>
       <SectionHeader
-        description={dictionary.dashboard.description}
+        description={pageDescription}
         eyebrow={dictionary.navigation.dashboard}
-        title={dictionary.dashboard.title}
+        title={pageTitle}
       />
 
-      <section className="soft-panel relative overflow-hidden p-6 sm:p-8">
-        <div className="absolute -top-8 end-8 h-40 w-40 rounded-full bg-primary/15 blur-3xl" />
-        <div className="absolute bottom-0 start-10 h-28 w-28 rounded-full bg-emerald-400/15 blur-3xl" />
-        <div className="absolute end-1/3 top-1/2 h-24 w-24 rounded-full bg-amber-300/15 blur-3xl" />
-        <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div className="space-y-5">
-            <div className="space-y-3 text-start">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">
-                {dictionary.dashboard.heroEyebrow}
-              </p>
-              <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                {dictionary.dashboard.heroTitle}
-              </h2>
-              <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">
-                {dictionary.dashboard.heroDescription}
-              </p>
+      {mode === "overview" ? (
+        <section className="soft-panel relative overflow-hidden p-6 sm:p-8">
+          <div className="absolute -top-8 end-8 h-40 w-40 rounded-full bg-primary/15 blur-3xl" />
+          <div className="absolute bottom-0 start-10 h-28 w-28 rounded-full bg-emerald-400/15 blur-3xl" />
+          <div className="absolute end-1/3 top-1/2 h-24 w-24 rounded-full bg-amber-300/15 blur-3xl" />
+          <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+            <div className="space-y-5">
+              <div className="space-y-3 text-start">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                  {dictionary.dashboard.heroEyebrow}
+                </p>
+                <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                  {dictionary.dashboard.heroTitle}
+                </h2>
+                <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">
+                  {dictionary.dashboard.heroDescription}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 font-medium text-primary">
+                  {dictionary.dashboard.activeNow}
+                </span>
+                <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
+                  {dictionary.dashboard.focusWindow}: {rangeLabel}
+                </span>
+                {hasSalesData ? (
+                  <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
+                    {dictionary.dashboard.totalRevenue}:{" "}
+                    {formatCurrencyValue(
+                      view.sales.summary.totalRevenue,
+                      numberDisplayMode
+                    )}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+                    {data.capabilities.salesDataNote ??
+                      dictionary.dashboard.noSalesDataTitle}
+                  </span>
+                )}
+                <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
+                  {formatCountValue(view.review.reviewCount, numberDisplayMode)}{" "}
+                  {dictionary.dashboard.reviewsInScope}
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 font-medium text-primary">
-                {dictionary.dashboard.activeNow}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
-                {dictionary.dashboard.focusWindow}: {rangeLabel}
-              </span>
+            <div className="grid gap-3 sm:grid-cols-2">
               {hasSalesData ? (
-                <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
-                  {dictionary.dashboard.totalRevenue}:{" "}
-                  {formatCurrencyValue(
+                <HeroSummaryCard
+                  helper={dictionary.dashboard.salesPerformanceDescription}
+                  label={dictionary.dashboard.totalRevenue}
+                  value={formatCurrencyValue(
                     view.sales.summary.totalRevenue,
                     numberDisplayMode
                   )}
-                </span>
+                />
               ) : (
-                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
-                  {data.capabilities.salesDataNote ??
-                    dictionary.dashboard.noSalesDataTitle}
-                </span>
+                <HeroSummaryCard
+                  helper={
+                    data.capabilities.salesDataNote ??
+                    dictionary.dashboard.noSalesDataDescription
+                  }
+                  label={dictionary.dashboard.salesPerformance}
+                  value={dictionary.dashboard.noSalesDataTitle}
+                />
               )}
-              <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-muted">
-                {formatCountValue(view.review.reviewCount, numberDisplayMode)}{" "}
-                {dictionary.dashboard.reviewsInScope}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {hasSalesData ? (
-              <HeroSummaryCard
-                helper={dictionary.dashboard.salesPerformanceDescription}
-                label={dictionary.dashboard.totalRevenue}
-                value={formatCurrencyValue(
-                  view.sales.summary.totalRevenue,
-                  numberDisplayMode
-                )}
-              />
-            ) : (
-              <HeroSummaryCard
-                helper={data.capabilities.salesDataNote ?? dictionary.dashboard.noSalesDataDescription}
-                label={dictionary.dashboard.salesPerformance}
-                value={dictionary.dashboard.noSalesDataTitle}
-              />
-            )}
-            <HeroSummaryCard
-              helper={dictionary.dashboard.reviewVolume}
-              label={dictionary.dashboard.focusWindow}
-              value={rangeLabel}
-            />
-            {hasSalesData ? (
-              <HeroSummaryCard
-                helper={dictionary.dashboard.filterSummary}
-                label={dictionary.dashboard.totalOrders}
-                value={formatCountValue(
-                  view.sales.summary.totalOrders,
-                  numberDisplayMode
-                )}
-              />
-            ) : (
               <HeroSummaryCard
                 helper={dictionary.dashboard.reviewVolume}
-                label={dictionary.dashboard.totalReviews}
-                value={formatCountValue(view.review.reviewCount, numberDisplayMode)}
+                label={dictionary.dashboard.focusWindow}
+                value={rangeLabel}
               />
-            )}
-            <HeroSummaryCard
-              helper={`${sourceLabel} | ${languageLabel}`}
-              label={dictionary.dashboard.sentimentFilter}
-              value={sentimentLabel}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-border bg-card p-5 shadow-panel">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-3 text-start">
-            <p className="text-sm font-semibold text-foreground">
-              {dictionary.dashboard.filterSummary}
-            </p>
-            <p className="text-sm text-muted">
-              {dictionary.dashboard.reviewsInScope}:{" "}
-              {formatCountValue(view.review.reviewCount, numberDisplayMode)}
-            </p>
-            <p className="text-xs text-muted">
-              {activeFilterCount > 0
-                ? getLocalizedActiveFilterSummary(
-                    locale,
-                    activeFilterCount,
+              {hasSalesData ? (
+                <HeroSummaryCard
+                  helper={dictionary.dashboard.filterSummary}
+                  label={dictionary.dashboard.totalOrders}
+                  value={formatCountValue(
+                    view.sales.summary.totalOrders,
                     numberDisplayMode
-                  )
-                : dictionary.dashboard.datasetBaseline}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {data.filterOptions.timeRanges.map((range) => {
-                const isActive = filters.range === range;
-
-                return (
-                  <button
-                    className={cn(
-                      "cursor-pointer rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15",
-                      isActive
-                        ? "border-primary bg-primary text-white shadow-sm"
-                        : "border-border bg-background text-foreground hover:-translate-y-px hover:border-primary/40 hover:bg-surface hover:shadow-sm"
-                    )}
-                    key={range}
-                    onClick={() =>
-                      setFilters((current) => ({ ...current, range }))
-                    }
-                    type="button"
-                  >
-                    {getRangeLabel(range, dictionary)}
-                  </button>
-                );
-              })}
+                  )}
+                />
+              ) : (
+                <HeroSummaryCard
+                  helper={dictionary.dashboard.reviewVolume}
+                  label={dictionary.dashboard.totalReviews}
+                  value={formatCountValue(
+                    view.review.reviewCount,
+                    numberDisplayMode
+                  )}
+                />
+              )}
+              <HeroSummaryCard
+                helper={`${sourceLabel} | ${languageLabel}`}
+                label={dictionary.dashboard.sentimentFilter}
+                value={sentimentLabel}
+              />
             </div>
           </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Select
-              label={dictionary.dashboard.sourceFilter}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  source: event.target.value,
-                }))
-              }
-              options={[
-                {
-                  label: dictionary.dashboard.allSources,
-                  value: "all",
-                },
-                ...data.filterOptions.sources.map((source) => ({
-                  label: source,
-                  value: source,
-                })),
-              ]}
-              value={filters.source}
-            />
-            <Select
-              label={dictionary.dashboard.languageFilter}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  language: event.target.value as DashboardFilters["language"],
-                }))
-              }
-              options={[
-                {
-                  label: dictionary.dashboard.allLanguages,
-                  value: "all",
-                },
-                ...data.filterOptions.languages.map((language) => ({
-                  label: dictionary.languageNames[language],
-                  value: language,
-                })),
-              ]}
-              value={filters.language}
-            />
-            <Select
-              label={dictionary.dashboard.sentimentFilter}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  sentiment: event.target.value as DashboardFilters["sentiment"],
-                }))
-              }
-              options={[
-                {
-                  label: dictionary.dashboard.allSentiments,
-                  value: "all",
-                },
-                ...data.filterOptions.sentiments.map((sentiment) => ({
-                  label: dictionary.sentimentLabels[sentiment],
-                  value: sentiment,
-                })),
-              ]}
-              value={filters.sentiment}
-            />
-            <div className="flex items-end">
-              <Button
-                className="w-full rounded-xl border border-border bg-surface text-foreground shadow-none hover:bg-slate-100 dark:bg-slate-900/70 dark:hover:bg-slate-800 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100 dark:disabled:border-slate-800 dark:disabled:bg-slate-900 dark:disabled:text-slate-400"
-                disabled={activeFilterCount === 0}
-                onClick={handleClearFilters}
-                type="button"
-              >
-                {dictionary.dashboard.clearFilters}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <SectionLead
-            description={dictionary.dashboard.executiveSummaryDescription}
-            title={dictionary.dashboard.executiveSummary}
-          />
-          <div className="inline-flex w-fit rounded-full border border-border bg-background p-1">
-            {(["full", "compact"] as const).map((mode) => (
-              <button
-                className={cn(
-                  "cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15",
-                  numberDisplayMode === mode
-                    ? "bg-primary text-white shadow-sm"
-                    : "text-muted hover:-translate-y-px hover:bg-surface hover:text-foreground"
-                )}
-                key={mode}
-                onClick={() => setNumberDisplayMode(mode)}
-                type="button"
-              >
-                {getLocalizedNumberDisplayModeLabel(locale, mode)}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {executiveMetrics.map((metric) => (
-            <MetricCard
-              dictionary={dictionary}
-              key={metric.id}
-              metric={metric}
-              numberDisplayMode={numberDisplayMode}
-            />
-          ))}
-        </div>
-      </section>
-
-      {hasSalesData ? (
-        <section className="space-y-4">
-          <SectionLead
-            description={dictionary.dashboard.salesPerformanceDescription}
-            title={dictionary.dashboard.salesPerformance}
-          />
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <RevenueTrendPanel
-              key={`revenue-${salesChartResetToken}-${filters.range}`}
-              dictionary={dictionary}
-              locale={locale}
-              onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
-              points={view.sales.revenueSeries}
-              numberDisplayMode={numberDisplayMode}
-              onSelectPoint={setSelectedSalesPointDate}
-              selectedPoint={selectedSalesPoint}
-            />
-            <ChannelMixPanel
-              channels={view.sales.channelMix}
-              dictionary={dictionary}
-              isRTL={isRTL}
-              numberDisplayMode={numberDisplayMode}
-            />
-          </div>
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <OrdersRevenuePanel
-              key={`orders-${salesChartResetToken}-${filters.range}`}
-              dictionary={dictionary}
-              isRTL={isRTL}
-              locale={locale}
-              onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
-              points={view.sales.revenueSeries}
-              numberDisplayMode={numberDisplayMode}
-              onSelectPoint={setSelectedSalesPointDate}
-              selectedPoint={selectedSalesPoint}
-            />
-            <RefundPanel
-              key={`refund-${salesChartResetToken}-${filters.range}`}
-              dictionary={dictionary}
-              isRTL={isRTL}
-              locale={locale}
-              onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
-              onSelectPoint={setSelectedSalesPointDate}
-              points={view.sales.refundSeries}
-              numberDisplayMode={numberDisplayMode}
-              selectedPoint={selectedSalesPoint}
-              summary={view.sales.summary}
-            />
-          </div>
-          <TopProductsPanel
-            dictionary={dictionary}
-            isRTL={isRTL}
-            numberDisplayMode={numberDisplayMode}
-            products={view.sales.topProducts}
-          />
         </section>
-      ) : (
-        <section className="space-y-4">
-          <SectionLead
-            description={dictionary.dashboard.salesPerformanceDescription}
-            title={dictionary.dashboard.salesPerformance}
-          />
-          <EmptyState
-            description={
-              data.capabilities.salesDataNote ??
-              dictionary.dashboard.noSalesDataDescription
-            }
-            title={dictionary.dashboard.noSalesDataTitle}
-          />
-        </section>
-      )}
+      ) : null}
 
-      {view.review.reviewCount === 0 ? (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <EmptyState
-            description={dictionary.dashboard.noReviewsInViewDescription}
-            title={dictionary.dashboard.noReviewsInViewTitle}
-          />
-          <QuickActionsPanel dictionary={dictionary} locale={locale} />
-        </div>
-      ) : (
+      <DashboardFiltersPanel
+        activeFilterCount={activeFilterCount}
+        data={data}
+        dictionary={dictionary}
+        filters={filters}
+        locale={locale}
+        numberDisplayMode={numberDisplayMode}
+        onClearFilters={handleClearFilters}
+        onUpdateFilters={setFilters}
+        reviewCount={view.review.reviewCount}
+      />
+
+      {mode === "overview" ? (
         <>
           <section className="space-y-4">
-            <SectionLead
-              description={dictionary.dashboard.reviewInsightsDescription}
-              title={dictionary.dashboard.reviewInsights}
-            />
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-              <SentimentPanel
-                buckets={view.review.distributions.sentiment}
-                dictionary={dictionary}
-                isRTL={isRTL}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <SectionLead
+                description={dictionary.dashboard.executiveSummaryDescription}
+                title={dictionary.dashboard.executiveSummary}
               />
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
-                <DistributionPanel
-                  buckets={view.review.distributions.ratings}
-                  description={dictionary.dashboard.sentimentHelper}
-                  dictionary={dictionary}
-                  isRTL={isRTL}
-                  title={dictionary.dashboard.ratingMix}
-                  variant="rating"
-                />
-                <DistributionPanel
-                  buckets={view.review.distributions.sources}
-                  description={dictionary.dashboard.sourcesHelper}
-                  dictionary={dictionary}
-                  isRTL={isRTL}
-                  title={dictionary.dashboard.sourceMix}
-                  variant="source"
-                />
-                <DistributionPanel
-                  buckets={view.review.distributions.languages}
-                  description={dictionary.common.language}
-                  dictionary={dictionary}
-                  isRTL={isRTL}
-                  title={dictionary.dashboard.languageMix}
-                  variant="language"
-                />
+              <div className="inline-flex w-fit rounded-full border border-border bg-background p-1">
+                {(["full", "compact"] as const).map((displayMode) => (
+                  <button
+                    className={cn(
+                      "cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15",
+                      numberDisplayMode === displayMode
+                        ? "bg-primary text-white shadow-sm"
+                        : "text-muted hover:-translate-y-px hover:bg-surface hover:text-foreground"
+                    )}
+                    key={displayMode}
+                    onClick={() => setNumberDisplayMode(displayMode)}
+                    type="button"
+                  >
+                    {getLocalizedNumberDisplayModeLabel(locale, displayMode)}
+                  </button>
+                ))}
               </div>
             </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {executiveMetrics.map((metric) => (
+                <MetricCard
+                  dictionary={dictionary}
+                  key={metric.id}
+                  metric={metric}
+                  numberDisplayMode={numberDisplayMode}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <SectionLead
+                description={dictionary.dashboard.salesPerformanceDescription}
+                title={dictionary.dashboard.salesPerformance}
+              />
+              <SectionCtaLink href={salesAnalyticsHref}>
+                {dictionary.dashboard.viewFullSalesAnalytics}
+              </SectionCtaLink>
+            </div>
+            {hasSalesData ? (
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_18rem]">
+                <RevenueTrendPanel
+                  key={`revenue-${salesChartResetToken}-${filters.range}`}
+                  dictionary={dictionary}
+                  locale={locale}
+                  onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
+                  points={normalizedRevenueSeries}
+                  numberDisplayMode={numberDisplayMode}
+                  onSelectPoint={setSelectedSalesPointDate}
+                  selectedPoint={selectedSalesPoint}
+                  range={filters.range}
+                />
+                <PreviewInsightCard
+                  title={dictionary.dashboard.focusWindow}
+                  subtitle={rangeLabel}
+                >
+                  <PreviewMetricRow
+                    label={dictionary.dashboard.totalRevenue}
+                    value={formatCurrencyValue(
+                      view.sales.summary.totalRevenue,
+                      numberDisplayMode
+                    )}
+                  />
+                  <PreviewMetricRow
+                    label={dictionary.dashboard.totalOrders}
+                    value={formatCountValue(
+                      view.sales.summary.totalOrders,
+                      numberDisplayMode
+                    )}
+                  />
+                  {latestRevenuePoint ? (
+                    <PreviewMetricRow
+                      label={dictionary.dashboard.revenueTrend}
+                      value={`${latestRevenuePoint.label} · ${formatCurrencyValue(
+                        latestRevenuePoint.revenue,
+                        numberDisplayMode
+                      )}`}
+                    />
+                  ) : null}
+                </PreviewInsightCard>
+              </div>
+            ) : (
+              <EmptyState
+                description={
+                  data.capabilities.salesDataNote ??
+                  dictionary.dashboard.noSalesDataDescription
+                }
+                title={dictionary.dashboard.noSalesDataTitle}
+              />
+            )}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <SectionLead
+                description={dictionary.dashboard.reviewInsightsDescription}
+                title={dictionary.dashboard.reviewInsights}
+              />
+              <SectionCtaLink href={reviewInsightsHref}>
+                {dictionary.dashboard.exploreReviewInsights}
+              </SectionCtaLink>
+            </div>
+            {view.review.reviewCount === 0 ? (
+              <EmptyState
+                description={dictionary.dashboard.noReviewsInViewDescription}
+                title={dictionary.dashboard.noReviewsInViewTitle}
+              />
+            ) : (
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_18rem]">
+                <SentimentPanel
+                  buckets={view.review.distributions.sentiment}
+                  dictionary={dictionary}
+                  isRTL={isRTL}
+                />
+                <PreviewInsightCard
+                  title={dictionary.dashboard.recentReviewsTitle}
+                  subtitle={dictionary.dashboard.recentReviewsDescription}
+                >
+                  {latestReviewInsight ? (
+                    <>
+                      <p className="text-sm font-semibold text-foreground">
+                        {latestReviewInsight.reviewerName}
+                      </p>
+                      <p className="text-sm leading-6 text-muted">
+                        {latestReviewInsight.reviewText}
+                      </p>
+                      <PreviewMetricRow
+                        label={dictionary.dashboard.sentimentSummary}
+                        value={
+                          "sentiment" in latestReviewInsight
+                            ? dictionary.sentimentLabels[
+                                latestReviewInsight.sentiment.label
+                              ]
+                            : dictionary.sentimentLabels.negative
+                        }
+                      />
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      {dictionary.dashboard.noReviewsInViewDescription}
+                    </p>
+                  )}
+                </PreviewInsightCard>
+              </div>
+            )}
           </section>
 
           <section className="space-y-4">
@@ -679,37 +613,150 @@ export function DashboardWorkspace({
               <PriorityQueuePanel
                 dictionary={dictionary}
                 locale={locale}
-                reviews={view.review.priorityReviews}
+                reviews={queuePreview}
               />
               <ActivityFeedPanel
                 dictionary={dictionary}
-                items={view.review.activityFeed}
+                items={activityPreview}
                 locale={locale}
               />
             </div>
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <section className="panel p-6">
-              <div className="mb-5 space-y-1 text-start">
-                <h3 className="text-lg font-semibold text-foreground">
-                  {dictionary.dashboard.recentReviewsTitle}
-                </h3>
-                <p className="text-sm text-muted">
-                  {dictionary.dashboard.recentReviewsDescription}
-                </p>
-              </div>
-              <ReviewList
-                detailLabel={dictionary.reviews.openReview}
-                labels={reviewLabels}
-                locale={locale}
-                reviews={view.review.recentReviews}
-              />
-            </section>
-            <QuickActionsPanel dictionary={dictionary} locale={locale} />
+            <div className="flex flex-wrap gap-3">
+              <SectionCtaLink href={reviewQueueHref}>
+                {dictionary.dashboard.openReviewQueue}
+              </SectionCtaLink>
+              <SectionCtaLink href={reviewsHref} variant="secondary">
+                {dictionary.dashboard.viewAllReviews}
+              </SectionCtaLink>
+            </div>
           </section>
         </>
-      )}
+      ) : null}
+
+      {mode === "sales-detail" ? (
+        hasSalesData ? (
+          <>
+            <section className="space-y-4">
+              <SectionLead
+                description={dictionary.dashboard.salesPerformanceDescription}
+                title={dictionary.dashboard.salesPerformance}
+              />
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                <RevenueTrendPanel
+                  key={`revenue-${salesChartResetToken}-${filters.range}`}
+                  dictionary={dictionary}
+                  locale={locale}
+                  onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
+                  points={normalizedRevenueSeries}
+                  numberDisplayMode={numberDisplayMode}
+                  onSelectPoint={setSelectedSalesPointDate}
+                  selectedPoint={selectedSalesPoint}
+                  range={filters.range}
+                />
+                <ChannelMixPanel
+                  channels={view.sales.channelMix}
+                  dictionary={dictionary}
+                  isRTL={isRTL}
+                  numberDisplayMode={numberDisplayMode}
+                />
+              </div>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <OrdersRevenuePanel
+                key={`orders-${salesChartResetToken}-${filters.range}`}
+                dictionary={dictionary}
+                isRTL={isRTL}
+                locale={locale}
+                onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
+                points={normalizedRevenueSeries}
+                numberDisplayMode={numberDisplayMode}
+                onSelectPoint={setSelectedSalesPointDate}
+                selectedPoint={selectedSalesPoint}
+                range={filters.range}
+              />
+              <RefundPanel
+                key={`refund-${salesChartResetToken}-${filters.range}`}
+                dictionary={dictionary}
+                isRTL={isRTL}
+                locale={locale}
+                onResetSelectedPoint={() => setSelectedSalesPointDate(null)}
+                onSelectPoint={setSelectedSalesPointDate}
+                points={normalizedRefundSeries}
+                numberDisplayMode={numberDisplayMode}
+                selectedPoint={selectedSalesPoint}
+                summary={view.sales.summary}
+                range={filters.range}
+              />
+            </section>
+
+            <TopProductsPanel
+              dictionary={dictionary}
+              isRTL={isRTL}
+              numberDisplayMode={numberDisplayMode}
+              products={view.sales.topProducts}
+            />
+          </>
+        ) : (
+          <EmptyState
+            description={
+              data.capabilities.salesDataNote ??
+              dictionary.dashboard.noSalesDataDescription
+            }
+            title={dictionary.dashboard.noSalesDataTitle}
+          />
+        )
+      ) : null}
+
+      {mode === "review-insights-detail" ? (
+        view.review.reviewCount === 0 ? (
+          <EmptyState
+            description={dictionary.dashboard.noReviewsInViewDescription}
+            title={dictionary.dashboard.noReviewsInViewTitle}
+          />
+        ) : (
+          <>
+            <section className="space-y-4">
+              <SectionLead
+                description={dictionary.dashboard.reviewInsightsDescription}
+                title={dictionary.dashboard.reviewInsights}
+              />
+              <SentimentPanel
+                buckets={view.review.distributions.sentiment}
+                dictionary={dictionary}
+                isRTL={isRTL}
+              />
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <DistributionPanel
+                buckets={view.review.distributions.ratings}
+                description={dictionary.dashboard.sentimentHelper}
+                dictionary={dictionary}
+                isRTL={isRTL}
+                title={dictionary.dashboard.ratingMix}
+                variant="rating"
+              />
+              <DistributionPanel
+                buckets={view.review.distributions.sources}
+                description={dictionary.dashboard.sourcesHelper}
+                dictionary={dictionary}
+                isRTL={isRTL}
+                title={dictionary.dashboard.sourceMix}
+                variant="source"
+              />
+              <DistributionPanel
+                buckets={view.review.distributions.languages}
+                description={dictionary.common.language}
+                dictionary={dictionary}
+                isRTL={isRTL}
+                title={dictionary.dashboard.languageMix}
+                variant="language"
+              />
+            </section>
+          </>
+        )
+      ) : null}
     </div>
   );
 }
@@ -746,6 +793,291 @@ function SectionLead({
       <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       <p className="text-sm text-muted">{description}</p>
     </div>
+  );
+}
+
+function SectionCtaLink({
+  href,
+  children,
+  variant = "primary",
+}: {
+  href: Route;
+  children: React.ReactNode;
+  variant?: "primary" | "secondary";
+}) {
+  return (
+    <Link
+      className={cn(
+        "inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        variant === "primary"
+          ? "bg-primary text-white shadow-sm hover:-translate-y-px hover:bg-primary-hover"
+          : "border border-border bg-background text-foreground hover:-translate-y-px hover:border-primary/30 hover:bg-surface"
+      )}
+      href={href}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function PreviewInsightCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <aside className="panel h-fit space-y-4 p-5">
+      <div className="space-y-1 text-start">
+        <h3 className="text-base font-semibold text-foreground">{title}</h3>
+        <p className="text-sm text-muted">{subtitle}</p>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </aside>
+  );
+}
+
+function PreviewMetricRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background px-4 py-3 text-start">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+        {label}
+      </p>
+      <p className="mt-1.5 text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function ExpandChartButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      aria-label="Expand chart"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-foreground transition-all duration-200 hover:-translate-y-px hover:border-primary/30 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+      onClick={onClick}
+      title="Expand chart"
+      type="button"
+    >
+      <span aria-hidden="true" className="text-base leading-none">
+        ⛶
+      </span>
+    </button>
+  );
+}
+
+function CloseChartButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      aria-label="Close chart"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-foreground transition-all duration-200 hover:-translate-y-px hover:border-primary/30 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+      onClick={onClick}
+      title="Close chart"
+      type="button"
+    >
+      <span aria-hidden="true" className="text-lg leading-none">
+        ×
+      </span>
+    </button>
+  );
+}
+
+function ChartModal({
+  children,
+  isOpen,
+  onClose,
+  title,
+}: {
+  children: React.ReactNode;
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+}) {
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div
+        className="flex h-[min(90vh,760px)] w-[min(95vw,1200px)] flex-col overflow-hidden rounded-[2rem] border border-border bg-card shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
+          <div className="space-y-1 text-start">
+            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          </div>
+          <CloseChartButton onClick={onClose} />
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardFiltersPanel({
+  activeFilterCount,
+  data,
+  dictionary,
+  filters,
+  locale,
+  numberDisplayMode,
+  onClearFilters,
+  onUpdateFilters,
+  reviewCount,
+}: {
+  activeFilterCount: number;
+  data: DashboardPayload;
+  dictionary: Dictionary;
+  filters: DashboardFilters;
+  locale: string;
+  numberDisplayMode: "compact" | "full";
+  onClearFilters: () => void;
+  onUpdateFilters: React.Dispatch<React.SetStateAction<DashboardFilters>>;
+  reviewCount: number;
+}) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-panel">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+        <div className="space-y-3 text-start">
+          <p className="text-sm font-semibold text-foreground">
+            {dictionary.dashboard.filterSummary}
+          </p>
+          <p className="text-sm text-muted">
+            {dictionary.dashboard.reviewsInScope}:{" "}
+            {formatCountValue(reviewCount, numberDisplayMode)}
+          </p>
+          <p className="text-xs text-muted">
+            {activeFilterCount > 0
+              ? getLocalizedActiveFilterSummary(
+                  locale,
+                  activeFilterCount,
+                  numberDisplayMode
+                )
+              : dictionary.dashboard.datasetBaseline}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {data.filterOptions.timeRanges.map((range) => {
+              const isActive = filters.range === range;
+
+              return (
+                <button
+                  className={cn(
+                    "cursor-pointer rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15",
+                    isActive
+                      ? "border-primary bg-primary text-white shadow-sm"
+                      : "border-border bg-background text-foreground hover:-translate-y-px hover:border-primary/40 hover:bg-surface hover:shadow-sm"
+                  )}
+                  key={range}
+                  onClick={() =>
+                    onUpdateFilters((current) => ({ ...current, range }))
+                  }
+                  type="button"
+                >
+                  {getRangeLabel(range, dictionary)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Select
+            label={dictionary.dashboard.sourceFilter}
+            onChange={(event) =>
+              onUpdateFilters((current) => ({
+                ...current,
+                source: event.target.value,
+              }))
+            }
+            options={[
+              {
+                label: dictionary.dashboard.allSources,
+                value: "all",
+              },
+              ...data.filterOptions.sources.map((source) => ({
+                label: source,
+                value: source,
+              })),
+            ]}
+            value={filters.source}
+          />
+          <Select
+            label={dictionary.dashboard.languageFilter}
+            onChange={(event) =>
+              onUpdateFilters((current) => ({
+                ...current,
+                language: event.target.value as DashboardFilters["language"],
+              }))
+            }
+            options={[
+              {
+                label: dictionary.dashboard.allLanguages,
+                value: "all",
+              },
+              ...data.filterOptions.languages.map((language) => ({
+                label: dictionary.languageNames[language],
+                value: language,
+              })),
+            ]}
+            value={filters.language}
+          />
+          <Select
+            label={dictionary.dashboard.sentimentFilter}
+            onChange={(event) =>
+              onUpdateFilters((current) => ({
+                ...current,
+                sentiment: event.target.value as DashboardFilters["sentiment"],
+              }))
+            }
+            options={[
+              {
+                label: dictionary.dashboard.allSentiments,
+                value: "all",
+              },
+              ...data.filterOptions.sentiments.map((sentiment) => ({
+                label: dictionary.sentimentLabels[sentiment],
+                value: sentiment,
+              })),
+            ]}
+            value={filters.sentiment}
+          />
+          <div className="flex items-end">
+            <Button
+              className="w-full rounded-xl border border-border bg-surface text-foreground shadow-none hover:bg-slate-100 dark:bg-slate-900/70 dark:hover:bg-slate-800 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100 dark:disabled:border-slate-800 dark:disabled:bg-slate-900 dark:disabled:text-slate-400"
+              disabled={activeFilterCount === 0}
+              onClick={onClearFilters}
+              type="button"
+              variant="secondary"
+            >
+              {dictionary.dashboard.clearFilters}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -844,6 +1176,7 @@ function RevenueTrendPanel({
   onSelectPoint,
   onResetSelectedPoint,
   numberDisplayMode,
+  range,
 }: {
   points: DashboardSalesSeriesPoint[];
   dictionary: Dictionary;
@@ -852,81 +1185,112 @@ function RevenueTrendPanel({
   onSelectPoint: (date: string) => void;
   onResetSelectedPoint: () => void;
   numberDisplayMode: "compact" | "full";
+  range: DashboardTimeRange;
 }) {
   const activePoint = selectedPoint ?? points[points.length - 1] ?? null;
-
-  return (
-    <section className="panel p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1 text-start">
-          <h3 className="text-lg font-semibold text-foreground">
-            {dictionary.dashboard.revenueTrend}
-          </h3>
-          <p className="text-sm text-muted">
-            {dictionary.dashboard.revenueTrendDescription}
+  const [isExpanded, setIsExpanded] = useState(false);
+  const renderChart = (expanded: boolean) => (
+    <div className="space-y-4">
+      <ChartLegend
+        items={[
+          {
+            colorClass: "bg-primary",
+            label: dictionary.dashboard.revenueLabel,
+          },
+        ]}
+      />
+      <div className={cn(expanded && "overflow-x-auto")} dir="ltr">
+        <div className={cn(expanded && "min-w-[720px]")}>
+          <LineAreaChart
+            colorClass="text-primary"
+            containerClassName={expanded ? "px-4 py-6" : undefined}
+            formatTooltipValue={(point) =>
+              formatCurrencyValue(point.revenue, numberDisplayMode)
+            }
+            locale={locale}
+            onSelectPoint={onSelectPoint}
+            points={points}
+            selectedDate={selectedPoint?.date ?? null}
+            svgClassName={expanded ? "h-[26rem]" : undefined}
+            valueSelector={(point) => point.revenue}
+          />
+        </div>
+      </div>
+      <div
+        className="flex items-center justify-between gap-3 text-xs text-muted"
+        dir="ltr"
+      >
+        <span>
+          {points[0] ? formatChartDate(points[0].date, locale) : ""}
+        </span>
+        <span>
+          {points[Math.floor(points.length / 2)]
+            ? formatChartDate(points[Math.floor(points.length / 2)].date, locale)
+            : ""}
+        </span>
+        <span>
+          {points[points.length - 1]
+            ? formatChartDate(points[points.length - 1].date, locale)
+            : ""}
+        </span>
+      </div>
+      {activePoint ? (
+        <div className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:border-primary/20 hover:shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+            {formatChartDate(activePoint.date, locale)}
+          </p>
+          <p className="mt-2 text-2xl font-semibold text-foreground">
+            {formatCurrencyValue(activePoint.revenue, numberDisplayMode)}
           </p>
         </div>
-        {selectedPoint ? (
-          <Button
-            className={CHART_RESET_BUTTON_CLASS}
-            onClick={onResetSelectedPoint}
-            type="button"
-          >
-            {dictionary.dashboard.resetSelectedTime}
-          </Button>
-        ) : null}
-      </div>
-      {points.length === 0 ? (
-        <div className="mt-5">
-          <EmptyState
-            description={dictionary.dashboard.noSalesDataDescription}
-            title={dictionary.dashboard.noSalesDataTitle}
-          />
+      ) : null}
+    </div>
+  );
+
+  return (
+    <>
+      <section className="panel p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1 text-start">
+            <h3 className="text-lg font-semibold text-foreground">
+              {dictionary.dashboard.revenueTrend}
+            </h3>
+            <p className="text-sm text-muted">
+              {dictionary.dashboard.revenueTrendDescription}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedPoint ? (
+              <Button
+                className={CHART_RESET_BUTTON_CLASS}
+                onClick={onResetSelectedPoint}
+                type="button"
+              >
+                {dictionary.dashboard.resetSelectedTime}
+              </Button>
+            ) : null}
+            <ExpandChartButton onClick={() => setIsExpanded(true)} />
+          </div>
         </div>
-      ) : (
-        <div className="mt-5 space-y-4">
-          <ChartLegend
-            items={[
-              {
-                colorClass: "bg-primary",
-                label: dictionary.dashboard.revenueLabel,
-              },
-            ]}
-          />
-          <div dir="ltr">
-            <LineAreaChart
-              colorClass="text-primary"
-              formatTooltipValue={(point) =>
-                formatCurrencyValue(point.revenue, numberDisplayMode)
-              }
-              locale={locale}
-              onSelectPoint={onSelectPoint}
-              points={points}
-              selectedDate={selectedPoint?.date ?? null}
-              valueSelector={(point) => point.revenue}
+        {points.length === 0 ? (
+          <div className="mt-5">
+            <EmptyState
+              description={dictionary.dashboard.noSalesDataDescription}
+              title={dictionary.dashboard.noSalesDataTitle}
             />
           </div>
-          <div
-            className="flex items-center justify-between gap-3 text-xs text-muted"
-            dir="ltr"
-          >
-            <span>{points[0]?.label}</span>
-            <span>{points[Math.floor(points.length / 2)]?.label}</span>
-            <span>{points[points.length - 1]?.label}</span>
-          </div>
-          {activePoint ? (
-            <div className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:border-primary/20 hover:shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                {formatDate(activePoint.date, locale)}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {formatCurrencyValue(activePoint.revenue, numberDisplayMode)}
-              </p>
-            </div>
-          ) : null}
-        </div>
-      )}
-    </section>
+        ) : (
+          <div className="mt-5">{renderChart(false)}</div>
+        )}
+      </section>
+      <ChartModal
+        isOpen={isExpanded}
+        onClose={() => setIsExpanded(false)}
+        title={`${dictionary.dashboard.revenueTrend} · ${getRangeLabel(range, dictionary)}`}
+      >
+        {renderChart(true)}
+      </ChartModal>
+    </>
   );
 }
 
@@ -939,6 +1303,7 @@ function OrdersRevenuePanel({
   onSelectPoint,
   onResetSelectedPoint,
   numberDisplayMode,
+  range,
 }: {
   points: DashboardSalesSeriesPoint[];
   dictionary: Dictionary;
@@ -948,85 +1313,122 @@ function OrdersRevenuePanel({
   onSelectPoint: (date: string) => void;
   onResetSelectedPoint: () => void;
   numberDisplayMode: "compact" | "full";
+  range: DashboardTimeRange;
 }) {
-  const visiblePoints = points.slice(-30);
-  const activePoint =
-    selectedPoint &&
-    visiblePoints.some((point) => point.date === selectedPoint.date)
+  const [isExpanded, setIsExpanded] = useState(false);
+  const getRenderedPoints = (expanded: boolean) =>
+    expanded || range !== "all" ? points : points.slice(-30);
+  const activePoint = (
+    expanded: boolean
+  ): DashboardSalesSeriesPoint | null => {
+    const renderedPoints = getRenderedPoints(expanded);
+    return selectedPoint &&
+      renderedPoints.some((point) => point.date === selectedPoint.date)
       ? selectedPoint
-      : visiblePoints[visiblePoints.length - 1] ?? null;
+      : renderedPoints[renderedPoints.length - 1] ?? null;
+  };
+  const renderChart = (expanded: boolean) => {
+    const renderedPoints = getRenderedPoints(expanded);
+    const currentPoint = activePoint(expanded);
 
-  return (
-    <section className="panel p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1 text-start">
-          <h3 className="text-lg font-semibold text-foreground">
-            {dictionary.dashboard.ordersRevenueView}
-          </h3>
-          <p className="text-sm text-muted">
-            {dictionary.dashboard.ordersRevenueDescription}
-          </p>
-        </div>
-        {selectedPoint ? (
-          <Button
-            className={CHART_RESET_BUTTON_CLASS}
-            onClick={onResetSelectedPoint}
-            type="button"
-          >
-            {dictionary.dashboard.resetSelectedTime}
-          </Button>
-        ) : null}
-      </div>
-      {visiblePoints.length === 0 ? (
-        <div className="mt-5">
-          <EmptyState
-            description={dictionary.dashboard.noSalesDataDescription}
-            title={dictionary.dashboard.noSalesDataTitle}
-          />
-        </div>
-      ) : (
-        <div className="mt-5 space-y-4">
-          {activePoint ? (
-            <div className={cn("flex", isRTL ? "justify-start" : "justify-end")}>
-              <div className="inline-flex h-fit w-fit min-w-[10rem] flex-col rounded-3xl border border-border bg-background px-3 py-2 text-start transition-all duration-200 hover:border-primary/20 hover:shadow-sm lg:min-w-[10.5rem]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  {formatDate(activePoint.date, locale)}
-                </p>
-                <p className="mt-1.5 text-[1.05rem] font-semibold text-foreground">
-                  {formatCurrencyValue(activePoint.revenue, numberDisplayMode)}
-                </p>
-                <p className="mt-0.5 text-[13px] text-muted">
-                  {formatCountValue(activePoint.orders, numberDisplayMode)}{" "}
-                  {dictionary.dashboard.ordersLabel}
-                </p>
-              </div>
+    if (renderedPoints.length === 0) {
+      return (
+        <EmptyState
+          description={dictionary.dashboard.noSalesDataDescription}
+          title={dictionary.dashboard.noSalesDataTitle}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {currentPoint ? (
+          <div className={cn("flex", isRTL ? "justify-start" : "justify-end")}>
+            <div className="inline-flex h-fit w-fit min-w-[10rem] flex-col rounded-3xl border border-border bg-background px-3 py-2 text-start transition-all duration-200 hover:border-primary/20 hover:shadow-sm lg:min-w-[10.5rem]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                {formatChartDate(currentPoint.date, locale)}
+              </p>
+              <p className="mt-1.5 text-[1.05rem] font-semibold text-foreground">
+                {formatCurrencyValue(currentPoint.revenue, numberDisplayMode)}
+              </p>
+              <p className="mt-0.5 text-[13px] text-muted">
+                {formatCountValue(currentPoint.orders, numberDisplayMode)}{" "}
+                {dictionary.dashboard.ordersLabel}
+              </p>
             </div>
-          ) : null}
-          <div className="min-w-0 space-y-3" dir="ltr">
-            <ChartLegend
-              items={[
-                {
-                  colorClass: "bg-primary",
-                  label: dictionary.dashboard.revenueLabel,
-                },
-                {
-                  colorClass: "bg-emerald-500",
-                  label: dictionary.dashboard.ordersLabel,
-                },
-              ]}
-            />
-            <div dir="ltr">
+          </div>
+        ) : null}
+        <div className="min-w-0 space-y-3" dir="ltr">
+          <ChartLegend
+            items={[
+              {
+                colorClass: "bg-primary",
+                label: dictionary.dashboard.revenueLabel,
+              },
+              {
+                colorClass: "bg-emerald-500",
+                label: dictionary.dashboard.ordersLabel,
+              },
+            ]}
+          />
+          <div className={cn(expanded && "overflow-x-auto")} dir="ltr">
+            <div
+              className={cn(
+                expanded ? "min-w-[900px]" : "",
+                renderedPoints.length > 24 && !expanded ? "min-w-[720px]" : ""
+              )}
+            >
               <RevenueOrdersComboChart
+                dictionary={dictionary}
+                expanded={expanded}
+                locale={locale}
                 onSelectPoint={onSelectPoint}
                 numberDisplayMode={numberDisplayMode}
-                points={visiblePoints}
-                selectedDate={activePoint?.date ?? null}
+                points={renderedPoints}
+                selectedDate={currentPoint?.date ?? null}
               />
             </div>
           </div>
         </div>
-      )}
-    </section>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <section className="panel p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1 text-start">
+            <h3 className="text-lg font-semibold text-foreground">
+              {dictionary.dashboard.ordersRevenueView}
+            </h3>
+            <p className="text-sm text-muted">
+              {dictionary.dashboard.ordersRevenueDescription}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedPoint ? (
+              <Button
+                className={CHART_RESET_BUTTON_CLASS}
+                onClick={onResetSelectedPoint}
+                type="button"
+              >
+                {dictionary.dashboard.resetSelectedTime}
+              </Button>
+            ) : null}
+            <ExpandChartButton onClick={() => setIsExpanded(true)} />
+          </div>
+        </div>
+        <div className="mt-5">{renderChart(false)}</div>
+      </section>
+      <ChartModal
+        isOpen={isExpanded}
+        onClose={() => setIsExpanded(false)}
+        title={`${dictionary.dashboard.ordersRevenueView} · ${getRangeLabel(range, dictionary)}`}
+      >
+        {renderChart(true)}
+      </ChartModal>
+    </>
   );
 }
 
@@ -1131,6 +1533,7 @@ function RefundPanel({
   numberDisplayMode,
   onSelectPoint,
   onResetSelectedPoint,
+  range,
 }: {
   points: DashboardSalesSeriesPoint[];
   summary: DashboardView["sales"]["summary"];
@@ -1141,101 +1544,128 @@ function RefundPanel({
   numberDisplayMode: "compact" | "full";
   onSelectPoint: (date: string) => void;
   onResetSelectedPoint: () => void;
+  range: DashboardTimeRange;
 }) {
-  const visiblePoints = points.slice(-30);
-  const activePoint =
-    selectedPoint &&
-    visiblePoints.some((point) => point.date === selectedPoint.date)
+  const [isExpanded, setIsExpanded] = useState(false);
+  const getRenderedPoints = (expanded: boolean) =>
+    expanded || range !== "all" ? points : points.slice(-30);
+  const activePoint = (expanded: boolean) => {
+    const renderedPoints = getRenderedPoints(expanded);
+    return selectedPoint &&
+      renderedPoints.some((point) => point.date === selectedPoint.date)
       ? selectedPoint
-      : visiblePoints[visiblePoints.length - 1] ?? null;
+      : renderedPoints[renderedPoints.length - 1] ?? null;
+  };
+  const renderChart = (expanded: boolean) => {
+    const renderedPoints = getRenderedPoints(expanded);
+    const currentPoint = activePoint(expanded);
 
-  return (
-    <section className="panel p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1 text-start">
-          <h3 className="text-lg font-semibold text-foreground">
-            {dictionary.dashboard.refundTrend}
-          </h3>
-          <p className="text-sm text-muted">
-            {dictionary.dashboard.refundTrendDescription}
-          </p>
-        </div>
-        {selectedPoint ? (
-          <Button
-            className={CHART_RESET_BUTTON_CLASS}
-            onClick={onResetSelectedPoint}
-            type="button"
-          >
-            {dictionary.dashboard.resetSelectedTime}
-          </Button>
-        ) : null}
-      </div>
-      {visiblePoints.length === 0 ? (
-        <div className="mt-5">
-          <EmptyState
-            description={dictionary.dashboard.noSalesDataDescription}
-            title={dictionary.dashboard.noSalesDataTitle}
+    if (renderedPoints.length === 0) {
+      return (
+        <EmptyState
+          description={dictionary.dashboard.noSalesDataDescription}
+          title={dictionary.dashboard.noSalesDataTitle}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="space-y-3">
+          <ChartLegend
+            items={[
+              {
+                colorClass: "bg-amber-500",
+                label: dictionary.dashboard.refundsLabel,
+              },
+            ]}
           />
-        </div>
-      ) : (
-        <div className="mt-5 space-y-4">
-          <div className="space-y-3">
-            <ChartLegend
-              items={[
-                {
-                  colorClass: "bg-amber-500",
-                  label: dictionary.dashboard.refundsLabel,
-                },
-              ]}
-            />
-            <div dir="ltr">
+          <div className={cn(expanded && "overflow-x-auto")} dir="ltr">
+            <div className={cn(expanded && "min-w-[720px]")}>
               <LineAreaChart
                 colorClass="text-amber-500"
-                containerClassName="px-2 py-6 lg:px-1"
+                containerClassName={expanded ? "px-4 py-6" : "px-2 py-6 lg:px-1"}
                 formatTooltipValue={(point) =>
                   formatCurrencyValue(point.refundValue, numberDisplayMode)
                 }
                 locale={locale}
                 onSelectPoint={onSelectPoint}
-                points={visiblePoints}
-                selectedDate={activePoint?.date ?? null}
-                svgClassName="h-64"
+                points={renderedPoints}
+                selectedDate={currentPoint?.date ?? null}
+                svgClassName={expanded ? "h-[26rem]" : "h-64"}
                 valueSelector={(point) => point.refundValue}
               />
             </div>
           </div>
-          <div
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-            dir={isRTL ? "rtl" : "ltr"}
-          >
-            <RefundStatCard
-              label={dictionary.dashboard.refundValue}
-              value={formatCurrencyValue(summary.refundValue, numberDisplayMode)}
-            />
-            <RefundStatCard
-              label={
-                activePoint
-                  ? formatDate(activePoint.date, locale)
-                  : dictionary.dashboard.focusWindow
-              }
-              value={
-                activePoint
-                  ? formatCurrencyValue(activePoint.refundValue, numberDisplayMode)
-                  : formatCurrencyValue(summary.refundValue, numberDisplayMode)
-              }
-            />
-            <RefundStatCard
-              label={dictionary.dashboard.refundRate}
-              value={`${summary.refundRate.toFixed(1)}%`}
-            />
-            <RefundStatCard
-              label={dictionary.dashboard.refundCount}
-              value={formatCountValue(summary.refundCount, numberDisplayMode)}
-            />
+        </div>
+        <div
+          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          dir={isRTL ? "rtl" : "ltr"}
+        >
+          <RefundStatCard
+            label={dictionary.dashboard.refundValue}
+            value={formatCurrencyValue(summary.refundValue, numberDisplayMode)}
+          />
+          <RefundStatCard
+            label={
+              currentPoint
+                ? formatChartDate(currentPoint.date, locale)
+                : dictionary.dashboard.focusWindow
+            }
+            value={
+              currentPoint
+                ? formatCurrencyValue(currentPoint.refundValue, numberDisplayMode)
+                : formatCurrencyValue(summary.refundValue, numberDisplayMode)
+            }
+          />
+          <RefundStatCard
+            label={dictionary.dashboard.refundRate}
+            value={`${summary.refundRate.toFixed(1)}%`}
+          />
+          <RefundStatCard
+            label={dictionary.dashboard.refundCount}
+            value={formatCountValue(summary.refundCount, numberDisplayMode)}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <section className="panel p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1 text-start">
+            <h3 className="text-lg font-semibold text-foreground">
+              {dictionary.dashboard.refundTrend}
+            </h3>
+            <p className="text-sm text-muted">
+              {dictionary.dashboard.refundTrendDescription}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedPoint ? (
+              <Button
+                className={CHART_RESET_BUTTON_CLASS}
+                onClick={onResetSelectedPoint}
+                type="button"
+              >
+                {dictionary.dashboard.resetSelectedTime}
+              </Button>
+            ) : null}
+            <ExpandChartButton onClick={() => setIsExpanded(true)} />
           </div>
         </div>
-      )}
-    </section>
+        <div className="mt-5">{renderChart(false)}</div>
+      </section>
+      <ChartModal
+        isOpen={isExpanded}
+        onClose={() => setIsExpanded(false)}
+        title={`${dictionary.dashboard.refundTrend} · ${getRangeLabel(range, dictionary)}`}
+      >
+        {renderChart(true)}
+      </ChartModal>
+    </>
   );
 }
 
@@ -1625,66 +2055,64 @@ function ActivityFeedPanel({
   );
 }
 
-function QuickActionsPanel({
-  locale,
-  dictionary,
-}: {
-  locale: string;
-  dictionary: Dictionary;
-}) {
-  return (
-    <section className="panel p-6">
-      <div className="space-y-1 text-start">
-        <h3 className="text-lg font-semibold text-foreground">
-          {dictionary.dashboard.quickActions}
-        </h3>
-        <p className="text-sm text-muted">
-          {dictionary.dashboard.quickActionsDescription}
-        </p>
-      </div>
-
-      <div className="mt-5 space-y-4">
-        <article className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-panel">
-          <p className="text-sm font-semibold text-foreground">
-            {dictionary.dashboard.openReviewAction}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            {dictionary.common.viewReviews}
-          </p>
-          <Link
-            className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:-translate-y-px hover:bg-primary-hover hover:shadow-sm"
-            href={`/${locale}/reviews?sentiment=negative` as Route}
-          >
-            {dictionary.dashboard.jumpToReviewsAction}
-          </Link>
-        </article>
-      </div>
-    </section>
-  );
-}
-
 function RevenueOrdersComboChart({
   points,
   selectedDate,
   onSelectPoint,
   numberDisplayMode,
+  locale,
+  dictionary,
+  expanded,
 }: {
   points: DashboardSalesSeriesPoint[];
   selectedDate: string | null;
   onSelectPoint: (date: string) => void;
   numberDisplayMode: "compact" | "full";
+  locale: string;
+  dictionary: Dictionary;
+  expanded?: boolean;
 }) {
   const bars = points;
   const isDense = bars.length > 12;
   const isUltraDense = bars.length > 24;
   const maxRevenue = Math.max(...bars.map((point) => point.revenue), 1);
   const maxOrders = Math.max(...bars.map((point) => point.orders), 1);
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const hoveredIndex = bars.findIndex((point) => point.date === hoveredDate);
+  const hoveredPoint = hoveredIndex >= 0 ? bars[hoveredIndex] : null;
+  const tooltipStyle =
+    hoveredIndex <= 0
+      ? { left: "0%", transform: "translateX(0)" }
+      : hoveredIndex >= bars.length - 1
+        ? { left: "100%", transform: "translateX(-100%)" }
+        : {
+            left: `${((hoveredIndex + 0.5) / Math.max(bars.length, 1)) * 100}%`,
+            transform: "translateX(-50%)",
+          };
 
   return (
-    <div className="w-full rounded-3xl border border-border bg-background px-2 py-6 transition-colors duration-200 hover:border-primary/10 lg:px-1.5">
+    <div className="relative w-full rounded-3xl border border-border bg-background px-2 py-6 transition-colors duration-200 hover:border-primary/10 lg:px-1.5">
+      {hoveredPoint ? (
+        <div
+          className="pointer-events-none absolute top-3 z-10 w-max max-w-[12rem] rounded-2xl border border-outline-variant bg-slate-950 px-3 py-2 text-start text-xs text-white shadow-xl dark:bg-slate-900"
+          style={tooltipStyle}
+        >
+          <p className="font-semibold text-white">
+            {formatChartDate(hoveredPoint.date, locale)}
+          </p>
+          <p className="mt-1 text-slate-200">
+            {dictionary.dashboard.revenueLabel}:{" "}
+            {formatCurrencyValue(hoveredPoint.revenue, numberDisplayMode)}
+          </p>
+          <p className="text-slate-200">
+            {dictionary.dashboard.ordersLabel}:{" "}
+            {formatCountValue(hoveredPoint.orders, numberDisplayMode)}
+          </p>
+        </div>
+      ) : null}
       <div
         className={cn(
-          "flex h-72 items-end",
+          expanded ? "flex h-[26rem] items-end" : "flex h-72 items-end",
           isUltraDense ? "gap-0.5" : isDense ? "gap-1" : "gap-3"
         )}
       >
@@ -1698,9 +2126,16 @@ function RevenueOrdersComboChart({
                 : isDense
                   ? "gap-1 px-1"
                   : "gap-2 px-2",
-              selectedDate === point.date ? "bg-surface/70 shadow-sm" : ""
+              selectedDate === point.date ? "bg-surface/70 shadow-sm" : "",
+              hoveredDate === point.date ? "bg-surface/80 shadow-sm" : ""
             )}
             key={point.date}
+            onMouseEnter={() => setHoveredDate(point.date)}
+            onMouseLeave={() =>
+              setHoveredDate((current) =>
+                current === point.date ? null : current
+              )
+            }
             onClick={() => onSelectPoint(point.date)}
             type="button"
           >
@@ -1714,7 +2149,8 @@ function RevenueOrdersComboChart({
                 className={cn(
                   "rounded-full bg-primary/85 transition-all duration-200 group-hover:opacity-100",
                   isUltraDense ? "w-1.5" : isDense ? "w-2" : "w-3",
-                  selectedDate === point.date ? "ring-2 ring-primary/30" : ""
+                  selectedDate === point.date ? "ring-2 ring-primary/30" : "",
+                  hoveredDate === point.date ? "bg-primary brightness-110" : ""
                 )}
                 style={{ height: `${(point.revenue / maxRevenue) * 100}%` }}
               />
@@ -1722,7 +2158,10 @@ function RevenueOrdersComboChart({
                 className={cn(
                   "rounded-full bg-emerald-500/85 transition-all duration-200 group-hover:opacity-100",
                   isUltraDense ? "w-1.5" : isDense ? "w-2" : "w-3",
-                  selectedDate === point.date ? "ring-2 ring-emerald-500/30" : ""
+                  selectedDate === point.date ? "ring-2 ring-emerald-500/30" : "",
+                  hoveredDate === point.date
+                    ? "bg-emerald-400 brightness-110"
+                    : ""
                 )}
                 style={{ height: `${(point.orders / maxOrders) * 100}%` }}
               />
@@ -1853,7 +2292,7 @@ function LineAreaChart({
           }}
         >
           <p className="text-[11px] font-medium text-muted">
-            {formatDate(hoveredPoint.date, locale)}
+            {formatChartDate(hoveredPoint.date, locale)}
           </p>
           <p className="mt-1 text-sm font-semibold text-foreground">
             {formatTooltipValue(hoveredPoint)}
@@ -1928,6 +2367,16 @@ function getRangeLabel(range: DashboardTimeRange, dictionary: Dictionary) {
     return dictionary.dashboard.last30Days;
   }
   return dictionary.dashboard.allTime;
+}
+
+function formatChartDate(value: string, locale: string) {
+  const date = new Date(value);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear()).slice(-2);
+  const formatted = `${day}/${month}/${year}`;
+
+  return locale === "ar" ? `\u200E${formatted}\u200E` : formatted;
 }
 
 function getNumberDisplayModeLabel(

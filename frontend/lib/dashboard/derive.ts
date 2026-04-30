@@ -95,6 +95,50 @@ export function getDashboardView(
   };
 }
 
+export function normalizeTimeSeriesData(
+  data: DashboardSalesSeriesPoint[],
+  range: DashboardTimeRange
+): DashboardSalesSeriesPoint[] {
+  if (data.length === 0) {
+    return [];
+  }
+
+  const sorted = [...data].sort(
+    (left, right) => new Date(left.date).getTime() - new Date(right.date).getTime()
+  );
+  const latestDate = toUtcDay(sorted[sorted.length - 1].date);
+  const startDate =
+    range === "all"
+      ? toUtcDay(sorted[0].date)
+      : getRangeStart(latestDate, range);
+  const pointMap = new Map(sorted.map((point) => [toUtcDateKey(point.date), point]));
+  const normalized: DashboardSalesSeriesPoint[] = [];
+
+  for (
+    let cursor = new Date(startDate);
+    cursor.getTime() <= latestDate.getTime();
+    cursor = addUtcDays(cursor, 1)
+  ) {
+    const key = toUtcDateKey(cursor.toISOString());
+    const existing = pointMap.get(key);
+    const date = `${key}T00:00:00.000Z`;
+
+    normalized.push(
+      existing
+        ? { ...existing, date, label: formatSeriesLabel(date) }
+        : {
+            date,
+            label: formatSeriesLabel(date),
+            revenue: 0,
+            orders: 0,
+            refundValue: 0,
+          }
+    );
+  }
+
+  return normalized;
+}
+
 function sortReviews(reviews: Review[]): Review[] {
   return [...reviews].sort(
     (left, right) =>
@@ -759,6 +803,23 @@ function formatSeriesLabel(value: string): string {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
+}
+
+function toUtcDay(value: string): Date {
+  const date = new Date(value);
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  );
+}
+
+function toUtcDateKey(value: string): string {
+  return toUtcDay(value).toISOString().slice(0, 10);
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
 }
 
 function formatCurrencyCompact(value: number): string {
