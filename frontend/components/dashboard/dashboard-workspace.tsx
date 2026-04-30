@@ -2,7 +2,7 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { usePathname } from "next/navigation";
 import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -38,6 +38,24 @@ type DashboardWorkspaceProps = {
   dictionary: Dictionary;
   data: DashboardPayload | null;
   mode?: "overview" | "sales-detail" | "review-insights-detail";
+};
+
+type ExpandedChartViewport = {
+  canZoomIn: boolean;
+  canZoomOut: boolean;
+  chartWidth: number;
+  fitToRange: () => void;
+  isDragging: boolean;
+  maxZoom: number;
+  minZoom: number;
+  resetView: () => void;
+  slotWidth: number;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  zoom: number;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  onMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
+  onWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
 };
 
 const METRIC_TONE_STYLES: Record<
@@ -80,6 +98,11 @@ const ACTIVITY_TONE_STYLES: Record<DashboardActivityItem["type"], string> = {
 
 const CHART_RESET_BUTTON_CLASS =
   "rounded-full border border-primary/15 bg-primary/8 px-4 py-2 text-foreground shadow-sm hover:border-primary/30 hover:bg-primary/12 hover:text-foreground dark:bg-primary/10 dark:hover:bg-primary/15";
+
+const EXPANDED_BASE_SLOT_WIDTH = 24;
+const EXPANDED_MIN_SLOT_WIDTH = 14;
+const EXPANDED_MAX_SLOT_WIDTH = 144;
+const EXPANDED_MAX_ZOOM = 6;
 
 function ChartLegend({
   items,
@@ -899,6 +922,11 @@ function ChartModal({
       return;
     }
 
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscrollBehavior = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
@@ -906,7 +934,11 @@ function ChartModal({
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscrollBehavior;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) {
@@ -922,7 +954,11 @@ function ChartModal({
       aria-label={title}
     >
       <div
-        className="flex h-[min(90vh,760px)] w-[min(95vw,1200px)] flex-col overflow-hidden rounded-[2rem] border border-border bg-card shadow-2xl"
+        className="flex flex-col overflow-hidden rounded-[2rem] border border-border bg-card shadow-2xl"
+        style={{
+          width: "clamp(900px, 95vw, 1600px)",
+          height: "clamp(500px, 90vh, 1000px)",
+        }}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
@@ -935,6 +971,281 @@ function ChartModal({
       </div>
     </div>
   );
+}
+
+function ExpandedChartToolbar({
+  canZoomIn,
+  canZoomOut,
+  onFitToRange,
+  onResetView,
+  onZoomIn,
+  onZoomOut,
+}: {
+  canZoomIn: boolean;
+  canZoomOut: boolean;
+  onFitToRange: () => void;
+  onResetView: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        disabled={!canZoomIn}
+        onClick={onZoomIn}
+        type="button"
+        variant="secondary"
+      >
+        Zoom In
+      </Button>
+      <Button
+        disabled={!canZoomOut}
+        onClick={onZoomOut}
+        type="button"
+        variant="secondary"
+      >
+        Zoom Out
+      </Button>
+      <Button onClick={onResetView} type="button" variant="secondary">
+        Reset View
+      </Button>
+      <Button onClick={onFitToRange} type="button" variant="secondary">
+        Fit to Range
+      </Button>
+    </div>
+  );
+}
+
+function ExpandedChartSurface({
+  children,
+  viewport,
+}: {
+  children: React.ReactNode;
+  viewport: ExpandedChartViewport;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <ExpandedChartToolbar
+        canZoomIn={viewport.canZoomIn}
+        canZoomOut={viewport.canZoomOut}
+        onFitToRange={viewport.fitToRange}
+        onResetView={viewport.resetView}
+        onZoomIn={viewport.zoomIn}
+        onZoomOut={viewport.zoomOut}
+      />
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-x-auto overflow-y-hidden rounded-3xl border border-border bg-background/80",
+          viewport.isDragging ? "cursor-grabbing" : "cursor-grab"
+        )}
+        dir="ltr"
+        onMouseDown={viewport.onMouseDown}
+        onWheel={viewport.onWheel}
+        ref={viewport.viewportRef}
+        style={{ overscrollBehavior: "contain" }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ExpandedTimeAxis({
+  locale,
+  points,
+  viewport,
+}: {
+  locale: string;
+  points: DashboardSalesSeriesPoint[];
+  viewport: ExpandedChartViewport;
+}) {
+  const labelStep = Math.max(1, Math.ceil(64 / Math.max(viewport.slotWidth, 1)));
+
+  return (
+    <div
+      className="border-t border-border/70 px-2 py-3 text-[11px] text-muted"
+      style={{ width: `${viewport.chartWidth}px` }}
+    >
+      <div className="flex">
+        {points.map((point, index) => (
+          <div
+            className="shrink-0 text-center"
+            key={point.date}
+            style={{ width: `${viewport.slotWidth}px` }}
+          >
+            {index % labelStep === 0 ? formatChartDate(point.date, locale) : ""}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function useExpandedChartViewport(pointCount: number): ExpandedChartViewport {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{ pointerX: number; scrollLeft: number } | null>(
+    null
+  );
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const minSlotZoom = EXPANDED_MIN_SLOT_WIDTH / EXPANDED_BASE_SLOT_WIDTH;
+  const fitSlotWidth = containerWidth
+    ? clampNumber(
+        containerWidth / Math.max(pointCount, 1),
+        EXPANDED_MIN_SLOT_WIDTH,
+        EXPANDED_MAX_SLOT_WIDTH
+      )
+    : EXPANDED_BASE_SLOT_WIDTH;
+  const fitZoom = clampNumber(
+    fitSlotWidth / EXPANDED_BASE_SLOT_WIDTH,
+    minSlotZoom,
+    EXPANDED_MAX_ZOOM
+  );
+  const minZoom = fitZoom;
+  const maxZoom = EXPANDED_MAX_ZOOM;
+  const effectiveZoom = clampNumber(zoom, minZoom, maxZoom);
+  const slotWidth = clampNumber(
+    EXPANDED_BASE_SLOT_WIDTH * effectiveZoom,
+    EXPANDED_MIN_SLOT_WIDTH,
+    EXPANDED_MAX_SLOT_WIDTH
+  );
+  const chartWidth = Math.max(pointCount * slotWidth, pointCount * EXPANDED_MIN_SLOT_WIDTH);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const updateWidth = () => {
+      setContainerWidth(viewport.clientWidth);
+    };
+
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setZoom((current) => clampNumber(current, minZoom, maxZoom));
+  }, [maxZoom, minZoom]);
+
+  useEffect(() => {
+    if (!isDragging) {
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const viewport = viewportRef.current;
+      const dragState = dragStateRef.current;
+
+      if (!viewport || !dragState) {
+        return;
+      }
+
+      viewport.scrollLeft = dragState.scrollLeft - (event.clientX - dragState.pointerX);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragStateRef.current = null;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const updateZoom = (
+    nextZoom: number,
+    anchorClientX?: number,
+    fallbackRatio = 0.5
+  ) => {
+    const viewport = viewportRef.current;
+    if (!viewport || pointCount === 0) {
+      setZoom(clampNumber(nextZoom, minZoom, maxZoom));
+      return;
+    }
+
+    const clampedZoom = clampNumber(nextZoom, minZoom, maxZoom);
+    const previousWidth = Math.max(pointCount * slotWidth, viewport.clientWidth);
+    const anchorOffset =
+      anchorClientX === undefined
+        ? viewport.clientWidth * fallbackRatio
+        : anchorClientX - viewport.getBoundingClientRect().left;
+    const anchorRatio = (viewport.scrollLeft + anchorOffset) / previousWidth;
+    const nextSlotWidth = clampNumber(
+      EXPANDED_BASE_SLOT_WIDTH * clampedZoom,
+      EXPANDED_MIN_SLOT_WIDTH,
+      EXPANDED_MAX_SLOT_WIDTH
+    );
+    const nextWidth = Math.max(pointCount * nextSlotWidth, viewport.clientWidth);
+
+    setZoom(clampedZoom);
+
+    requestAnimationFrame(() => {
+      const activeViewport = viewportRef.current;
+      if (!activeViewport) {
+        return;
+      }
+
+      activeViewport.scrollLeft = clampNumber(
+        anchorRatio * nextWidth - anchorOffset,
+        0,
+        Math.max(nextWidth - activeViewport.clientWidth, 0)
+      );
+    });
+  };
+
+  return {
+    canZoomIn: effectiveZoom < maxZoom - 0.001,
+    canZoomOut: effectiveZoom > minZoom + 0.001,
+    chartWidth,
+    fitToRange: () => updateZoom(fitZoom, undefined, 0),
+    isDragging,
+    maxZoom,
+    minZoom,
+    resetView: () => {
+      const defaultZoom = clampNumber(1, minZoom, maxZoom);
+      updateZoom(defaultZoom, undefined, 0);
+    },
+    slotWidth,
+    viewportRef,
+    zoom: effectiveZoom,
+    zoomIn: () => updateZoom(effectiveZoom * 1.2),
+    zoomOut: () => updateZoom(effectiveZoom / 1.2),
+    onMouseDown: (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return;
+      }
+
+      dragStateRef.current = {
+        pointerX: event.clientX,
+        scrollLeft: viewport.scrollLeft,
+      };
+      setIsDragging(true);
+    },
+    onWheel: (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const delta = Math.abs(event.deltaY) > Math.abs(event.deltaX)
+        ? event.deltaY
+        : event.deltaX;
+      const nextZoom = delta > 0 ? effectiveZoom / 1.1 : effectiveZoom * 1.1;
+      updateZoom(nextZoom, event.clientX);
+    },
+  };
 }
 
 function DashboardFiltersPanel({
@@ -1162,7 +1473,9 @@ function Sparkline({ values }: { values: number[] }) {
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="3"
+        strokeOpacity="0.82"
+        strokeWidth="1.45"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );
@@ -1189,6 +1502,12 @@ function RevenueTrendPanel({
 }) {
   const activePoint = selectedPoint ?? points[points.length - 1] ?? null;
   const [isExpanded, setIsExpanded] = useState(false);
+  const expandedViewport = useExpandedChartViewport(points.length);
+  const openExpandedChart = () => {
+    setIsExpanded(true);
+    requestAnimationFrame(() => expandedViewport.fitToRange());
+  };
+
   const renderChart = (expanded: boolean) => (
     <div className="space-y-4">
       <ChartLegend
@@ -1199,41 +1518,65 @@ function RevenueTrendPanel({
           },
         ]}
       />
-      <div className={cn(expanded && "overflow-x-auto")} dir="ltr">
-        <div className={cn(expanded && "min-w-[720px]")}>
-          <LineAreaChart
-            colorClass="text-primary"
-            containerClassName={expanded ? "px-4 py-6" : undefined}
-            formatTooltipValue={(point) =>
-              formatCurrencyValue(point.revenue, numberDisplayMode)
-            }
-            locale={locale}
-            onSelectPoint={onSelectPoint}
-            points={points}
-            selectedDate={selectedPoint?.date ?? null}
-            svgClassName={expanded ? "h-[26rem]" : undefined}
-            valueSelector={(point) => point.revenue}
-          />
-        </div>
-      </div>
-      <div
-        className="flex items-center justify-between gap-3 text-xs text-muted"
-        dir="ltr"
-      >
-        <span>
-          {points[0] ? formatChartDate(points[0].date, locale) : ""}
-        </span>
-        <span>
-          {points[Math.floor(points.length / 2)]
-            ? formatChartDate(points[Math.floor(points.length / 2)].date, locale)
-            : ""}
-        </span>
-        <span>
-          {points[points.length - 1]
-            ? formatChartDate(points[points.length - 1].date, locale)
-            : ""}
-        </span>
-      </div>
+      {expanded ? (
+        <ExpandedChartSurface viewport={expandedViewport}>
+          <div style={{ width: `${expandedViewport.chartWidth}px` }}>
+            <LineAreaChart
+              colorClass="text-primary"
+              containerClassName="h-full border-0 p-4 shadow-none"
+              expandedViewport={expandedViewport}
+              formatTooltipValue={(point) =>
+                formatCurrencyValue(point.revenue, numberDisplayMode)
+              }
+              locale={locale}
+              onSelectPoint={onSelectPoint}
+              points={points}
+              selectedDate={selectedPoint?.date ?? null}
+              svgClassName="h-full"
+              valueSelector={(point) => point.revenue}
+            />
+            <ExpandedTimeAxis
+              locale={locale}
+              points={points}
+              viewport={expandedViewport}
+            />
+          </div>
+        </ExpandedChartSurface>
+      ) : (
+        <>
+          <div dir="ltr">
+            <LineAreaChart
+              colorClass="text-primary"
+              formatTooltipValue={(point) =>
+                formatCurrencyValue(point.revenue, numberDisplayMode)
+              }
+              locale={locale}
+              onSelectPoint={onSelectPoint}
+              points={points}
+              selectedDate={selectedPoint?.date ?? null}
+              valueSelector={(point) => point.revenue}
+            />
+          </div>
+          <div
+            className="flex items-center justify-between gap-3 text-xs text-muted"
+            dir="ltr"
+          >
+            <span>
+              {points[0] ? formatChartDate(points[0].date, locale) : ""}
+            </span>
+            <span>
+              {points[Math.floor(points.length / 2)]
+                ? formatChartDate(points[Math.floor(points.length / 2)].date, locale)
+                : ""}
+            </span>
+            <span>
+              {points[points.length - 1]
+                ? formatChartDate(points[points.length - 1].date, locale)
+                : ""}
+            </span>
+          </div>
+        </>
+      )}
       {activePoint ? (
         <div className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:border-primary/20 hover:shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
@@ -1269,7 +1612,7 @@ function RevenueTrendPanel({
                 {dictionary.dashboard.resetSelectedTime}
               </Button>
             ) : null}
-            <ExpandChartButton onClick={() => setIsExpanded(true)} />
+            <ExpandChartButton onClick={openExpandedChart} />
           </div>
         </div>
         {points.length === 0 ? (
@@ -1316,6 +1659,11 @@ function OrdersRevenuePanel({
   range: DashboardTimeRange;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const expandedViewport = useExpandedChartViewport(points.length);
+  const openExpandedChart = () => {
+    setIsExpanded(true);
+    requestAnimationFrame(() => expandedViewport.fitToRange());
+  };
   const getRenderedPoints = (expanded: boolean) =>
     expanded || range !== "all" ? points : points.slice(-30);
   const activePoint = (
@@ -1371,16 +1719,25 @@ function OrdersRevenuePanel({
               },
             ]}
           />
-          <div className={cn(expanded && "overflow-x-auto")} dir="ltr">
-            <div
-              className={cn(
-                expanded ? "min-w-[900px]" : "",
-                renderedPoints.length > 24 && !expanded ? "min-w-[720px]" : ""
-              )}
-            >
+          {expanded ? (
+            <ExpandedChartSurface viewport={expandedViewport}>
+              <div style={{ width: `${expandedViewport.chartWidth}px` }}>
+                <RevenueOrdersComboChart
+                  dictionary={dictionary}
+                  expanded
+                  expandedViewport={expandedViewport}
+                  locale={locale}
+                  onSelectPoint={onSelectPoint}
+                  numberDisplayMode={numberDisplayMode}
+                  points={renderedPoints}
+                  selectedDate={currentPoint?.date ?? null}
+                />
+              </div>
+            </ExpandedChartSurface>
+          ) : (
+            <div dir="ltr">
               <RevenueOrdersComboChart
                 dictionary={dictionary}
-                expanded={expanded}
                 locale={locale}
                 onSelectPoint={onSelectPoint}
                 numberDisplayMode={numberDisplayMode}
@@ -1388,7 +1745,7 @@ function OrdersRevenuePanel({
                 selectedDate={currentPoint?.date ?? null}
               />
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -1416,7 +1773,7 @@ function OrdersRevenuePanel({
                 {dictionary.dashboard.resetSelectedTime}
               </Button>
             ) : null}
-            <ExpandChartButton onClick={() => setIsExpanded(true)} />
+            <ExpandChartButton onClick={openExpandedChart} />
           </div>
         </div>
         <div className="mt-5">{renderChart(false)}</div>
@@ -1547,6 +1904,11 @@ function RefundPanel({
   range: DashboardTimeRange;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const expandedViewport = useExpandedChartViewport(points.length);
+  const openExpandedChart = () => {
+    setIsExpanded(true);
+    requestAnimationFrame(() => expandedViewport.fitToRange());
+  };
   const getRenderedPoints = (expanded: boolean) =>
     expanded || range !== "all" ? points : points.slice(-30);
   const activePoint = (expanded: boolean) => {
@@ -1580,11 +1942,35 @@ function RefundPanel({
               },
             ]}
           />
-          <div className={cn(expanded && "overflow-x-auto")} dir="ltr">
-            <div className={cn(expanded && "min-w-[720px]")}>
+          {expanded ? (
+            <ExpandedChartSurface viewport={expandedViewport}>
+              <div style={{ width: `${expandedViewport.chartWidth}px` }}>
+                <LineAreaChart
+                  colorClass="text-amber-500"
+                  containerClassName="h-full border-0 p-4 shadow-none"
+                  expandedViewport={expandedViewport}
+                  formatTooltipValue={(point) =>
+                    formatCurrencyValue(point.refundValue, numberDisplayMode)
+                  }
+                  locale={locale}
+                  onSelectPoint={onSelectPoint}
+                  points={renderedPoints}
+                  selectedDate={currentPoint?.date ?? null}
+                  svgClassName="h-full"
+                  valueSelector={(point) => point.refundValue}
+                />
+                <ExpandedTimeAxis
+                  locale={locale}
+                  points={renderedPoints}
+                  viewport={expandedViewport}
+                />
+              </div>
+            </ExpandedChartSurface>
+          ) : (
+            <div dir="ltr">
               <LineAreaChart
                 colorClass="text-amber-500"
-                containerClassName={expanded ? "px-4 py-6" : "px-2 py-6 lg:px-1"}
+                containerClassName="px-2 py-6 lg:px-1"
                 formatTooltipValue={(point) =>
                   formatCurrencyValue(point.refundValue, numberDisplayMode)
                 }
@@ -1592,11 +1978,11 @@ function RefundPanel({
                 onSelectPoint={onSelectPoint}
                 points={renderedPoints}
                 selectedDate={currentPoint?.date ?? null}
-                svgClassName={expanded ? "h-[26rem]" : "h-64"}
+                svgClassName="h-64"
                 valueSelector={(point) => point.refundValue}
               />
             </div>
-          </div>
+          )}
         </div>
         <div
           className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
@@ -1653,7 +2039,7 @@ function RefundPanel({
                 {dictionary.dashboard.resetSelectedTime}
               </Button>
             ) : null}
-            <ExpandChartButton onClick={() => setIsExpanded(true)} />
+            <ExpandChartButton onClick={openExpandedChart} />
           </div>
         </div>
         <div className="mt-5">{renderChart(false)}</div>
@@ -2063,6 +2449,7 @@ function RevenueOrdersComboChart({
   locale,
   dictionary,
   expanded,
+  expandedViewport,
 }: {
   points: DashboardSalesSeriesPoint[];
   selectedDate: string | null;
@@ -2071,40 +2458,82 @@ function RevenueOrdersComboChart({
   locale: string;
   dictionary: Dictionary;
   expanded?: boolean;
+  expandedViewport?: ExpandedChartViewport;
 }) {
   const bars = points;
   const isDense = bars.length > 12;
   const isUltraDense = bars.length > 24;
   const maxRevenue = Math.max(...bars.map((point) => point.revenue), 1);
   const maxOrders = Math.max(...bars.map((point) => point.orders), 1);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | undefined>(
+    undefined
+  );
   const hoveredIndex = bars.findIndex((point) => point.date === hoveredDate);
   const hoveredPoint = hoveredIndex >= 0 ? bars[hoveredIndex] : null;
-  const tooltipStyle =
-    hoveredIndex <= 0
-      ? { left: "0%", transform: "translateX(0)" }
-      : hoveredIndex >= bars.length - 1
-        ? { left: "100%", transform: "translateX(-100%)" }
-        : {
-            left: `${((hoveredIndex + 0.5) / Math.max(bars.length, 1)) * 100}%`,
-            transform: "translateX(-50%)",
-          };
+  const slotWidth = expandedViewport?.slotWidth ?? null;
+
+  useEffect(() => {
+    if (!hoveredPoint || !containerRef.current || !tooltipRef.current) {
+      setTooltipStyle(undefined);
+      return;
+    }
+
+    const container = containerRef.current;
+    const tooltip = tooltipRef.current;
+    const padding = 10;
+    const anchorX =
+      expanded && expandedViewport
+        ? hoveredIndex * expandedViewport.slotWidth + expandedViewport.slotWidth / 2
+        : (hoveredIndex + 0.5) * (container.clientWidth / Math.max(bars.length, 1));
+    const barHeight = Math.max(
+      (hoveredPoint.revenue / maxRevenue) * (expanded ? 352 : 240),
+      (hoveredPoint.orders / maxOrders) * (expanded ? 352 : 240)
+    );
+    const anchorY = (expanded ? 376 : 264) - barHeight;
+
+    setTooltipStyle(
+      getTooltipPositionStyle({
+        anchorX,
+        anchorY,
+        containerHeight: container.clientHeight,
+        containerWidth: container.clientWidth,
+        padding,
+        tooltipHeight: tooltip.offsetHeight,
+        tooltipWidth: tooltip.offsetWidth,
+      })
+    );
+  }, [
+    bars.length,
+    expanded,
+    expandedViewport,
+    hoveredIndex,
+    hoveredPoint,
+    maxOrders,
+    maxRevenue,
+  ]);
 
   return (
-    <div className="relative w-full rounded-3xl border border-border bg-background px-2 py-6 transition-colors duration-200 hover:border-primary/10 lg:px-1.5">
+    <div
+      className="relative w-full rounded-3xl border border-border bg-background px-2 py-6 transition-colors duration-200 hover:border-primary/10 lg:px-1.5"
+      ref={containerRef}
+    >
       {hoveredPoint ? (
         <div
-          className="pointer-events-none absolute top-3 z-10 w-max max-w-[12rem] rounded-2xl border border-outline-variant bg-slate-950 px-3 py-2 text-start text-xs text-white shadow-xl dark:bg-slate-900"
+          className="pointer-events-none absolute z-10 w-max max-w-[12rem] rounded-xl border border-border/80 bg-background/95 px-3 py-2 text-start shadow-lg backdrop-blur"
+          ref={tooltipRef}
           style={tooltipStyle}
         >
-          <p className="font-semibold text-white">
+          <p className="text-[11px] font-medium text-muted">
             {formatChartDate(hoveredPoint.date, locale)}
           </p>
-          <p className="mt-1 text-slate-200">
+          <p className="mt-1 text-sm font-semibold text-foreground">
             {dictionary.dashboard.revenueLabel}:{" "}
             {formatCurrencyValue(hoveredPoint.revenue, numberDisplayMode)}
           </p>
-          <p className="text-slate-200">
+          <p className="text-sm font-semibold text-foreground">
             {dictionary.dashboard.ordersLabel}:{" "}
             {formatCountValue(hoveredPoint.orders, numberDisplayMode)}
           </p>
@@ -2115,17 +2544,26 @@ function RevenueOrdersComboChart({
           expanded ? "flex h-[26rem] items-end" : "flex h-72 items-end",
           isUltraDense ? "gap-0.5" : isDense ? "gap-1" : "gap-3"
         )}
+        style={
+          expanded && expandedViewport
+            ? { width: `${expandedViewport.chartWidth}px`, gap: 0 }
+            : undefined
+        }
       >
         {bars.map((point) => (
           <button
             aria-label={`Inspect ${point.label}`}
             className={cn(
-              "group flex min-w-0 flex-1 cursor-pointer flex-col items-center rounded-2xl py-4 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15 hover:bg-surface/80",
-              isUltraDense
-                ? "gap-0.5 px-0.5"
-                : isDense
-                  ? "gap-1 px-1"
-                  : "gap-2 px-2",
+              "group cursor-pointer rounded-2xl py-4 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15 hover:bg-surface/80",
+              expanded
+                ? "flex shrink-0 flex-col items-center gap-2 px-1.5"
+                : "flex min-w-0 flex-1 flex-col items-center",
+              !expanded &&
+                (isUltraDense
+                  ? "gap-0.5 px-0.5"
+                  : isDense
+                    ? "gap-1 px-1"
+                    : "gap-2 px-2"),
               selectedDate === point.date ? "bg-surface/70 shadow-sm" : "",
               hoveredDate === point.date ? "bg-surface/80 shadow-sm" : ""
             )}
@@ -2137,39 +2575,69 @@ function RevenueOrdersComboChart({
               )
             }
             onClick={() => onSelectPoint(point.date)}
+            style={
+              expanded && slotWidth
+                ? { width: `${slotWidth}px`, flex: `0 0 ${slotWidth}px` }
+                : undefined
+            }
             type="button"
           >
             <div
               className={cn(
-                "flex h-60 w-full items-end justify-center",
+                "flex w-full items-end justify-center",
+                expanded ? "h-[22rem]" : "h-60",
                 isUltraDense ? "gap-px" : isDense ? "gap-0.5" : "gap-1"
               )}
             >
               <div
                 className={cn(
                   "rounded-full bg-primary/85 transition-all duration-200 group-hover:opacity-100",
-                  isUltraDense ? "w-1.5" : isDense ? "w-2" : "w-3",
+                  !expanded &&
+                    (isUltraDense
+                      ? "w-1.5"
+                      : isDense
+                        ? "w-2"
+                        : "w-3"),
                   selectedDate === point.date ? "ring-2 ring-primary/30" : "",
                   hoveredDate === point.date ? "bg-primary brightness-110" : ""
                 )}
-                style={{ height: `${(point.revenue / maxRevenue) * 100}%` }}
+                style={{
+                  height: `${(point.revenue / maxRevenue) * 100}%`,
+                  width:
+                    expanded && slotWidth
+                      ? `${clampNumber(slotWidth * 0.22, 4, 12)}px`
+                      : undefined,
+                }}
               />
               <div
                 className={cn(
                   "rounded-full bg-emerald-500/85 transition-all duration-200 group-hover:opacity-100",
-                  isUltraDense ? "w-1.5" : isDense ? "w-2" : "w-3",
+                  !expanded &&
+                    (isUltraDense
+                      ? "w-1.5"
+                      : isDense
+                        ? "w-2"
+                        : "w-3"),
                   selectedDate === point.date ? "ring-2 ring-emerald-500/30" : "",
                   hoveredDate === point.date
                     ? "bg-emerald-400 brightness-110"
                     : ""
                 )}
-                style={{ height: `${(point.orders / maxOrders) * 100}%` }}
+                style={{
+                  height: `${(point.orders / maxOrders) * 100}%`,
+                  width:
+                    expanded && slotWidth
+                      ? `${clampNumber(slotWidth * 0.22, 4, 12)}px`
+                      : undefined,
+                }}
               />
             </div>
             <span
               className={cn(
                 "w-full text-center text-muted transition-colors duration-200",
-                isUltraDense
+                expanded
+                  ? "text-[11px]"
+                  : isUltraDense
                   ? "text-[8px] leading-tight"
                   : isDense
                     ? "text-[10px] leading-tight"
@@ -2198,6 +2666,7 @@ function LineAreaChart({
   onSelectPoint,
   containerClassName,
   svgClassName,
+  expandedViewport,
 }: {
   points: DashboardSalesSeriesPoint[];
   valueSelector: (point: DashboardSalesSeriesPoint) => number;
@@ -2208,16 +2677,32 @@ function LineAreaChart({
   onSelectPoint: (date: string) => void;
   containerClassName?: string;
   svgClassName?: string;
+  expandedViewport?: ExpandedChartViewport;
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | undefined>(
+    undefined
+  );
   const values = points.map(valueSelector);
   const maxValue = Math.max(...values, 1);
   const minValue = Math.min(...values, 0);
   const range = maxValue - minValue || 1;
+  const expanded = Boolean(expandedViewport);
+  const chartWidth = expandedViewport?.chartWidth ?? 100;
+  const chartHeight = expanded ? 320 : 90;
+  const slotWidth = expandedViewport?.slotWidth ?? 0;
   const chartPoints = points.map((point, index) => {
-    const x = points.length === 1 ? 50 : (index / (points.length - 1)) * 100;
-    const y = 90 - ((valueSelector(point) - minValue) / range) * 72;
+    const x = expanded
+      ? slotWidth / 2 + index * slotWidth
+      : points.length === 1
+        ? 50
+        : (index / (points.length - 1)) * 100;
+    const y = expanded
+      ? chartHeight - 24 - ((valueSelector(point) - minValue) / range) * (chartHeight - 48)
+      : 90 - ((valueSelector(point) - minValue) / range) * 72;
 
     return {
       ...point,
@@ -2227,16 +2712,41 @@ function LineAreaChart({
     };
   });
   const polylinePoints = chartPoints.map((point) => `${point.x},${point.y}`).join(" ");
-  const areaPath = `M0,90 ${polylinePoints} 100,90 Z`;
+  const areaPath = expanded
+    ? `M0,${chartHeight - 24} ${polylinePoints} ${chartWidth},${chartHeight - 24} Z`
+    : `M0,90 ${polylinePoints} 100,90 Z`;
   const activeDate = hoveredDate ?? selectedDate;
   const activePoint =
     chartPoints.find((point) => point.date === activeDate) ?? null;
   const hoveredPoint =
     chartPoints.find((point) => point.date === hoveredDate) ?? null;
+  const areaFillOpacity = expanded
+    ? hoveredPoint
+      ? "0.18"
+      : "0.12"
+    : hoveredPoint
+      ? "0.1"
+      : "0.05";
+  const lineStrokeWidth = expanded
+    ? hoveredPoint
+      ? "2.8"
+      : "2.5"
+    : hoveredPoint
+      ? "1.7"
+      : "1.45";
+  const lineStrokeOpacity = expanded
+    ? "1"
+    : hoveredPoint
+      ? "0.96"
+      : "0.9";
+  const activePointRadius = expanded ? 2.9 : 2.35;
+  const hitAreaRadius = expanded ? 5.5 : 6;
   const activeIndex =
     chartPoints.findIndex((point) => point.date === activeDate);
   const activePointXPercent =
-    activeIndex <= 0 || chartPoints.length <= 1
+    expanded
+      ? activePoint?.x ?? null
+      : activeIndex <= 0 || chartPoints.length <= 1
       ? activePoint?.x ?? null
       : (activeIndex / (chartPoints.length - 1)) * 100;
 
@@ -2275,21 +2785,46 @@ function LineAreaChart({
     }
   };
 
+  useEffect(() => {
+    if (!hoveredPoint || !containerRef.current || !tooltipRef.current) {
+      setTooltipStyle(undefined);
+      return;
+    }
+
+    const container = containerRef.current;
+    const tooltip = tooltipRef.current;
+    const padding = 10;
+    const anchorX = expanded ? hoveredPoint.x : (hoveredPoint.x / 100) * container.clientWidth;
+    const anchorY = expanded
+      ? hoveredPoint.y
+      : (hoveredPoint.y / 90) * container.clientHeight;
+
+    setTooltipStyle(
+      getTooltipPositionStyle({
+        anchorX,
+        anchorY,
+        containerHeight: container.clientHeight,
+        containerWidth: container.clientWidth,
+        padding,
+        tooltipHeight: tooltip.offsetHeight,
+        tooltipWidth: tooltip.offsetWidth,
+      })
+    );
+  }, [expanded, hoveredPoint]);
+
   return (
     <div
       className={cn(
         "relative rounded-3xl border border-border bg-background p-5 transition-colors duration-200 hover:border-primary/10",
         containerClassName
       )}
+      ref={containerRef}
     >
       {hoveredPoint ? (
         <div
           className="pointer-events-none absolute z-10 rounded-xl border border-border/80 bg-background/95 px-3 py-2 text-start shadow-lg backdrop-blur"
-          style={{
-            left: `${hoveredPoint.x}%`,
-            top: `${hoveredPoint.y}%`,
-            transform: "translate(-50%, -115%)",
-          }}
+          ref={tooltipRef}
+          style={tooltipStyle}
         >
           <p className="text-[11px] font-medium text-muted">
             {formatChartDate(hoveredPoint.date, locale)}
@@ -2299,62 +2834,109 @@ function LineAreaChart({
           </p>
         </div>
       ) : null}
-      <svg
-        aria-hidden="true"
-        className={cn("h-60 w-full", colorClass, svgClassName)}
-        fill="none"
-        onClick={(event) => updateHoveredPointFromClientX(event.clientX, true)}
-        onMouseMove={(event) => updateHoveredPointFromClientX(event.clientX)}
-        onMouseLeave={() => setHoveredDate(null)}
-        viewBox="0 0 100 90"
-        preserveAspectRatio="none"
-        ref={svgRef}
-      >
-        <path d="M0 90H100" stroke="currentColor" strokeOpacity="0.14" />
-        <path d="M0 60H100" stroke="currentColor" strokeOpacity="0.08" />
-        <path d="M0 30H100" stroke="currentColor" strokeOpacity="0.08" />
-        {activePoint && activePointXPercent !== null ? (
+      <div className="relative">
+        <svg
+          aria-hidden="true"
+          className={cn("h-60 w-full", colorClass, svgClassName)}
+          fill="none"
+          onClick={(event) => updateHoveredPointFromClientX(event.clientX, true)}
+          onMouseMove={(event) => updateHoveredPointFromClientX(event.clientX)}
+          onMouseLeave={() => setHoveredDate(null)}
+          viewBox={expanded ? `0 0 ${chartWidth} ${chartHeight}` : "0 0 100 90"}
+          preserveAspectRatio="none"
+          ref={svgRef}
+          style={expanded ? { width: `${chartWidth}px`, height: "100%" } : undefined}
+        >
+          {expanded ? (
+            <>
+              <path
+                d={`M0 ${chartHeight - 24}H${chartWidth}`}
+                stroke="currentColor"
+                strokeOpacity="0.14"
+              />
+              <path
+                d={`M0 ${chartHeight * 0.65}H${chartWidth}`}
+                stroke="currentColor"
+                strokeOpacity="0.08"
+              />
+              <path
+                d={`M0 ${chartHeight * 0.35}H${chartWidth}`}
+                stroke="currentColor"
+                strokeOpacity="0.08"
+              />
+            </>
+          ) : (
+            <>
+              <path d="M0 90H100" stroke="currentColor" strokeOpacity="0.14" />
+              <path d="M0 60H100" stroke="currentColor" strokeOpacity="0.08" />
+              <path d="M0 30H100" stroke="currentColor" strokeOpacity="0.08" />
+            </>
+          )}
+          {activePoint && activePointXPercent !== null ? (
+            <path
+              d={
+                expanded
+                  ? `M${activePointXPercent} 12V${chartHeight - 24}`
+                  : `M${activePointXPercent} 12V90`
+              }
+              stroke="currentColor"
+              strokeDasharray="3 3"
+              strokeOpacity="0.18"
+              vectorEffect={expanded ? undefined : "non-scaling-stroke"}
+            />
+          ) : null}
           <path
-            d={`M${activePointXPercent} 12V90`}
+            d={areaPath}
+            fill="currentColor"
+            fillOpacity={areaFillOpacity}
+          />
+          <polyline
+            points={polylinePoints}
             stroke="currentColor"
-            strokeDasharray="3 3"
-            strokeOpacity="0.18"
+            strokeLinecap={expanded ? "round" : "butt"}
+            strokeLinejoin="round"
+            strokeOpacity={lineStrokeOpacity}
+            strokeWidth={lineStrokeWidth}
+            vectorEffect={expanded ? undefined : "non-scaling-stroke"}
+          />
+          {chartPoints.map((point) => {
+            const isActive = activeDate === point.date;
+            return (
+              <g key={point.date}>
+                <circle
+                  className="cursor-pointer"
+                  cx={point.x}
+                  cy={point.y}
+                  fill="transparent"
+                  r={hitAreaRadius}
+                />
+                {expanded || isActive ? (
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    fill="currentColor"
+                    fillOpacity={isActive ? 1 : 0.32}
+                    r={expanded ? (isActive ? activePointRadius : 1.8) : 0}
+                  />
+                ) : null}
+              </g>
+            );
+          })}
+        </svg>
+        {!expanded && activePoint ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute rounded-full bg-current"
+            style={{
+              left: `${activePoint.x}%`,
+              top: `${(activePoint.y / 90) * 100}%`,
+              width: "5px",
+              height: "5px",
+              transform: "translate(-50%, -50%)",
+            }}
           />
         ) : null}
-        <path
-          d={areaPath}
-          fill="currentColor"
-          fillOpacity={hoveredPoint ? "0.18" : "0.12"}
-        />
-        <polyline
-          points={polylinePoints}
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={hoveredPoint ? "2.8" : "2.5"}
-        />
-        {chartPoints.map((point) => {
-          const isActive = activeDate === point.date;
-          return (
-            <g key={point.date}>
-              <circle
-                className="cursor-pointer"
-                cx={point.x}
-                cy={point.y}
-                fill="transparent"
-                r="5.5"
-              />
-              <circle
-                cx={point.x}
-                cy={point.y}
-                fill="currentColor"
-                fillOpacity={isActive ? 1 : 0.32}
-                r={isActive ? 2.9 : 1.8}
-              />
-            </g>
-          );
-        })}
-      </svg>
+      </div>
     </div>
   );
 }
@@ -2367,6 +2949,47 @@ function getRangeLabel(range: DashboardTimeRange, dictionary: Dictionary) {
     return dictionary.dashboard.last30Days;
   }
   return dictionary.dashboard.allTime;
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getTooltipPositionStyle({
+  anchorX,
+  anchorY,
+  containerHeight,
+  containerWidth,
+  padding,
+  tooltipHeight,
+  tooltipWidth,
+}: {
+  anchorX: number;
+  anchorY: number;
+  containerHeight: number;
+  containerWidth: number;
+  padding: number;
+  tooltipHeight: number;
+  tooltipWidth: number;
+}) {
+  const preferredAboveTop = anchorY - tooltipHeight - 14;
+  const preferredBelowTop = anchorY + 14;
+  const top =
+    preferredAboveTop >= padding
+      ? preferredAboveTop
+      : preferredBelowTop + tooltipHeight <= containerHeight - padding
+        ? preferredBelowTop
+        : clampNumber(preferredAboveTop, padding, containerHeight - tooltipHeight - padding);
+  const left = clampNumber(
+    anchorX - tooltipWidth / 2,
+    padding,
+    containerWidth - tooltipWidth - padding
+  );
+
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+  };
 }
 
 function formatChartDate(value: string, locale: string) {
