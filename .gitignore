@@ -3,7 +3,9 @@ __pycache__/
 .pytest_cache/
 
 backend/.env
+backend/.env.local
 backend/.env.supabase
+backend/.env.*
 frontend/.env
 frontend/.env.local
 

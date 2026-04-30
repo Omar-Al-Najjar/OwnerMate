@@ -2404,3 +2404,35 @@ Ensure stale Google scraper jobs stop the backend import flow cleanly and return
 
 ### Remaining Work / Notes
 - the backend still needs a future ambiguity-aware UX flow for multi-match searches, but timeout propagation is now explicit
+
+## 2026-04-24 22:45 - Removed hardcoded Supabase values from committed Docker compose config
+
+### Task
+Stop committing real Supabase project values in Docker compose files while keeping the local Docker Postgres development setup unchanged.
+
+### Files Changed
+- `backend/docker-compose.smoke.yml`
+- `backend/.env.example`
+- `.gitignore`
+- `WORK_LOG.md`
+
+### What Was Done
+- replaced hardcoded `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` values in `backend/docker-compose.smoke.yml` with environment-variable references
+- kept local Docker Postgres values unchanged, including `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and the local `DATABASE_URL`
+- cleaned up `backend/.env.example` so it contains placeholder Supabase values only and removed the duplicate service-role entry
+- tightened backend ignore rules so local backend `.env` variants stay untracked
+
+### Why
+- the committed smoke compose file should not embed real external project configuration
+- placeholder example files keep local setup documented without exposing sensitive values
+
+### Testing
+- not run; this step only updates committed config templates and ignore rules
+
+### Migrations / Env Changes
+- no migrations
+- no real `.env` files were edited
+- local runtime now expects Supabase values to come from environment configuration instead of committed compose literals
+
+### Remaining Work / Notes
+- anyone running `backend/docker-compose.smoke.yml` now needs `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` supplied through local environment config

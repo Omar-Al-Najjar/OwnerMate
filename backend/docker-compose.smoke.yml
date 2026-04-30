@@ -19,9 +19,9 @@ services:
     environment:
       APP_ENV: production
       DATABASE_URL: postgresql+psycopg://ownermate:ownermate@db:5432/ownermate
-      SUPABASE_URL: https://yzffmemazflnrdbgsziz.supabase.co
-      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6ZmZtZW1hemZsbnJkYmdzeml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMTI5NjUsImV4cCI6MjA5MDc4ODk2NX0.h5LrNyfxgbXmy3C6rtiQ0PZQWNDVnEWG99rbg2bjemE
-      SUPABASE_SERVICE_ROLE_KEY: local-dev-placeholder
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       SENTIMENT_PROVIDER: mock
       CONTENT_PROVIDER: mock
       GOOGLE_REVIEW_PROVIDER: mock
