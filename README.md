@@ -162,10 +162,16 @@ At minimum, the project will likely need:
 The dataset-analysis prototype under `Agent prototype/` now includes:
 
 - `Agent prototype/.env.example`
+- `Agent prototype/docker-compose.yml`
 
 For the current handoff shell, the main required variable is:
 
 - `OWNERMATE_LLM_API_KEY`
+
+For Docker Compose startup, copy `Agent prototype/.env.example` to a local
+untracked `.env` file, then run:
+
+- `cd "Agent prototype" && docker compose up --build`
 
 Optional prototype variables:
 

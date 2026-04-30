@@ -450,11 +450,18 @@ or
 run-prototype.bat
 ```
 
+Docker Compose startup from the same folder:
+
+```bash
+docker compose up --build
+```
+
 ### Local setup notes
 
 - The current prototype is configured through environment variables, not user-entered API keys.
 - The included `.env.example` documents the supported runtime variables.
 - `pipeline.py` loads `Agent prototype/.env` automatically at import time.
+- The Docker Compose service reads the same local runtime variables through `env_file`.
 - Keep local `.env` files uncommitted; the repo now ignores them.
 - The launcher scripts avoid needing `streamlit` on your global PATH.
 - For `kimi-k2.5`, keep `OWNERMATE_LLM_TEMPERATURE=0.6` unless you intentionally switch to a model with different temperature rules.
@@ -577,6 +584,12 @@ Both launch:
 
 ```bash
 python -m uvicorn api_service:app --host 127.0.0.1 --port 8020
+```
+
+The same API can now run through Docker Compose:
+
+```bash
+docker compose up --build
 ```
 
 ### Additional env variables

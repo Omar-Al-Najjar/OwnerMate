@@ -13,7 +13,6 @@ RUN pip install --upgrade pip \
 COPY api_service.py ./api_service.py
 COPY pipeline.py ./pipeline.py
 COPY localization.py ./localization.py
-COPY .env ./.env
 
 EXPOSE 8020
 

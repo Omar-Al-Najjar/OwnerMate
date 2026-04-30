@@ -651,6 +651,42 @@ The dataset-analysis prototype already carried business and user context through
 * API payload did not change in this step
 * UI behavior did not change in this step
 
+## 2026-04-24 23:20 - Added Docker Compose support for dataset-analysis service
+
+### Task
+Wire the dataset-analysis API under `Agent prototype/` into a proper Docker Compose startup flow like the other OwnerMate services.
+
+### Files Changed
+* `Agent prototype/Dockerfile`
+* `Agent prototype/docker-compose.yml`
+* `Agent prototype/.env.example`
+* `Agent prototype/DOCUMENTATION.md`
+* `README.md`
+* `WORK_LOG.md`
+
+### What Was Done
+* removed the Dockerfile dependency on copying a real local `.env` file into the image
+* added `Agent prototype/docker-compose.yml` so the dataset-analysis API can run with `docker compose up --build`
+* configured Compose to read runtime settings from a local env file via `DATASET_ANALYSIS_ENV_FILE`, defaulting to `.env`
+* added placeholder Compose-facing variables to `Agent prototype/.env.example`, including `HOST_PORT` and `DATASET_ANALYSIS_ENV_FILE`
+* documented the new Docker Compose startup path in the AI-system README and the prototype documentation
+
+### Why
+* the service already had a Dockerfile, but it was not orchestrated like the frontend, backend, Google reviews, and sentiment services
+* runtime env injection is safer and more flexible than baking a real `.env` file into the container image
+
+### Testing
+* pending in this step: run `docker compose config` or `docker compose up --build` from `Agent prototype/` to validate the new startup flow
+
+### Migrations / Env Changes
+* no migrations
+* no real env values were added or changed
+* local Docker startup for dataset analysis now expects `OWNERMATE_LLM_API_KEY` and related settings to come from a local `.env` file or equivalent env-file override
+
+### Remaining Work / Notes
+* application logic did not change in this step
+* the new Compose flow only adds orchestration support around the existing `api_service:app` runtime
+
 ## 2026-04-08 00:35 - Clarified duplicate-only Google review import messaging
 
 ### Task
