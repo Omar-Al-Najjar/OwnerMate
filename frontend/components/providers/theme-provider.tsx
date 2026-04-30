@@ -48,21 +48,19 @@ export function ThemeProvider({
   });
 
   useEffect(() => {
+    const resolvedTheme = resolveTheme(theme);
     document.documentElement.lang = locale;
     document.documentElement.dir = dir;
-    document.documentElement.classList.toggle(
-      "dark",
-      resolveTheme(theme) === "dark"
-    );
+    document.documentElement.style.colorScheme = resolvedTheme;
+    document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
   }, [dir, locale, theme]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const update = () => {
-      document.documentElement.classList.toggle(
-        "dark",
-        resolveTheme(theme) === "dark"
-      );
+      const resolvedTheme = resolveTheme(theme);
+      document.documentElement.style.colorScheme = resolvedTheme;
+      document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
     };
 
     update();

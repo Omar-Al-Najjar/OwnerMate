@@ -13,10 +13,9 @@ The UI currently focuses on:
 - browsing customer reviews
 - inspecting sentiment summaries
 - opening review details
-- generating short marketing content
 - managing profile and workspace preferences
 
-The dashboard and AI-content experiences remain mock-backed, while sign-in, sign-up, settings, reviews, and review detail now use the real Supabase-plus-backend auth path.
+The dashboard remains partly mock-backed, while sign-in, sign-up, settings, reviews, and review detail now use the real Supabase-plus-backend auth path.
 
 ## 2. Current Tech Stack
 
@@ -28,6 +27,7 @@ The repository currently uses:
 - Tailwind CSS `3.4.17`
 - ESLint
 - Prettier
+- Docker multi-stage frontend container support
 
 ## 3. Repository Structure
 
@@ -59,7 +59,6 @@ Implemented route groups:
   - dashboard
   - reviews list
   - review detail
-  - AI content
   - settings
 
 Routing notes:
@@ -160,7 +159,7 @@ Current content:
 - sentiment, rating, source, and language distribution panels
 - priority review queue and recent activity feed
 - recent reviews panel
-- quick actions linking into reviews and AI content flows
+- quick actions linking into the reviews flow
 
 Data source:
 
@@ -221,30 +220,7 @@ Rendered states:
 - detail view when review exists
 - reusable error state when the review ID is missing
 
-### 8.6 AI Content Page
-
-Implemented as a frontend-only marketing content generator.
-
-Current functionality:
-
-- campaign or business context input
-- optional product image upload preview
-- local simulated generation
-- regenerate action
-- placeholder save button
-
-Rendered states:
-
-- idle state
-- loading state
-- error state when input is missing
-- success state with generated output
-
-Important scope note:
-
-- the current implementation supports marketing content generation only
-
-### 8.7 Settings Page
+### 8.6 Settings Page
 
 Implemented through `SettingsWorkspace`.
 
@@ -304,9 +280,6 @@ Implemented groups include:
   - `RatingStars`
   - `SentimentBadge`
   - `StatusBadge`
-- content
-  - `ContentWorkspace`
-  - `GeneratedContentBox`
 - settings
   - `SettingsWorkspace`
 
@@ -319,7 +292,6 @@ Mocked domains include:
 - reviews
 - dashboard data and derived admin dashboard views
 - mock daily sales records, channel mix, refunds, and top products
-- generated content draft
 - settings profile
 
 The project also includes a typed placeholder API layer:
@@ -349,7 +321,6 @@ Implemented:
 - review detail page
 - live backend-backed settings retrieval
 - live backend-backed reviews list and review detail retrieval
-- marketing content generator UI
 - local profile/settings behavior
 - mock API contract layer
 
@@ -381,3 +352,23 @@ The codebase is currently suitable for:
 - later backend integration
 
 The project is modular, readable, and already structured for the next phase, but it should still be treated as a frontend scaffold rather than a production-connected application.
+
+## 14. Local Container Runtime
+
+The frontend branch now includes first-party Docker support for production-style local startup.
+
+Included files:
+
+- `Dockerfile`
+- `docker-compose.yml`
+- `.dockerignore`
+- `.env.example`
+
+Container notes:
+
+- the Next.js config uses standalone output for a smaller runtime image
+- `docker compose up --build` expects a local `.env` copied from `.env.example`
+- `docker compose --env-file .env.example config` can be used as a no-secrets configuration check
+- the default container port is `3000`
+- the default backend target inside Docker is `http://host.docker.internal:8000`
+- the default dataset-analysis target inside Docker is `http://host.docker.internal:8020`

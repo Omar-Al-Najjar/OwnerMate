@@ -1,4 +1,4 @@
-﻿import type { Route } from "next";
+import type { Route } from "next";
 import Link from "next/link";
 import { RatingStars } from "@/components/reviews/rating-stars";
 import { SentimentBadge } from "@/components/reviews/sentiment-badge";
@@ -54,24 +54,24 @@ export function ReviewTable({
   columns,
 }: ReviewTableProps) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+    <div className="panel overflow-hidden p-0">
       <div className="overflow-x-auto">
         <table className="min-w-[920px] w-full border-separate border-spacing-0 text-sm">
-          <thead className="bg-surface/80 text-muted">
+          <thead className="bg-surface-high/70 text-muted">
             <tr>
-              <th className="border-b border-border px-6 py-4 text-start text-xs font-semibold uppercase tracking-[0.18em]">
+              <th className="px-6 py-4 text-start text-[11px] font-semibold uppercase tracking-[0.22em]">
                 {columns.reviewer}
               </th>
-              <th className="border-b border-border px-6 py-4 text-start text-xs font-semibold uppercase tracking-[0.18em]">
+              <th className="px-6 py-4 text-start text-[11px] font-semibold uppercase tracking-[0.22em]">
                 {columns.sentiment}
               </th>
-              <th className="border-b border-border px-6 py-4 text-start text-xs font-semibold uppercase tracking-[0.18em]">
+              <th className="px-6 py-4 text-start text-[11px] font-semibold uppercase tracking-[0.22em]">
                 {columns.rating}
               </th>
-              <th className="border-b border-border px-6 py-4 text-start text-xs font-semibold uppercase tracking-[0.18em]">
+              <th className="px-6 py-4 text-start text-[11px] font-semibold uppercase tracking-[0.22em]">
                 {columns.date}
               </th>
-              <th className="border-b border-border px-6 py-4 text-start text-xs font-semibold uppercase tracking-[0.18em]">
+              <th className="px-6 py-4 text-start text-[11px] font-semibold uppercase tracking-[0.22em]">
                 {columns.reviewText}
               </th>
             </tr>
@@ -81,29 +81,32 @@ export function ReviewTable({
               const timestamp = formatTimestamp(review.reviewCreatedAt, locale);
 
               return (
-                <tr key={review.id} className="transition hover:bg-surface/50">
-                  <td className="border-b border-border px-6 py-5 align-top">
+                <tr
+                  key={review.id}
+                  className="border-t border-border/60 transition hover:bg-surface-low/85"
+                >
+                  <td className="px-6 py-5 align-top">
                     <div className="flex items-start gap-4 text-start">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-surface text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface-high text-xs font-semibold uppercase tracking-[0.18em] text-foreground">
                         {getInitials(review.reviewerName)}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold uppercase tracking-[0.04em] text-foreground">
+                        <p className="font-semibold tracking-[-0.015em] text-foreground">
                           {review.reviewerName}
                         </p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted">
+                        <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted">
                           {review.source} / {labels.language[review.language]}
                         </p>
                       </div>
                     </div>
                   </td>
-                  <td className="border-b border-border px-6 py-5 align-top">
+                  <td className="px-6 py-5 align-top">
                     <SentimentBadge
                       label={labels.sentiment[review.sentiment.label]}
                       sentiment={review.sentiment.label}
                     />
                   </td>
-                  <td className="border-b border-border px-6 py-5 align-top">
+                  <td className="px-6 py-5 align-top">
                     <div className="space-y-2 text-start">
                       <RatingStars rating={review.rating} />
                       <p className="text-xs font-medium text-muted">
@@ -111,19 +114,19 @@ export function ReviewTable({
                       </p>
                     </div>
                   </td>
-                  <td className="border-b border-border px-6 py-5 align-top">
-                    <div className="space-y-1 text-start text-xs font-medium uppercase tracking-[0.14em] text-muted">
+                  <td className="px-6 py-5 align-top">
+                    <div className="space-y-1 text-start text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
                       <p>{timestamp.day}</p>
                       <p>{timestamp.time}</p>
                     </div>
                   </td>
-                  <td className="border-b border-border px-6 py-5 align-top">
+                  <td className="px-6 py-5 align-top">
                     <div className="max-w-xl text-start">
                       <p className="line-clamp-2 text-sm leading-6 text-foreground">
                         {review.reviewText}
                       </p>
                       <Link
-                        className="mt-3 inline-flex items-center text-xs font-semibold uppercase tracking-[0.14em] text-primary transition hover:text-primary/80"
+                        className="mt-3 inline-flex items-center text-[11px] font-semibold uppercase tracking-[0.22em] text-primary transition hover:text-primary-hover"
                         href={`/${locale}/reviews/${review.id}` as Route}
                       >
                         {detailLabel}

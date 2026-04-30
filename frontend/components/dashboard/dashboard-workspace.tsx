@@ -1658,21 +1658,6 @@ function QuickActionsPanel({
             {dictionary.dashboard.jumpToReviewsAction}
           </Link>
         </article>
-
-        <article className="rounded-2xl border border-border bg-background p-4 text-start transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-panel">
-          <p className="text-sm font-semibold text-foreground">
-            {dictionary.dashboard.openContentAction}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            {dictionary.common.generateContent}
-          </p>
-          <Link
-            className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-primary/20 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-primary transition-all duration-200 hover:-translate-y-px hover:bg-indigo-100 hover:shadow-sm dark:border-transparent dark:bg-primary dark:text-white dark:hover:bg-primary-hover"
-            href={`/${locale}/ai-content` as Route}
-          >
-            {dictionary.dashboard.jumpToContentAction}
-          </Link>
-        </article>
       </div>
     </section>
   );

@@ -27,7 +27,6 @@
     results: "results",
     recentReviews: "Recent reviews",
     viewReviews: "View Reviews",
-    generateContent: "Generate Content",
     businessContext: "Business context",
     account: "Account",
     profile: "Profile",
@@ -41,10 +40,9 @@
   },
   navigation: {
     appName: "OwnerMate",
-    frontendOnly: "Reviews and AI content workspace",
+    frontendOnly: "Reviews and sales insights workspace",
     dashboard: "Dashboard",
     reviews: "Reviews",
-    aiContent: "AI Content",
     datasetAnalysis: "Dataset Analysis",
     settings: "Settings",
   },
@@ -52,17 +50,130 @@
     dashboardDescription:
       "Review health, sentiment summary, and recent activity.",
     reviewsDescription: "Browse, filter, and review customer feedback.",
-    aiContentDescription: "Create short marketing content for the business.",
     datasetAnalysisDescription:
       "Upload a CSV and let the analysis agent generate a full business report.",
     settingsDescription: "Manage language, theme, and account preferences.",
   },
+  landing: {
+    navProduct: "Product",
+    navFeatures: "Features",
+    navHowItWorks: "How it works",
+    navInsights: "Insights",
+    heroEyebrow: "AI business intelligence",
+    heroTitle:
+      "OwnerMate helps business owners understand reviews, sales data, and business performance with AI",
+    heroDescription:
+      "Import Google Reviews for sentiment analysis, upload sales data for deeper insights, and turn business information into clear decisions.",
+    previewEyebrow: "Simple dashboard preview",
+    previewTitle:
+      "A calm workspace that brings reviews and sales performance into one view.",
+    previewDescription:
+      "OwnerMate keeps Google Reviews overview, sentiment summary, sales insights, and AI-generated reports easy to scan in one place.",
+    previewReviewsSectionTitle: "Reviews Analysis",
+    previewSalesSectionTitle: "Sales Analysis",
+    previewPanelTitle: "Google Reviews overview",
+    previewReviewsLabel: "reviews",
+    previewPositiveLabel: "Positive",
+    previewNeutralLabel: "Neutral",
+    previewNegativeLabel: "Negative",
+    previewLatestInsightsTitle: "Latest review insights",
+    previewChartTitle: "Revenue trends",
+    previewChartRange: "Last 7 days",
+    previewDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    previewSalesInsightsTitle: "Sales insights",
+    previewInsightItems: [
+      "Signature latte is driving the strongest repeat revenue this week.",
+      "Weekend bundles are outperforming weekday promotions.",
+      "Positive reviews are rising alongside the best-selling menu items.",
+    ],
+    previewSalesInsightItems: [
+      "Revenue stayed strongest on Friday and Saturday this week.",
+      "Sales performance improved steadily after the midweek dip.",
+      "Performance over time shows stronger end-of-week momentum.",
+    ],
+    problemTitle: "The business data problem goes beyond one source",
+    problemDescription:
+      "Google Reviews and sales files both contain valuable signals, but those signals are hard to understand when they stay disconnected and unstructured.",
+    problemCardOneTitle: "Customer sentiment is hard to read at scale",
+    problemCardOneDescription:
+      "Business owners receive many Google Reviews, but understanding the real customer mood across all of them takes too much manual effort.",
+    problemCardTwoTitle: "Sales files are stored but not analyzed clearly",
+    problemCardTwoDescription:
+      "Sales data often lives inside uploaded files, yet turning those records into readable performance insights is still difficult.",
+    problemCardThreeTitle: "Important insights stay hidden across both",
+    problemCardThreeDescription:
+      "Useful business signals stay buried across review comments and sales records when there is no simple analysis workspace.",
+    solutionEyebrow: "The solution",
+    solutionTitle: "OwnerMate turns reviews and sales data into one practical workspace",
+    solutionDescription:
+      "OwnerMate brings reviews and sales data into one simple workspace. It imports Google Reviews, analyzes customer sentiment, and also analyzes uploaded sales data to reveal key insights.",
+    solutionPointOne:
+      "Sign in once and start from a simple workspace built for day-to-day business analysis.",
+    solutionPointTwo:
+      "Import Google Reviews by business name and analyze customer sentiment automatically.",
+    solutionPointThree:
+      "Upload sales data files and let AI uncover trends, patterns, and performance signals.",
+    solutionPointFour:
+      "View both review and sales findings inside clear dashboards and AI-generated reports.",
+    featuresEyebrow: "Core features",
+    featuresTitle: "Built around the two real OwnerMate analysis flows",
+    featuresDescription:
+      "OwnerMate stays focused on importing reviews, analyzing sentiment, uploading sales data, and summarizing business performance clearly.",
+    featureOneTitle: "Google Reviews Import",
+    featureOneDescription:
+      "Enter the business name and bring Google Reviews into the workspace without manual copy and paste.",
+    featureTwoTitle: "Sentiment Analysis",
+    featureTwoDescription:
+      "See whether customer feedback is mostly positive, neutral, or negative without sorting reviews manually.",
+    featureThreeTitle: "Sales Data Upload",
+    featureThreeDescription:
+      "Upload sales data files in the data analysis flow and let OwnerMate process them into readable results.",
+    featureFourTitle: "Business Insights Dashboard",
+    featureFourDescription:
+      "Open one dashboard that keeps reviews, sentiment, and sales performance easy to understand.",
+    featureFiveTitle: "AI-generated Reports",
+    featureFiveDescription:
+      "Turn review activity and sales analysis into short, readable reports that summarize what matters most.",
+    howItWorksEyebrow: "How it works",
+    howItWorksTitle: "One simple flow for both reviews and sales analysis",
+    howItWorksDescription:
+      "The product keeps both analysis paths easy to follow so owners can move from raw data to useful understanding quickly.",
+    stepOneTitle: "Sign in and enter your business name",
+    stepOneDescription:
+      "Start from the OwnerMate workspace and set the business name used for Google Reviews import.",
+    stepTwoTitle: "Import Google Reviews or upload sales data",
+    stepTwoDescription:
+      "Choose the flow you need: collect Google Reviews or upload a sales data file for analysis.",
+    stepThreeTitle: "Let AI analyze sentiment, trends, and patterns",
+    stepThreeDescription:
+      "OwnerMate analyzes customer sentiment, business trends, and performance patterns automatically.",
+    stepFourTitle: "View insights, dashboards, and reports",
+    stepFourDescription:
+      "Open the results in one place to understand feedback, sales performance, and AI-generated summaries.",
+    finalCtaTitle: "Start using OwnerMate to understand your reviews and sales data faster",
+    finalCtaDescription:
+      "Sign in to continue your workspace or create a new account to start analyzing Google Reviews and sales data with OwnerMate.",
+    footerNote:
+      "Built to help business owners understand customer feedback and sales performance more clearly.",
+  },
   auth: {
     signIn: "Sign in",
     signUp: "Sign up",
-    signInDescription: "Access your review workspace and AI content tools.",
+    signInHeroEyebrow: "Trusted access",
+    signUpHeroEyebrow: "Create your workspace",
+    signInDescription: "Access your reviews and sales insights workspace.",
     signUpDescription:
-      "Create an account to start managing reviews and content.",
+      "Create an account to start managing reviews and business insights.",
+    trustedBadge: "Secure workspace for modern operators",
+    secureTitle: "Unified review dashboard",
+    secureDescription:
+      "See new reviews, sentiment signals, and response priorities in one focused workspace.",
+    intelligenceTitle: "Review insights and analysis",
+    intelligenceDescription:
+      "Explore customer feedback, review sentiment, and turn raw reviews into useful actions.",
+    bilingualTitle: "Sales and dataset analysis",
+    bilingualDescription:
+      "Track performance trends, review operational data, and surface insights that help the business grow.",
     signUpLink: "Create an account",
     signInLink: "Sign in instead",
     noAccount: "Don't have an account?",
@@ -70,11 +181,28 @@
     email: "Email",
     password: "Password",
     fullName: "Full name",
+    emailHelper: "Use the work email linked to your OwnerMate account.",
+    passwordHelper: "Your password is never shown and stays protected during sign-in.",
+    fullNameHelper: "This appears in your workspace profile and activity surfaces.",
     signInButton: "Sign in",
     signUpButton: "Create an account",
     signOutButton: "Sign out",
     authActionPending: "Working...",
+    forgotPassword: "Forgot password?",
+    forgotPasswordSuccess:
+      "Password reset instructions were sent if the email is registered.",
+    forgotPasswordEmailRequired: "Enter a valid email before requesting a reset.",
     signInErrorFallback: "Sign-in failed. Check your credentials and try again.",
+    signInInvalidCredentialsError:
+      "Incorrect email or password. Check your details and try again.",
+    signInEmailNotConfirmedError:
+      "Your email address is not confirmed yet. Check your inbox and confirm your account first.",
+    signInTooManyRequestsError:
+      "Too many sign-in attempts. Please wait a moment and try again.",
+    signInNetworkError:
+      "We couldn't reach the sign-in service. Check your connection and try again.",
+    sessionSyncError:
+      "Sign-in succeeded, but your workspace session could not be prepared. Please try again.",
     signUpErrorFallback: "Account creation failed. Try again in a moment.",
     signUpSuccessNotice:
       "Account created. Check your email to confirm your sign-up if required.",
@@ -83,6 +211,8 @@
     passwordWeakError:
       "Choose a stronger password with at least 8 characters, including uppercase, lowercase, a number, and a special character.",
     nameLengthError: "Use a name between 3 and 25 characters.",
+    emailInvalidError: "Enter a valid email address.",
+    passwordRequiredError: "Enter your password to continue.",
   },
   dashboard: {
     title: "Dashboard",
@@ -91,7 +221,7 @@
     heroEyebrow: "Admin workspace",
     heroTitle: "Track review performance and act on what needs attention first.",
     heroDescription:
-      "Use one executive view to monitor incoming feedback, watch sentiment distribution, and move directly into review and AI content workflows.",
+      "Use one executive view to monitor incoming feedback, watch sentiment distribution, and move directly into review and sales workflows.",
     totalReviews: "Total reviews",
     averageRating: "Average rating",
     positiveShare: "Positive share",
@@ -104,7 +234,7 @@
     negative: "Negative",
     quickActions: "Quick actions",
     quickActionsDescription:
-      "Jump into the reviews queue or the AI content studio without leaving the dashboard.",
+      "Jump into the reviews queue without leaving the dashboard.",
     recentReviewsTitle: "Recent reviews",
     recentReviewsDescription:
       "The latest reviews in the active scope, ready for detail review or response drafting.",
@@ -171,9 +301,7 @@
     vsPreviousWindow: "vs previous window",
     datasetBaseline: "Dataset baseline",
     openReviewAction: "Open the review queue",
-    openContentAction: "Open the AI content studio",
     jumpToReviewsAction: "Go to Reviews",
-    jumpToContentAction: "Go to AI Content",
     activeNow: "Active now",
     salesPerformance: "Sales performance",
     salesPerformanceDescription:
@@ -262,35 +390,6 @@
     missingTitle: "Review not found",
     missingDescription:
       "The requested review could not be found in the mock data.",
-  },
-  aiContent: {
-    title: "AI content generation",
-    description:
-      "Generate short marketing content with a simple and focused workflow.",
-    marketing: "Marketing content generation",
-    marketingDescription:
-      "Write the goal or campaign context, then generate promotional copy.",
-    marketingInputLabel: "Context input",
-    marketingInputPlaceholder:
-      "Example: Promote a Ramadan offer for first-time customers.",
-    outputTitle: "Generated content",
-    outputDescription:
-      "The generated draft appears here once you create new content.",
-    workspaceDescription:
-      "Provide the campaign goal or business context to generate marketing content.",
-    marketingOutputTitle: "Generated marketing content",
-    emptyTitle: "No generated content yet",
-    emptyDescription:
-      "Provide the required input and generate marketing content.",
-    errorTitle: "Required input missing",
-    errorDescription: "Add the required context before generating content.",
-    saveDescription:
-      "Generated drafts can be edited and saved to your workspace.",
-    copiedDescription: "Saved drafts stay linked to your workspace.",
-    imageLabel: "Product image",
-    imageHint: "Upload an optional image that describes the product or offer.",
-    imageEmpty: "No image selected yet.",
-    uploadImage: "Upload image",
   },
   datasetAnalysis: {
     title: "Dataset analysis",

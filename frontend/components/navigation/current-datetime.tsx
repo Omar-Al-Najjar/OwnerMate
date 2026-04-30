@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import type { Locale } from "@/lib/i18n/config";
@@ -37,11 +37,11 @@ export function CurrentDateTime({ locale }: { locale: Locale }) {
   const formatted = now ? formatNow(locale, now) : null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card px-3 py-2 text-start shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">
+    <div className="rounded-2xl bg-surface-low px-3.5 py-2.5 text-start ring-1 ring-inset ring-border/70">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">
         {mounted && formatted ? formatted.date : "-- --- --, ----"}
       </p>
-      <p className="mt-1 text-sm font-semibold text-foreground">
+      <p className="mt-1 font-display text-sm font-bold tracking-[-0.04em] text-foreground">
         {mounted && formatted ? formatted.time : "--:--:--"}
       </p>
     </div>

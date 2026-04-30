@@ -14,7 +14,6 @@ export type NavigationDictionary = {
   frontendOnly: string;
   dashboard: string;
   reviews: string;
-  aiContent: string;
   datasetAnalysis: string;
   settings: string;
 };
@@ -22,9 +21,77 @@ export type NavigationDictionary = {
 export type ShellDictionary = {
   dashboardDescription: string;
   reviewsDescription: string;
-  aiContentDescription: string;
   datasetAnalysisDescription: string;
   settingsDescription: string;
+};
+
+export type LandingDictionary = {
+  navProduct: string;
+  navFeatures: string;
+  navHowItWorks: string;
+  navInsights: string;
+  heroEyebrow: string;
+  heroTitle: string;
+  heroDescription: string;
+  previewEyebrow: string;
+  previewTitle: string;
+  previewDescription: string;
+  previewReviewsSectionTitle: string;
+  previewSalesSectionTitle: string;
+  previewPanelTitle: string;
+  previewReviewsLabel: string;
+  previewPositiveLabel: string;
+  previewNeutralLabel: string;
+  previewNegativeLabel: string;
+  previewLatestInsightsTitle: string;
+  previewChartTitle: string;
+  previewChartRange: string;
+  previewDays: readonly string[];
+  previewSalesInsightsTitle: string;
+  previewInsightItems: readonly string[];
+  previewSalesInsightItems: readonly string[];
+  problemTitle: string;
+  problemDescription: string;
+  problemCardOneTitle: string;
+  problemCardOneDescription: string;
+  problemCardTwoTitle: string;
+  problemCardTwoDescription: string;
+  problemCardThreeTitle: string;
+  problemCardThreeDescription: string;
+  solutionEyebrow: string;
+  solutionTitle: string;
+  solutionDescription: string;
+  solutionPointOne: string;
+  solutionPointTwo: string;
+  solutionPointThree: string;
+  solutionPointFour: string;
+  featuresEyebrow: string;
+  featuresTitle: string;
+  featuresDescription: string;
+  featureOneTitle: string;
+  featureOneDescription: string;
+  featureTwoTitle: string;
+  featureTwoDescription: string;
+  featureThreeTitle: string;
+  featureThreeDescription: string;
+  featureFourTitle: string;
+  featureFourDescription: string;
+  featureFiveTitle: string;
+  featureFiveDescription: string;
+  howItWorksEyebrow: string;
+  howItWorksTitle: string;
+  howItWorksDescription: string;
+  stepOneTitle: string;
+  stepOneDescription: string;
+  stepTwoTitle: string;
+  stepTwoDescription: string;
+  stepThreeTitle: string;
+  stepThreeDescription: string;
+  stepFourTitle: string;
+  stepFourDescription: string;
+  finalCtaTitle: string;
+  finalCtaDescription: string;
+  footerNote: string;
 };
 
 export type DatasetAnalysisDictionary = {
@@ -151,8 +218,17 @@ export type SentimentLabelsDictionary = {
 export type AuthDictionary = {
   signIn: string;
   signUp: string;
+  signInHeroEyebrow: string;
+  signUpHeroEyebrow: string;
   signInDescription: string;
   signUpDescription: string;
+  trustedBadge: string;
+  secureTitle: string;
+  secureDescription: string;
+  intelligenceTitle: string;
+  intelligenceDescription: string;
+  bilingualTitle: string;
+  bilingualDescription: string;
   signUpLink: string;
   signInLink: string;
   noAccount: string;
@@ -160,16 +236,29 @@ export type AuthDictionary = {
   email: string;
   password: string;
   fullName: string;
+  emailHelper: string;
+  passwordHelper: string;
+  fullNameHelper: string;
   signInButton: string;
   signUpButton: string;
   signOutButton: string;
   authActionPending: string;
+  forgotPassword: string;
+  forgotPasswordSuccess: string;
+  forgotPasswordEmailRequired: string;
   signInErrorFallback: string;
+  signInInvalidCredentialsError: string;
+  signInEmailNotConfirmedError: string;
+  signInTooManyRequestsError: string;
+  signInNetworkError: string;
+  sessionSyncError: string;
   signUpErrorFallback: string;
   signUpSuccessNotice: string;
   passwordStrengthHint: string;
   passwordWeakError: string;
   nameLengthError: string;
+  emailInvalidError: string;
+  passwordRequiredError: string;
 };
 
 export type DashboardDictionary = {
@@ -248,9 +337,7 @@ export type DashboardDictionary = {
   vsPreviousWindow: string;
   datasetBaseline: string;
   openReviewAction: string;
-  openContentAction: string;
   jumpToReviewsAction: string;
-  jumpToContentAction: string;
   activeNow: string;
 };
 

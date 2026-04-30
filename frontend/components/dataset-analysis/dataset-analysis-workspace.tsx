@@ -642,16 +642,17 @@ export function DatasetAnalysisWorkspace({
     result?.data.questions.items.filter((item) =>
       answeredQuestionKeys.has(normalizeQuestionKey(item.question))
     ) ?? [];
-  const visibleQuestionGroups = Object.fromEntries(
-    Object.entries(result?.data.questions.groups ?? {})
-      .map(([groupName, items]) => [
-        groupName,
-        items.filter((item) =>
-          answeredQuestionKeys.has(normalizeQuestionKey(item.question))
-        ),
-      ])
-      .filter(([, items]) => items.length > 0)
-  );
+  const visibleQuestionGroups: Record<string, typeof visibleQuestionItems> =
+    Object.fromEntries(
+      Object.entries(result?.data.questions.groups ?? {})
+        .map(([groupName, items]) => [
+          groupName,
+          items.filter((item) =>
+            answeredQuestionKeys.has(normalizeQuestionKey(item.question))
+          ),
+        ])
+        .filter(([, items]) => items.length > 0)
+    ) as Record<string, typeof visibleQuestionItems>;
   const visiblePriorityQuestionCount = visibleQuestionItems.filter(
     (item) => item.priority
   ).length;

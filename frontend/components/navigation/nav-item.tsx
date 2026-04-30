@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { Route } from "next";
 import Link from "next/link";
@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils/cn";
 type NavIconKey =
   | "dashboard"
   | "reviews"
-  | "ai-content"
   | "dataset-analysis"
   | "settings";
 
@@ -25,7 +24,7 @@ function NavIcon({ icon }: { icon: NavIconKey }) {
     return (
       <svg
         aria-hidden="true"
-        className="h-6 w-6"
+        className="h-5 w-5"
         fill="currentColor"
         viewBox="0 0 24 24"
       >
@@ -38,7 +37,7 @@ function NavIcon({ icon }: { icon: NavIconKey }) {
     return (
       <svg
         aria-hidden="true"
-        className="h-6 w-6"
+        className="h-5 w-5"
         fill="none"
         viewBox="0 0 24 24"
       >
@@ -56,25 +55,11 @@ function NavIcon({ icon }: { icon: NavIconKey }) {
     );
   }
 
-  if (icon === "ai-content") {
-    return (
-      <svg
-        aria-hidden="true"
-        className="h-6 w-6"
-        fill="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path d="M12 3L13.88 8.12L19 10L13.88 11.88L12 17L10.12 11.88L5 10L10.12 8.12L12 3Z" />
-        <path d="M18 14.5L18.86 16.64L21 17.5L18.86 18.36L18 20.5L17.14 18.36L15 17.5L17.14 16.64L18 14.5Z" />
-      </svg>
-    );
-  }
-
   if (icon === "dataset-analysis") {
     return (
       <svg
         aria-hidden="true"
-        className="h-6 w-6"
+        className="h-5 w-5"
         fill="none"
         viewBox="0 0 24 24"
       >
@@ -103,7 +88,7 @@ function NavIcon({ icon }: { icon: NavIconKey }) {
   return (
     <svg
       aria-hidden="true"
-      className="h-6 w-6"
+      className="h-5 w-5"
       fill="currentColor"
       viewBox="0 0 24 24"
     >
@@ -122,27 +107,30 @@ export function NavItem({
 }: NavItemProps) {
   return (
     <Link
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-4 py-3.5 text-sm font-medium transition",
+        "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 text-sm font-semibold tracking-[-0.01em] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
         isRtl ? "flex-row-reverse text-right" : "text-left",
         active
-          ? "bg-indigo-50 text-primary shadow-sm ring-1 ring-primary/10 dark:bg-indigo-950/30 dark:text-indigo-100"
-          : "text-muted hover:bg-surface hover:text-foreground"
+          ? "bg-primary/12 text-sidebar-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_18px_30px_-24px_rgba(0,83,219,0.28)] ring-1 ring-inset ring-primary/20"
+          : "text-sidebar-muted hover:bg-sidebar-surface-hover hover:text-sidebar-foreground"
       )}
       href={href}
       onClick={onNavigate}
     >
       <span
         className={cn(
-          "absolute inset-y-2 w-1 rounded-full transition",
+          "absolute inset-y-2 w-0.5 rounded-full transition",
           isRtl ? "right-2" : "left-2",
-          active ? "bg-primary" : "bg-transparent group-hover:bg-border"
+          active ? "bg-primary" : "bg-transparent group-hover:bg-white/20"
         )}
       />
       <span
         className={cn(
-          "flex shrink-0 items-center justify-center transition",
-          active ? "text-primary" : "text-muted group-hover:text-foreground"
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition",
+          active
+            ? "bg-primary/15 text-primary ring-1 ring-inset ring-primary/20"
+            : "bg-sidebar-surface text-sidebar-muted group-hover:bg-sidebar-surface group-hover:text-sidebar-foreground"
         )}
       >
         <NavIcon icon={icon} />

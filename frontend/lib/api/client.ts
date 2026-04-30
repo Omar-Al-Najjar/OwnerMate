@@ -2,8 +2,6 @@ import "server-only";
 
 import type {
   DashboardResponse,
-  GenerateContentRequest,
-  GenerateContentResponse,
   HealthResponse,
   ReadinessResponse,
   ReviewDetailResponse,
@@ -16,7 +14,6 @@ import { getDisplayName } from "@/lib/auth/profile-display";
 import { getAppSession } from "@/lib/auth/session";
 import { getDashboardPayload } from "@/lib/dashboard/derive";
 import {
-  generatedDraft,
   getDashboardData,
   getReviewById,
   getReviews,
@@ -397,15 +394,6 @@ export const apiClient = {
     }
 
     return success(review);
-  },
-  async generateContent(
-    request: GenerateContentRequest
-  ): Promise<GenerateContentResponse> {
-    return success({
-      ...generatedDraft,
-      language: request.language,
-      mode: request.mode,
-    });
   },
   async getSettings(): Promise<SettingsResponse> {
     const authContext = await getBackendAuthContext();

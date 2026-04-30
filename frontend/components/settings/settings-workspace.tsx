@@ -16,6 +16,7 @@ type SettingsWorkspaceProps = {
     common: {
       light: string;
       dark: string;
+      status: string;
       system: string;
     };
     languageNames: {
@@ -148,13 +149,12 @@ function SettingsSectionHeader({
 }) {
   return (
     <div className="flex items-center gap-4">
-      <span className="text-sm font-medium tracking-[0.16em] text-muted">
+      <span className="inline-flex rounded-lg bg-surface-high px-3 py-1.5 text-[11px] font-semibold tracking-[0.22em] text-muted ring-1 ring-inset ring-border/70">
         {index}
       </span>
-      <h2 className="text-2xl font-semibold uppercase tracking-[0.14em] text-foreground">
+      <h2 className="font-display text-2xl font-bold tracking-[-0.045em] text-foreground sm:text-[1.9rem]">
         {title}
       </h2>
-      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -676,13 +676,13 @@ export function SettingsWorkspace({
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       <section className="space-y-5">
         <SettingsSectionHeader
           index="01/"
           title={dictionary.settings.profileIdentity}
         />
-        <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm md:p-8">
+        <div className="soft-panel p-6 md:p-8">
           <div className="grid gap-8 xl:grid-cols-[minmax(0,1.3fr)_220px_220px]">
             <div className="space-y-5">
               <Input
@@ -696,7 +696,7 @@ export function SettingsWorkspace({
                   <span className="text-sm font-medium text-foreground">
                     {dictionary.settings.emailLabel}
                   </span>
-                  <div className="w-full rounded-2xl border border-border bg-slate-100 px-4 py-3 text-sm text-slate-500 shadow-inner dark:bg-slate-900 dark:text-slate-400">
+                  <div className="w-full rounded-2xl border border-border/70 bg-surface-low px-4 py-3 text-sm text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
                     {profile.email}
                   </div>
                 </label>
@@ -710,7 +710,7 @@ export function SettingsWorkspace({
               <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted">
                 {dictionary.settings.imageLabel}
               </p>
-              <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface text-3xl font-semibold text-primary dark:text-indigo-200">
+              <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-surface-high text-3xl font-semibold text-primary">
                 {profile.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -726,7 +726,7 @@ export function SettingsWorkspace({
                 {dictionary.settings.imageHint}
               </p>
               <div className="flex flex-wrap gap-3">
-                <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-surface">
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-transparent px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-surface-low">
                   <input
                     accept="image/*"
                     className="sr-only"
@@ -737,7 +737,7 @@ export function SettingsWorkspace({
                 </label>
                 {profile.avatarUrl ? (
                   <Button
-                    className="bg-surface text-foreground hover:bg-slate-200 dark:hover:bg-slate-700"
+                    variant="secondary"
                     onClick={() => updateProfile({ avatarUrl: "" })}
                     type="button"
                   >
@@ -751,7 +751,7 @@ export function SettingsWorkspace({
               <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted">
                 {dictionary.settings.roleLabel}
               </p>
-              <div className="inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-white dark:bg-slate-100 dark:text-slate-900">
+              <div className="inline-flex rounded-lg bg-gradient-to-br from-sidebar to-primary-container px-4 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-white shadow-panel">
                 {settings.profile.role}
               </div>
             </div>
@@ -765,7 +765,7 @@ export function SettingsWorkspace({
           title={dictionary.settings.workspaceEnvironment}
         />
         <div className="grid gap-5">
-          <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm md:p-8">
+          <div className="soft-panel p-6 md:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl text-start">
                 <h3 className="text-lg font-semibold uppercase tracking-[0.08em] text-foreground">
@@ -775,7 +775,7 @@ export function SettingsWorkspace({
                   {dictionary.settings.interfaceModeDescription}
                 </p>
               </div>
-              <div className="inline-flex rounded-2xl border border-border bg-surface p-1">
+              <div className="inline-flex rounded-2xl bg-surface-low p-1 ring-1 ring-inset ring-border/70">
                 {[
                   { label: dictionary.common.light, value: "light" },
                   { label: dictionary.common.dark, value: "dark" },
@@ -787,10 +787,10 @@ export function SettingsWorkspace({
                     <button
                       key={option.value}
                       className={cn(
-                        "rounded-xl px-5 py-3 text-sm font-semibold uppercase tracking-[0.08em] transition",
+                        "rounded-xl px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] transition",
                         isActive
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted hover:text-foreground"
+                          ? "bg-card text-foreground shadow-panel"
+                          : "text-muted hover:bg-card/70 hover:text-foreground"
                       )}
                       onClick={() => setTheme(option.value as ThemePreference)}
                       type="button"
@@ -803,7 +803,7 @@ export function SettingsWorkspace({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm md:p-8">
+          <div className="soft-panel p-6 md:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl text-start">
                 <h3 className="text-lg font-semibold uppercase tracking-[0.08em] text-foreground">
@@ -829,10 +829,10 @@ export function SettingsWorkspace({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm md:p-8">
+          <div className="soft-panel p-6 md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-xl text-start">
-                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+                <div className="inline-flex items-center gap-2 rounded-full bg-surface-low px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted ring-1 ring-inset ring-border/70">
                   <GooglePinIcon />
                   Google
                 </div>
@@ -855,7 +855,7 @@ export function SettingsWorkspace({
                 <p className="-mt-1 text-sm text-muted">
                   {dictionary.settings.businessNameInputHint}
                 </p>
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-low px-4 py-4 ring-1 ring-inset ring-border/70">
                   <p className="max-w-xl text-sm text-muted">
                     {googleImportJob?.status === "queued"
                       ? googleImportJob.message
@@ -878,7 +878,7 @@ export function SettingsWorkspace({
                 ) : null}
                 {googleImportJob?.status === "needs_selection" &&
                 googleImportJob.candidates.length > 0 ? (
-                  <div className="space-y-3 rounded-2xl border border-border bg-background px-4 py-4">
+                  <div className="space-y-3 rounded-2xl bg-surface-low px-4 py-4 ring-1 ring-inset ring-border/70">
                     <p className="text-sm font-medium text-foreground">
                       {dictionary.settings.googleImportChoosePlaceLabel}
                     </p>
@@ -886,7 +886,7 @@ export function SettingsWorkspace({
                       {googleImportJob.candidates.map((candidate) => (
                         <label
                           key={candidate.candidateId}
-                          className="flex cursor-pointer items-start gap-3 rounded-xl border border-border px-3 py-3 text-sm text-foreground"
+                          className="flex cursor-pointer items-start gap-3 rounded-xl bg-card px-3 py-3 text-sm text-foreground ring-1 ring-inset ring-border/70"
                         >
                           <input
                             checked={selectedGoogleCandidateId === candidate.candidateId}
@@ -926,7 +926,7 @@ export function SettingsWorkspace({
                   </div>
                 ) : null}
                 {googleImportJob ? (
-                  <div className="rounded-2xl border border-border bg-background px-4 py-4 text-sm text-muted">
+                  <div className="rounded-2xl bg-surface-low px-4 py-4 text-sm text-muted ring-1 ring-inset ring-border/70">
                     <p>
                       {dictionary.common.status}: {googleImportJob.status}
                     </p>
@@ -939,7 +939,7 @@ export function SettingsWorkspace({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm md:p-8">
+          <div className="soft-panel p-6 md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-xl text-start">
                 <h3 className="text-lg font-semibold uppercase tracking-[0.08em] text-foreground">
@@ -1033,7 +1033,7 @@ export function SettingsWorkspace({
                   </Button>
                 </div>
 
-                <div className="space-y-3 rounded-2xl border border-border bg-background p-4">
+                <div className="space-y-3 rounded-2xl bg-surface-low p-4 ring-1 ring-inset ring-border/70">
                   <p className="text-sm font-semibold text-foreground">
                     {dictionary.settings.salesRecentTitle}
                   </p>
@@ -1045,7 +1045,7 @@ export function SettingsWorkspace({
                     <div className="space-y-3">
                       {recentSales.map((record) => (
                         <div
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm"
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card px-4 py-3 text-sm ring-1 ring-inset ring-border/70"
                           key={record.id}
                         >
                           <div className="space-y-1">
@@ -1070,7 +1070,7 @@ export function SettingsWorkspace({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm md:p-8">
+          <div className="soft-panel p-6 md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-xl text-start">
                 <h3 className="text-lg font-semibold uppercase tracking-[0.08em] text-foreground">
@@ -1126,13 +1126,13 @@ export function SettingsWorkspace({
         </div>
       </section>
 
-      <div className="flex flex-wrap justify-end gap-3 border-t border-border pt-6">
+      <div className="flex flex-wrap justify-end gap-3 pt-2">
         {saveNotice ? (
           <p className="self-center text-sm text-muted">{saveNotice}</p>
         ) : null}
         <div className="flex flex-wrap gap-3">
           <Button
-            className="border border-border bg-background text-foreground hover:bg-surface"
+            variant="secondary"
             onClick={handleDiscard}
             type="button"
           >

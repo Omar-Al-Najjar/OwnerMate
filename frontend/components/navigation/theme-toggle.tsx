@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils/cn";
 import type { CommonDictionary } from "@/types/i18n";
 
 type ThemeHandle = {
@@ -9,6 +10,7 @@ type ThemeHandle = {
 };
 
 type ThemeToggleProps = {
+  className?: string;
   common: CommonDictionary;
 };
 
@@ -61,15 +63,13 @@ function getResolvedTheme(theme: ThemeHandle["theme"]) {
   return theme;
 }
 
-export function ThemeToggle({ common }: ThemeToggleProps) {
-  const [theme, setTheme] = useState<ThemeHandle["theme"]>("system");
+export function ThemeToggle({ className, common }: ThemeToggleProps) {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
     const handle = (window as Window & { __OWNERMATE_THEME__?: ThemeHandle })
       .__OWNERMATE_THEME__;
     const nextTheme = handle?.theme ?? "system";
-    setTheme(nextTheme);
     setResolvedTheme(getResolvedTheme(nextTheme));
 
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -89,7 +89,6 @@ export function ThemeToggle({ common }: ThemeToggleProps) {
     const handle = (window as Window & { __OWNERMATE_THEME__?: ThemeHandle })
       .__OWNERMATE_THEME__;
     handle?.setTheme(nextTheme);
-    setTheme(nextTheme);
     setResolvedTheme(nextTheme);
   };
 
@@ -104,7 +103,10 @@ export function ThemeToggle({ common }: ThemeToggleProps) {
   return (
     <button
       aria-label={label}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-foreground transition hover:bg-surface"
+      className={cn(
+        "inline-flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition hover:bg-card hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-low",
+        className
+      )}
       onClick={cycleTheme}
       title={label}
       type="button"

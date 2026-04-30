@@ -1,39 +1,70 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --surface: 220 14% 96%;
-  --card: 0 0% 100%;
-  --foreground: 224 71% 4%;
-  --muted: 220 9% 46%;
-  --border: 220 13% 91%;
-  --primary: 231 48% 48%;
-  --primary-hover: 231 48% 42%;
-  --success: 142 71% 45%;
-  --warning: 43 96% 56%;
-  --error: 0 84% 60%;
-  --sentiment-positive: 142 71% 45%;
-  --sentiment-neutral: 220 9% 70%;
-  --sentiment-negative: 0 84% 60%;
+  --font-body: var(--font-sans);
+  --font-heading: var(--font-sans);
+  --font-ui: var(--font-sans);
+  --font-body-size: 16px;
+  --font-body-line-height: 1.65;
+  --font-body-letter-spacing: -0.012em;
+  --font-heading-line-height: 1.08;
+  --font-heading-letter-spacing: -0.05em;
+  --font-label-letter-spacing: 0.18em;
+  --font-label-size: 0.72rem;
+  --font-helper-size: 0.93rem;
+  --background: 270 100% 99%;
+  --surface-low: 232 100% 98%;
+  --surface-lowest: 0 0% 100%;
+  --surface-high: 228 100% 95%;
+  --surface-highest: 226 100% 92%;
+  --foreground: 223 35% 13%;
+  --muted: 224 15% 40%;
+  --border: 225 35% 87%;
+  --primary: 217 100% 43%;
+  --primary-hover: 217 100% 38%;
+  --primary-container: 221 100% 15%;
+  --surface-tint: 217 100% 43%;
+  --sidebar: 228 100% 97%;
+  --sidebar-foreground: 223 35% 13%;
+  --sidebar-muted: 224 15% 40%;
+  --sidebar-surface: 0 0% 100%;
+  --sidebar-surface-hover: 228 100% 94%;
+  --sidebar-border: 225 35% 84%;
+  --success: 156 88% 32%;
+  --warning: 35 100% 47%;
+  --error: 0 75% 42%;
+  --sentiment-positive: 156 88% 32%;
+  --sentiment-neutral: 222 16% 44%;
+  --sentiment-negative: 0 75% 42%;
 }
 
 .dark {
-  --background: 224 15% 12%;
-  --surface: 224 12% 17%;
-  --card: 224 12% 17%;
-  --foreground: 220 14% 96%;
-  --muted: 220 9% 65%;
-  --border: 217 19% 27%;
-  --primary: 231 60% 57%;
-  --primary-hover: 231 70% 66%;
-  --success: 142 69% 58%;
-  --warning: 43 96% 64%;
-  --error: 0 91% 71%;
-  --sentiment-positive: 142 69% 58%;
-  --sentiment-neutral: 220 9% 44%;
-  --sentiment-negative: 0 91% 71%;
+  --background: 221 40% 9%;
+  --surface-low: 220 36% 12%;
+  --surface-lowest: 222 34% 15%;
+  --surface-high: 222 42% 20%;
+  --surface-highest: 222 44% 25%;
+  --foreground: 225 100% 97%;
+  --muted: 223 18% 73%;
+  --border: 221 31% 28%;
+  --primary: 217 100% 67%;
+  --primary-hover: 217 100% 72%;
+  --primary-container: 219 67% 23%;
+  --surface-tint: 217 100% 67%;
+  --sidebar: 222 56% 4%;
+  --sidebar-foreground: 225 100% 97%;
+  --sidebar-muted: 224 18% 71%;
+  --sidebar-surface: 223 28% 12%;
+  --sidebar-surface-hover: 223 24% 17%;
+  --sidebar-border: 223 24% 18%;
+  --success: 156 77% 42%;
+  --warning: 35 100% 56%;
+  --error: 0 78% 62%;
+  --sentiment-positive: 156 77% 42%;
+  --sentiment-neutral: 224 14% 56%;
+  --sentiment-negative: 0 78% 62%;
 }
 
 * {
@@ -47,18 +78,35 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html[lang="ar"],
+[dir="rtl"] {
+  --font-body: var(--font-arabic);
+  --font-heading: var(--font-arabic);
+  --font-ui: var(--font-arabic);
+  --font-body-size: 17px;
+  --font-body-line-height: 1.85;
+  --font-body-letter-spacing: 0;
+  --font-heading-line-height: 1.3;
+  --font-heading-letter-spacing: -0.015em;
+  --font-label-letter-spacing: 0;
+  --font-label-size: 0.78rem;
+  --font-helper-size: 0.98rem;
+}
+
 body {
   margin: 0;
   background: hsl(var(--background));
+  background-image:
+    radial-gradient(circle at top right, hsl(var(--surface-high) / 0.95), transparent 34%),
+    linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--surface-low)) 100%);
+  background-attachment: fixed;
   color: hsl(var(--foreground));
-  font-family: var(--font-sans), sans-serif;
-  line-height: 1.5;
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--font-body-size);
+  font-weight: 450;
+  line-height: var(--font-body-line-height);
+  letter-spacing: var(--font-body-letter-spacing);
   text-rendering: optimizeLegibility;
-}
-
-[dir="rtl"] body {
-  font-family: var(--font-arabic), sans-serif;
-  line-height: 1.65;
 }
 
 body,
@@ -66,7 +114,38 @@ button,
 input,
 select,
 textarea {
+  font-family: var(--font-ui), sans-serif;
+}
+
+main,
+section,
+article,
+aside,
+nav,
+div,
+p,
+span,
+li,
+dd,
+dt {
   font-family: inherit;
+}
+
+p,
+li,
+dd,
+dt {
+  line-height: var(--font-body-line-height);
+}
+
+small {
+  font-size: var(--font-helper-size);
+  line-height: 1.65;
+}
+
+strong,
+b {
+  font-weight: 700;
 }
 
 h1,
@@ -75,18 +154,39 @@ h3,
 h4,
 h5,
 h6 {
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  margin: 0;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  line-height: var(--font-heading-line-height);
+  letter-spacing: var(--font-heading-letter-spacing);
+  text-wrap: balance;
 }
 
-[dir="rtl"] h1,
-[dir="rtl"] h2,
-[dir="rtl"] h3,
-[dir="rtl"] h4,
-[dir="rtl"] h5,
-[dir="rtl"] h6 {
-  letter-spacing: 0;
-  line-height: 1.25;
+h1 {
+  font-size: clamp(2.45rem, 4vw, 4.25rem);
+  font-weight: 800;
+}
+
+h2 {
+  font-size: clamp(2rem, 3.2vw, 3.15rem);
+  font-weight: 750;
+}
+
+h3 {
+  font-size: clamp(1.5rem, 2.1vw, 2.1rem);
+}
+
+h4 {
+  font-size: clamp(1.2rem, 1.5vw, 1.5rem);
+}
+
+h5 {
+  font-size: 1.05rem;
+}
+
+h6 {
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 a {
@@ -94,9 +194,57 @@ a {
   text-decoration: none;
 }
 
+label {
+  font-family: var(--font-ui), sans-serif;
+}
+
+button {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+input,
+select,
+textarea {
+  font-size: 0.97rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: inherit;
+}
+
+::placeholder {
+  color: hsl(var(--muted));
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+[dir="rtl"] .uppercase {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+[dir="rtl"] .font-display,
+[dir="rtl"] [class*="font-display"] {
+  font-family: var(--font-heading), sans-serif;
+  letter-spacing: var(--font-heading-letter-spacing);
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+}
+
 @layer components {
   .panel {
-    @apply rounded-xl border border-border bg-card shadow-panel;
+    @apply relative overflow-hidden rounded-2xl shadow-panel ring-1 ring-inset ring-border/70;
+    background-color: hsl(var(--surface-lowest));
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--surface-lowest) / 0.98),
+        hsl(var(--surface-lowest))
+      );
   }
 
   .page-grid {
@@ -104,6 +252,13 @@ a {
   }
 
   .soft-panel {
-    @apply rounded-2xl border border-border/80 bg-card/95 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.28)];
+    @apply relative overflow-hidden rounded-2xl shadow-panel ring-1 ring-inset ring-border/65;
+    background-color: hsl(var(--surface-high));
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--surface-high) / 0.94),
+        hsl(var(--surface-lowest) / 0.98)
+      );
   }
 }

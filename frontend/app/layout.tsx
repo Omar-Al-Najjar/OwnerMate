@@ -1,24 +1,26 @@
-﻿import type { Metadata } from "next";
-import { IBM_Plex_Sans_Arabic, Plus_Jakarta_Sans } from "next/font/google";
+import type { Metadata } from "next";
+import { Cairo, Inter } from "next/font/google";
 import "@/styles/globals.css";
 
-const sans = Plus_Jakarta_Sans({
+const sans = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-sans",
   display: "swap",
+  fallback: ["Segoe UI", "Arial", "sans-serif"],
 });
 
-const arabic = IBM_Plex_Sans_Arabic({
+const arabic = Cairo({
   subsets: ["arabic"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-arabic",
   display: "swap",
+  fallback: ["Tahoma", "Arial", "sans-serif"],
 });
 
 export const metadata: Metadata = {
   title: "OwnerMate",
-  description: "Bilingual review and AI content workspace for SMB owners.",
+  description: "Bilingual reviews and sales insights workspace for SMB owners.",
 };
 
 export default function RootLayout({
@@ -26,7 +28,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html suppressHydrationWarning>
-      <body className={`${sans.variable} ${arabic.variable}`}>{children}</body>
+      <body className={`${sans.variable} ${arabic.variable}`}>
+        {children}
+      </body>
     </html>
   );
 }

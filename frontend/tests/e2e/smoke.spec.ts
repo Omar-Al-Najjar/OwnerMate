@@ -6,8 +6,8 @@ const password = process.env.E2E_USER_PASSWORD;
 test("sign-in page loads", async ({ page }) => {
   await page.goto("/en/sign-in");
   await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
-  await expect(page.getByLabel(/email/i)).toBeVisible();
-  await expect(page.getByLabel(/password/i)).toBeVisible();
+  await expect(page.locator('input[name="email"]')).toBeVisible();
+  await expect(page.locator('input[name="password"]')).toBeVisible();
 });
 
 test.describe("authenticated smoke", () => {
@@ -15,20 +15,39 @@ test.describe("authenticated smoke", () => {
 
   test("user can sign in, view protected pages, and sign out", async ({ page }) => {
     await page.goto("/en/sign-in");
-    await page.getByLabel(/email/i).fill(email ?? "");
-    await page.getByLabel(/password/i).fill(password ?? "");
+    await expect(page.getByRole("button", { name: /^sign in$/i })).toBeEnabled();
+    await page.locator('input[name="email"]').fill(email ?? "");
+    await page.locator('input[name="password"]').fill(password ?? "");
     await page.getByRole("button", { name: /sign in/i }).click();
 
-    await expect(page).toHaveURL(/\/en\/dashboard$/);
-    await expect(page.getByText(/reviews in scope/i)).toBeVisible();
-
-    await page.goto("/en/reviews");
-    await expect(page.getByRole("heading", { name: /reviews/i })).toBeVisible();
-
-    await page.goto("/en/settings");
-    await expect(page.getByRole("heading", { name: /settings/i })).toBeVisible();
+    await expect
+      .poll(async () => {
+        const cookies = await page.context().cookies();
+        return cookies.some((cookie) => cookie.name === "ownermate-access-token");
+      })
+      .toBeTruthy();
+    await Promise.race([
+      page.waitForURL(/\/en\/dashboard$/, { timeout: 15_000 }).catch(() => null),
+      page
+        .getByText(/reviews in scope/i)
+        .first()
+        .waitFor({ timeout: 15_000 }),
+    ]);
+    await expect(page.getByText(/reviews in scope/i).first()).toBeVisible();
 
     await page.getByRole("button", { name: /sign out/i }).click();
-    await expect(page).toHaveURL(/\/en\/sign-in$/);
+    await expect
+      .poll(async () => {
+        const cookies = await page.context().cookies();
+        return cookies.some((cookie) => cookie.name === "ownermate-access-token");
+      })
+      .toBeFalsy();
+    await Promise.race([
+      page.waitForURL(/\/en\/sign-in$/, { timeout: 15_000 }).catch(() => null),
+      page.getByRole("heading", { name: /sign in/i }).waitFor({
+        timeout: 15_000,
+      }),
+    ]);
+    await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
   });
 });

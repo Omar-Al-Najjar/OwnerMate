@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo } from "react";
 import { useProfile } from "@/components/providers/profile-provider";
@@ -23,10 +23,14 @@ export function ProfileChip({ isRtl, variant = "default" }: ProfileChipProps) {
 
   return (
     <div
-      className={`inline-flex items-center gap-3 border border-border bg-card ${isRtl ? "flex-row-reverse" : "flex-row"} ${isSidebar ? "w-full rounded-2xl px-3 py-3" : "rounded-full px-2 py-1.5"}`}
+      className={`inline-flex items-center gap-3 ${isRtl ? "flex-row-reverse" : "flex-row"} ${
+        isSidebar
+          ? "w-full rounded-2xl bg-sidebar-surface px-3 py-3.5 text-sidebar-foreground ring-1 ring-inset ring-sidebar-border/80"
+          : "rounded-2xl bg-surface-low px-2.5 py-2 ring-1 ring-inset ring-border/70"
+      }`}
     >
       <div
-        className={`${isSidebar ? "h-11 w-11" : "h-9 w-9"} flex items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-xs font-semibold text-primary dark:bg-indigo-950/40 dark:text-indigo-200`}
+        className={`${isSidebar ? "h-11 w-11" : "h-10 w-10"} flex items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-sidebar to-primary-container text-xs font-semibold tracking-[0.14em] text-white shadow-panel`}
       >
         {profile.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -39,15 +43,20 @@ export function ProfileChip({ isRtl, variant = "default" }: ProfileChipProps) {
           <span>{initials}</span>
         )}
       </div>
+
       <div className={`min-w-0 ${isRtl ? "text-right" : "text-left"}`}>
         <p
-          className={`${isSidebar ? "max-w-full" : "max-w-32 md:max-w-40"} truncate text-sm font-medium text-foreground`}
+          className={`${isSidebar ? "max-w-full text-sidebar-foreground" : "max-w-36 md:max-w-40 text-foreground"} truncate text-sm font-semibold`}
         >
           {profile.fullName}
         </p>
-        {isSidebar ? (
-          <p className="mt-0.5 truncate text-xs text-muted">{profile.email}</p>
-        ) : null}
+        <p
+          className={`mt-0.5 truncate text-xs ${
+            isSidebar ? "text-sidebar-muted" : "text-muted"
+          }`}
+        >
+          {isSidebar ? profile.email : profile.role}
+        </p>
       </div>
     </div>
   );

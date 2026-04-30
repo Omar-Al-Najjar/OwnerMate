@@ -1,4 +1,4 @@
-﻿import { Input } from "@/components/forms/input";
+import { Input } from "@/components/forms/input";
 import { Select } from "@/components/forms/select";
 
 type ReviewFiltersProps = {
@@ -36,14 +36,16 @@ export function ReviewFilters({
   onChange,
 }: ReviewFiltersProps) {
   return (
-    <div className="panel grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-6">
-      <Input
-        label={labels.search}
-        placeholder={labels.searchPlaceholder}
-        type="search"
-        value={values.query}
-        onChange={(event) => onChange("query", event.target.value)}
-      />
+    <div className="soft-panel grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-7">
+      <div className="xl:col-span-2">
+        <Input
+          label={labels.search}
+          placeholder={labels.searchPlaceholder}
+          type="search"
+          value={values.query}
+          onChange={(event) => onChange("query", event.target.value)}
+        />
+      </div>
       <Select
         label={labels.sentiment}
         options={options.sentiment}

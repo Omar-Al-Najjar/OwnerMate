@@ -27,14 +27,12 @@ type AppShellProps = {
 type SectionKey =
   | "dashboard"
   | "reviews"
-  | "ai-content"
   | "dataset-analysis"
   | "settings";
 
 const sectionOrder: SectionKey[] = [
   "dashboard",
   "reviews",
-  "ai-content",
   "dataset-analysis",
   "settings",
 ];
@@ -69,11 +67,6 @@ export function AppShell({
         label: navigation.reviews,
       },
       {
-        key: "ai-content" as const,
-        href: `/${locale}/ai-content` as Route,
-        label: navigation.aiContent,
-      },
-      {
         key: "dataset-analysis" as const,
         href: `/${locale}/dataset-analysis` as Route,
         label: navigation.datasetAnalysis,
@@ -86,7 +79,6 @@ export function AppShell({
     ],
     [
       locale,
-      navigation.aiContent,
       navigation.dashboard,
       navigation.datasetAnalysis,
       navigation.reviews,
@@ -108,30 +100,29 @@ export function AppShell({
         ? navigation.dashboard
         : currentSection === "reviews"
           ? navigation.reviews
-          : currentSection === "ai-content"
-            ? navigation.aiContent
-            : currentSection === "dataset-analysis"
+          : currentSection === "dataset-analysis"
               ? navigation.datasetAnalysis
-            : navigation.settings,
+              : navigation.settings,
     description:
       currentSection === "dashboard"
         ? shell.dashboardDescription
         : currentSection === "reviews"
           ? shell.reviewsDescription
-          : currentSection === "ai-content"
-            ? shell.aiContentDescription
-            : currentSection === "dataset-analysis"
+          : currentSection === "dataset-analysis"
               ? shell.datasetAnalysisDescription
-            : shell.settingsDescription,
+              : shell.settingsDescription,
   };
 
-  const sidebarPlacement = isRtl
-    ? "md:right-0 md:border-l"
-    : "md:left-0 md:border-r";
+  const sidebarPlacement = isRtl ? "md:right-0" : "md:left-0";
   const contentOffset = isRtl ? "md:pr-72" : "md:pl-72";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-96 bg-[radial-gradient(circle_at_top,rgba(0,83,219,0.12),transparent_52%)]" />
+        <div className="absolute -right-24 top-48 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(0,23,75,0.12),transparent_68%)] blur-3xl dark:bg-[radial-gradient(circle,rgba(106,152,255,0.16),transparent_68%)]" />
+      </div>
+
       <Sidebar
         common={common}
         isMobileOpen={isMobileNavOpen}
@@ -143,7 +134,8 @@ export function AppShell({
         placementClass={sidebarPlacement}
         sections={navItems}
       />
-      <div className={contentOffset}>
+
+      <div className={`${contentOffset} relative min-h-screen`}>
         <Header
           common={common}
           isMobileNavOpen={isMobileNavOpen}

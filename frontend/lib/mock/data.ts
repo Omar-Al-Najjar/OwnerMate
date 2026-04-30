@@ -1,5 +1,4 @@
 import { getDashboardPayload } from "@/lib/dashboard/derive";
-import type { GeneratedContentDraft, GenerationMode } from "@/types/content";
 import type {
   DashboardPayload,
   SalesChannelId,
@@ -288,20 +287,6 @@ export const dashboardData: DashboardPayload = getDashboardPayload(
 export function getDashboardData(): DashboardPayload {
   return getDashboardPayload(getReviews(), getSalesRecords());
 }
-
-export const contentModes: Array<{ label: string; value: GenerationMode }> = [
-  { label: "Marketing content generation", value: "marketing_content" },
-];
-
-export const generatedDraft: GeneratedContentDraft = {
-  id: "draft_001",
-  mode: "marketing_content",
-  language: "en",
-  generatedText:
-    "Discover a practical workspace that helps you manage reviews and create clear content for your business.",
-  editableText:
-    "Discover a practical workspace that helps you manage reviews and create clear content for your business.",
-};
 
 export const settingsProfile: SettingsPayload = {
   locale: "en",

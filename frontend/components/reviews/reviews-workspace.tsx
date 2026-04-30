@@ -249,12 +249,12 @@ export function ReviewsWorkspace({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="soft-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-start">
-          <p className="text-sm font-semibold text-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
             {dictionary.reviews.filtersTitle}
           </p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-2 text-sm text-foreground">
             {dictionary.common.showing} {filteredReviews.length}{" "}
             {dictionary.common.results}
           </p>
@@ -264,7 +264,7 @@ export function ReviewsWorkspace({
             {dictionary.reviews.activeFilters}: {activeFilterCount}
           </span>
           <Button
-            className="rounded-xl border border-border bg-surface text-foreground shadow-none hover:bg-slate-100 dark:bg-slate-900/70 dark:hover:bg-slate-800 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100 dark:disabled:border-slate-800 dark:disabled:bg-slate-900 dark:disabled:text-slate-400"
+            variant="secondary"
             disabled={activeFilterCount === 0}
             onClick={() => {
               setFilters(getDefaultFilters());
@@ -321,7 +321,7 @@ export function ReviewsWorkspace({
       />
 
       <section className="space-y-4">
-        <h2 className="text-start text-lg font-semibold text-foreground">
+        <h2 className="text-start font-display text-2xl font-bold tracking-[-0.045em] text-foreground">
           {dictionary.reviews.listTitle}
         </h2>
 
@@ -356,9 +356,9 @@ export function ReviewsWorkspace({
             />
 
             {totalPages > 1 ? (
-              <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="soft-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <Button
-                  className="bg-surface text-foreground hover:bg-slate-200 dark:hover:bg-slate-700"
+                  variant="secondary"
                   disabled={safePage === 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   type="button"
@@ -373,10 +373,10 @@ export function ReviewsWorkspace({
                     return (
                       <button
                         key={pageNumber}
-                        className={`inline-flex h-10 min-w-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
+                        className={`inline-flex h-10 min-w-10 items-center justify-center rounded-lg border px-3 text-sm font-semibold transition ${
                           isActive
-                            ? "border-primary bg-primary text-white"
-                            : "border-border bg-card text-foreground hover:bg-surface"
+                            ? "border-primary bg-gradient-to-br from-sidebar to-primary-container text-white"
+                            : "border-border/70 bg-card text-foreground hover:bg-surface-low"
                         }`}
                         onClick={() => setPage(pageNumber)}
                         type="button"
@@ -392,7 +392,7 @@ export function ReviewsWorkspace({
                     {dictionary.reviews.pageLabel} {safePage} / {totalPages}
                   </span>
                   <Button
-                    className="bg-surface text-foreground hover:bg-slate-200 dark:hover:bg-slate-700"
+                    variant="secondary"
                     disabled={safePage === totalPages}
                     onClick={() =>
                       setPage((current) => Math.min(totalPages, current + 1))

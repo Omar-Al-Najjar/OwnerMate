@@ -1,9 +1,8 @@
-﻿import type { ReviewStatus } from "@/types/review";
+import type { ReviewStatus } from "@/types/review";
 
 const statusClassMap: Record<ReviewStatus, string> = {
-  new: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300",
-  reviewed:
-    "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300",
+  new: "bg-primary/12 text-primary ring-primary/20",
+  reviewed: "bg-success/12 text-success ring-success/20",
 };
 
 export function StatusBadge({
@@ -15,7 +14,7 @@ export function StatusBadge({
 }) {
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClassMap[status]}`}
+      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ring-1 ring-inset ${statusClassMap[status]}`}
     >
       {label ?? status}
     </span>
