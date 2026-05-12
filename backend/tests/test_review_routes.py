@@ -25,6 +25,9 @@ from backend.app.schemas.review import (
     ReviewImportDuplicate,
     ReviewImportResult,
     ReviewListQuery,
+    ReviewListResponse,
+    ReviewListItemRead,
+    ReviewListSentimentRead,
     ReviewRead,
     ReviewStatusUpdateRequest,
 )
@@ -60,6 +63,28 @@ class FakeReviewService:
     def list_reviews(self, query: ReviewListQuery) -> list[ReviewRead]:
         self.last_list_query = query
         return [self.sample_review]
+
+    def list_reviews_page(self, query: ReviewListQuery) -> ReviewListResponse:
+        self.last_list_query = query
+        return ReviewListResponse(
+            items=[
+                ReviewListItemRead(
+                    id=self.sample_review.id,
+                    source_type=self.sample_review.source_type,
+                    reviewer_name=self.sample_review.reviewer_name,
+                    rating=self.sample_review.rating,
+                    language=self.sample_review.language,
+                    review_text=self.sample_review.review_text,
+                    review_created_at=self.sample_review.review_created_at,
+                    status=self.sample_review.status,
+                    sentiment=ReviewListSentimentRead(label="positive"),
+                )
+            ],
+            total=1,
+            limit=query.limit,
+            offset=query.offset,
+            source_types=["google"],
+        )
 
     def get_review(
         self, review_id, scope: ReviewBusinessScope
@@ -261,8 +286,10 @@ class ReviewRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertTrue(body["success"])
-        self.assertEqual(len(body["data"]), 1)
-        self.assertEqual(body["data"][0]["source_metadata"], {"platform_location_id": "abc123"})
+        self.assertEqual(len(body["data"]["items"]), 1)
+        self.assertEqual(body["data"]["items"][0]["review_text"], "Great service")
+        self.assertEqual(body["data"]["items"][0]["sentiment"]["label"], "positive")
+        self.assertEqual(body["data"]["total"], 1)
         self.assertIsNotNone(self.fake_service.last_list_query)
         self.assertEqual(str(self.fake_service.last_list_query.business_id), business_id)
         self.assertEqual(self.fake_service.last_list_query.source_type, "google")
