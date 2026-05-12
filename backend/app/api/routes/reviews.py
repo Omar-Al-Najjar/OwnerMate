@@ -40,7 +40,7 @@ async def list_reviews(
     service: ReviewService = Depends(get_review_service),
 ):
     authorization.ensure_business_access(current_user, query.business_id)
-    return success_response(service.list_reviews(query))
+    return success_response(service.list_reviews_page(query))
 
 
 @router.get("/{review_id}", response_model=SuccessResponse)

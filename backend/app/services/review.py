@@ -17,7 +17,10 @@ from ..schemas.review import (
     ReviewImportItem,
     ReviewBusinessScope,
     ReviewDetailResponse,
+    ReviewListItemRead,
     ReviewListQuery,
+    ReviewListResponse,
+    ReviewListSentimentRead,
     ReviewRead,
     ReviewStatusUpdateRequest,
 )
@@ -87,6 +90,70 @@ class ReviewService:
                 )
             )
         return results
+
+    def list_reviews_page(self, query: ReviewListQuery) -> ReviewListResponse:
+        self._ensure_business_exists(query.business_id)
+        review_rows = self.review_repository.list_review_page(
+            business_id=query.business_id,
+            review_source_id=query.review_source_id,
+            source_type=query.source_type,
+            status=query.status,
+            sentiment_label=query.sentiment_label,
+            language=query.language,
+            min_rating=query.min_rating,
+            max_rating=query.max_rating,
+            reviewer_name=query.reviewer_name,
+            search_text=query.search_text,
+            created_from=query.created_from,
+            created_to=query.created_to,
+            date_order=query.date_order,
+            limit=query.limit,
+            offset=query.offset,
+        )
+        total = self.review_repository.count_review_page(
+            business_id=query.business_id,
+            review_source_id=query.review_source_id,
+            source_type=query.source_type,
+            status=query.status,
+            sentiment_label=query.sentiment_label,
+            language=query.language,
+            min_rating=query.min_rating,
+            max_rating=query.max_rating,
+            reviewer_name=query.reviewer_name,
+            search_text=query.search_text,
+            created_from=query.created_from,
+            created_to=query.created_to,
+        )
+        source_types = list(
+            self.review_repository.list_source_types(business_id=query.business_id)
+        )
+
+        items = [
+            ReviewListItemRead(
+                id=row["id"],
+                source_type=row["source_type"],
+                reviewer_name=row["reviewer_name"],
+                rating=row["rating"],
+                language=row["language"],
+                review_text=row["review_text"],
+                review_created_at=row["review_created_at"],
+                status=row["status"],
+                sentiment=(
+                    ReviewListSentimentRead(label=row["sentiment_label"])
+                    if row["sentiment_label"]
+                    else None
+                ),
+            )
+            for row in review_rows
+        ]
+
+        return ReviewListResponse(
+            items=items,
+            total=total,
+            limit=query.limit,
+            offset=query.offset,
+            source_types=source_types,
+        )
 
     def get_review(self, review_id: UUID, scope: ReviewBusinessScope) -> ReviewDetailResponse:
         self._ensure_business_exists(scope.business_id)

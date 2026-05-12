@@ -146,6 +146,10 @@ class DashboardRouteTests(unittest.TestCase):
                 "recent_limit": 3,
                 "priority_limit": 2,
                 "activity_limit": 4,
+                "range": "7d",
+                "source": "google",
+                "language": "en",
+                "sentiment": "positive",
             },
         )
 
@@ -158,6 +162,10 @@ class DashboardRouteTests(unittest.TestCase):
         self.assertIsNotNone(self.fake_service.last_query)
         self.assertEqual(self.fake_service.last_query.limit, 150)
         self.assertEqual(self.fake_service.last_query.recent_limit, 3)
+        self.assertEqual(self.fake_service.last_query.range, "7d")
+        self.assertEqual(self.fake_service.last_query.source, "google")
+        self.assertEqual(self.fake_service.last_query.language, "en")
+        self.assertEqual(self.fake_service.last_query.sentiment, "positive")
 
     def test_dashboard_overview_rejects_forbidden_business_scope(self) -> None:
         app.dependency_overrides[get_authorization_service] = (

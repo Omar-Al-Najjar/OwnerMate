@@ -10,6 +10,7 @@ from .sentiment import SentimentResultRead
 ReviewStatus = Literal["pending", "reviewed", "responded"]
 FacebookRecommendation = Literal["positive", "negative", "neutral"]
 GoogleImportJobStatus = Literal["queued", "running", "needs_selection", "success", "failed"]
+ReviewDateOrder = Literal["newest", "oldest"]
 
 
 class ReviewUploadFormat(str, Enum):
@@ -25,6 +26,7 @@ class ReviewListQuery(BaseModel):
     review_source_id: UUID | None = None
     source_type: str | None = None
     status: ReviewStatus | None = None
+    sentiment_label: Literal["positive", "neutral", "negative"] | None = None
     language: str | None = None
     min_rating: int | None = Field(default=None, ge=1, le=5)
     max_rating: int | None = Field(default=None, ge=1, le=5)
@@ -32,6 +34,7 @@ class ReviewListQuery(BaseModel):
     search_text: str | None = None
     created_from: datetime | None = None
     created_to: datetime | None = None
+    date_order: ReviewDateOrder = "newest"
     limit: int = Field(default=50, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
 
@@ -303,6 +306,30 @@ class ReviewRead(BaseModel):
 
 class ReviewDetailResponse(ReviewRead):
     pass
+
+
+class ReviewListSentimentRead(BaseModel):
+    label: Literal["positive", "neutral", "negative"]
+
+
+class ReviewListItemRead(BaseModel):
+    id: UUID
+    source_type: str
+    reviewer_name: str | None
+    rating: int | None
+    language: str | None
+    review_text: str
+    review_created_at: datetime | None
+    status: ReviewStatus
+    sentiment: ReviewListSentimentRead | None = None
+
+
+class ReviewListResponse(BaseModel):
+    items: list[ReviewListItemRead]
+    total: int
+    limit: int
+    offset: int
+    source_types: list[str] = Field(default_factory=list)
 
 
 class ReviewImportDuplicate(BaseModel):

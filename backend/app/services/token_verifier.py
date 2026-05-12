@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import logging
+import time
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
@@ -40,8 +41,17 @@ class SupabaseTokenVerifier:
         issuer_base = settings.supabase_url.rstrip("/")
         self.issuer = f"{issuer_base}/auth/v1"
         self.jwks_client = PyJWKClient(f"{self.issuer}/.well-known/jwks.json")
+        self._verified_claims_cache: dict[str, tuple[dict, float | None]] = {}
 
     def verify_access_token(self, token: str) -> VerifiedIdentity:
+        cached_claims = self._get_cached_claims(token)
+        if cached_claims is not None:
+            logger.debug(
+                "supabase token verified via in-memory cache",
+                extra=self._token_log_context(token, cached_claims),
+            )
+            return self._identity_from_claims(cached_claims)
+
         try:
             signing_key = self.jwks_client.get_signing_key_from_jwt(token)
             claims = jwt.decode(
@@ -55,6 +65,7 @@ class SupabaseTokenVerifier:
                 "supabase token verified via jwks",
                 extra=self._token_log_context(token, claims),
             )
+            self._cache_claims(token, claims)
             return self._identity_from_claims(claims)
         except ExpiredSignatureError as exc:
             logger.warning(
@@ -75,6 +86,7 @@ class SupabaseTokenVerifier:
                 },
             )
             claims = self._verify_via_supabase_user_endpoint(token)
+            self._cache_claims(token, claims)
             return self._identity_from_claims(claims)
 
     def _verify_via_supabase_user_endpoint(self, token: str) -> dict:
@@ -141,15 +153,63 @@ class SupabaseTokenVerifier:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             ) from exc
 
+        unsigned_claims = self._decode_unverified_claims(token)
         return {
-            "sub": payload.get("id"),
-            "email": payload.get("email"),
-            "iss": self.issuer,
-            "role": payload.get("role"),
-            "user_metadata": payload.get("user_metadata") or {},
-            "app_metadata": payload.get("app_metadata") or {},
-            "exp": 1,
+            "sub": payload.get("id") or unsigned_claims.get("sub"),
+            "email": payload.get("email") or unsigned_claims.get("email"),
+            "iss": unsigned_claims.get("iss") or self.issuer,
+            "role": payload.get("role") or unsigned_claims.get("role"),
+            "user_metadata": payload.get("user_metadata")
+            or unsigned_claims.get("user_metadata")
+            or {},
+            "app_metadata": payload.get("app_metadata")
+            or unsigned_claims.get("app_metadata")
+            or {},
+            "exp": unsigned_claims.get("exp"),
         }
+
+    def _get_cached_claims(self, token: str) -> dict | None:
+        cached = self._verified_claims_cache.get(token)
+        if cached is None:
+            return None
+
+        claims, expires_at = cached
+        if expires_at is not None and expires_at <= time.time():
+            self._verified_claims_cache.pop(token, None)
+            return None
+
+        return claims
+
+    def _cache_claims(self, token: str, claims: dict) -> None:
+        expires_at: float | None = None
+        exp = claims.get("exp")
+        if isinstance(exp, (int, float)):
+            expires_at = float(exp)
+
+        self._verified_claims_cache[token] = (claims, expires_at)
+
+        if len(self._verified_claims_cache) > 256:
+            oldest_token = next(iter(self._verified_claims_cache))
+            self._verified_claims_cache.pop(oldest_token, None)
+
+    def _decode_unverified_claims(self, token: str) -> dict:
+        try:
+            claims = jwt.decode(
+                token,
+                options={
+                    "verify_signature": False,
+                    "verify_exp": False,
+                    "verify_iat": False,
+                    "verify_nbf": False,
+                    "verify_iss": False,
+                    "verify_aud": False,
+                },
+                algorithms=["HS256", "RS256", "ES256"],
+            )
+            return claims if isinstance(claims, dict) else {}
+        except Exception:
+            logger.debug("failed to decode unverified claims for caching")
+            return {}
 
     def _identity_from_claims(self, claims: dict) -> VerifiedIdentity:
         email = claims.get("email")

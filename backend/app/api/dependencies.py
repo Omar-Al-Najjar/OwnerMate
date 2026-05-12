@@ -1,4 +1,5 @@
 from collections.abc import Callable, Generator
+from functools import lru_cache
 
 from uuid import UUID
 
@@ -49,6 +50,7 @@ def get_db_session() -> Generator[Session, None, None]:
         session.close()
 
 
+@lru_cache
 def get_token_verifier() -> SupabaseTokenVerifier:
     return SupabaseTokenVerifier(get_settings())
 
