@@ -1,14 +1,22 @@
 import type {
   DashboardActivityItem,
   DashboardCapabilities,
+  DashboardComparison,
+  DashboardComparisonMetric,
   DashboardDistributionBucket,
   DashboardFilters,
+  DashboardFilterOptions,
   DashboardMetric,
+  DashboardMetricSummary,
+  DashboardOverviewData,
   DashboardPayload,
   DashboardPriorityReview,
+  DashboardReviewDistributions,
+  DashboardReviewTimeSeriesPoint,
   DashboardSalesChannelBreakdown,
   DashboardSalesProduct,
   DashboardSalesSeriesPoint,
+  DashboardSalesSummary,
   DashboardSalesView,
   DashboardTimeRange,
   DashboardTrendDirection,
@@ -33,14 +41,16 @@ const DEFAULT_SPARKLINE = [0, 0, 0, 0, 0, 0];
 export function getDashboardPayload(
   reviews: Review[],
   salesRecords: SalesRecord[],
-  capabilities?: Partial<DashboardCapabilities>
+  capabilities?: Partial<DashboardCapabilities>,
+  filters: DashboardFilters = DEFAULT_DASHBOARD_FILTERS
 ): DashboardPayload {
   const sortedReviews = sortReviews(reviews);
   const sortedSales = sortSalesRecords(salesRecords);
   const hasSalesData = sortedSales.length > 0;
+  const filteredReviews = filterReviews(sortedReviews, filters);
+  const view = getDashboardView(sortedReviews, sortedSales, filters);
 
   return {
-    reviews: sortedReviews,
     salesRecords: sortedSales,
     capabilities: {
       reviewDataAvailable: true,
@@ -56,7 +66,45 @@ export function getDashboardPayload(
       sentiments: ["positive", "neutral", "negative"],
       timeRanges: DASHBOARD_TIME_RANGES,
     },
-    view: getDashboardView(sortedReviews, sortedSales, DEFAULT_DASHBOARD_FILTERS),
+    metrics: buildDashboardMetricSummary(
+      view.review.reviewCount,
+      view.review.distributions,
+      filteredReviews
+    ),
+    comparison: buildDashboardComparisonFromReviewsAndSales(
+      sortedReviews,
+      sortedSales,
+      filters
+    ),
+    reviewTimeseries: buildReviewTimeseriesFromReviews(sortedReviews, filters),
+    salesSummary: {
+      totalRevenue: view.sales.summary.totalRevenue,
+      totalOrders: view.sales.summary.totalOrders,
+      averageOrderValue: view.sales.summary.averageOrderValue,
+      refundCount: view.sales.summary.refundCount,
+      refundValue: view.sales.summary.refundValue,
+      refundRate: view.sales.summary.refundRate,
+    },
+    view,
+  };
+}
+
+export function getDashboardPayloadFromOverview(
+  overview: DashboardOverviewData,
+  filters: DashboardFilters
+): DashboardPayload {
+  return {
+    salesRecords: sortSalesRecords(overview.salesRecords),
+    capabilities: overview.capabilities,
+    filterOptions: {
+      ...overview.filterOptions,
+      timeRanges: DASHBOARD_TIME_RANGES,
+    },
+    metrics: overview.metrics,
+    comparison: overview.comparison,
+    reviewTimeseries: overview.reviewTimeseries,
+    salesSummary: overview.salesSummary,
+    view: buildDashboardViewFromOverview(overview, filters),
   };
 }
 
@@ -95,6 +143,45 @@ export function getDashboardView(
   };
 }
 
+function buildDashboardViewFromOverview(
+  overview: DashboardOverviewData,
+  filters: DashboardFilters
+): DashboardView {
+  const salesRecords = sortSalesRecords(overview.salesRecords);
+  const channelMix = buildChannelMix(salesRecords);
+  const bestChannel = channelMix[0] ?? null;
+
+  return {
+    review: {
+      distributions: overview.distributions,
+      recentReviews: overview.recentReviews,
+      priorityReviews: overview.priorityReviews,
+      activityFeed: overview.activityFeed,
+      reviewCount: overview.metrics.totalReviews,
+    },
+    sales: {
+      executiveMetrics: buildExecutiveMetricsFromOverview(
+        overview,
+        filters.range,
+        bestChannel
+      ),
+      summary: {
+        totalRevenue: overview.salesSummary.totalRevenue,
+        totalOrders: overview.salesSummary.totalOrders,
+        averageOrderValue: overview.salesSummary.averageOrderValue,
+        refundCount: overview.salesSummary.refundCount,
+        refundValue: overview.salesSummary.refundValue,
+        refundRate: overview.salesSummary.refundRate,
+        bestChannel: bestChannel?.id ?? null,
+      },
+      revenueSeries: buildSalesSeries(salesRecords),
+      refundSeries: buildSalesSeries(salesRecords),
+      channelMix,
+      topProducts: buildTopProducts(salesRecords),
+    },
+  };
+}
+
 export function normalizeTimeSeriesData(
   data: DashboardSalesSeriesPoint[],
   range: DashboardTimeRange
@@ -129,9 +216,9 @@ export function normalizeTimeSeriesData(
         : {
             date,
             label: formatSeriesLabel(date),
-            revenue: 0,
-            orders: 0,
-            refundValue: 0,
+            revenue: null,
+            orders: null,
+            refundValue: null,
           }
     );
   }
@@ -412,6 +499,219 @@ function buildSalesView(
   };
 }
 
+function buildExecutiveMetricsFromOverview(
+  overview: DashboardOverviewData,
+  range: DashboardFilters["range"],
+  bestChannel: DashboardSalesChannelBreakdown | null
+): DashboardMetric[] {
+  const positiveReviewCount =
+    overview.distributions.sentiment.find((bucket) => bucket.id === "positive")?.value ??
+    0;
+
+  return [
+    {
+      id: "total_revenue",
+      value: overview.salesSummary.totalRevenue,
+      displayValue: formatCurrencyCompact(overview.salesSummary.totalRevenue),
+      context: bestChannel
+        ? {
+            kind: "best_channel",
+            label: bestChannel.id,
+            value: bestChannel.revenue,
+          }
+        : undefined,
+      tone: "positive",
+      sparkline: buildSalesSparkline(overview.salesRecords, "revenue", range),
+      trend: buildTrendFromComparisonMetric(
+        overview.comparison.totalRevenue,
+        range,
+        false,
+        "$"
+      ),
+    },
+    {
+      id: "total_orders",
+      value: overview.salesSummary.totalOrders,
+      displayValue: String(overview.salesSummary.totalOrders),
+      context: { kind: "refund_value", value: overview.salesSummary.refundValue },
+      sparkline: buildSalesSparkline(overview.salesRecords, "orders", range),
+      trend: buildTrendFromComparisonMetric(
+        overview.comparison.totalOrders,
+        range,
+        false
+      ),
+    },
+    {
+      id: "average_order_value",
+      value: overview.salesSummary.averageOrderValue,
+      displayValue: formatCurrency(overview.salesSummary.averageOrderValue),
+      context: { kind: "order_count", value: overview.salesSummary.totalOrders },
+      sparkline: buildSalesSparkline(
+        overview.salesRecords,
+        "average-order-value",
+        range
+      ),
+      trend: buildTrendFromComparisonMetric(
+        overview.comparison.averageOrderValue,
+        range,
+        true,
+        "$"
+      ),
+    },
+    {
+      id: "refund_rate",
+      value: overview.salesSummary.refundRate,
+      displayValue: `${overview.salesSummary.refundRate.toFixed(1)}%`,
+      context: { kind: "refund_value", value: overview.salesSummary.refundValue },
+      tone: overview.salesSummary.refundRate > 4 ? "warning" : "default",
+      sparkline: buildSalesSparkline(overview.salesRecords, "refund-rate", range),
+      trend: buildTrendFromComparisonMetric(
+        overview.comparison.refundRate,
+        range,
+        true,
+        "%"
+      ),
+    },
+    {
+      id: "total_reviews",
+      value: overview.metrics.totalReviews,
+      displayValue: String(overview.metrics.totalReviews),
+      context: {
+        kind: "new_reviews",
+        value: overview.metrics.pendingReviews,
+      },
+      sparkline: buildReviewSparklineFromTimeSeries(
+        overview.reviewTimeseries,
+        "count",
+        range
+      ),
+      trend: buildTrendFromComparisonMetric(
+        overview.comparison.totalReviews,
+        range,
+        false
+      ),
+    },
+    {
+      id: "positive_share",
+      value: overview.metrics.positiveShare,
+      displayValue: `${Math.round(overview.metrics.positiveShare)}%`,
+      context: { kind: "positive_reviews", value: positiveReviewCount },
+      tone: "positive",
+      sparkline: buildReviewSparklineFromTimeSeries(
+        overview.reviewTimeseries,
+        "positive-share",
+        range
+      ),
+      trend: buildTrendFromComparisonMetric(
+        overview.comparison.positiveShare,
+        range,
+        false,
+        "%"
+      ),
+    },
+  ];
+}
+
+function buildDashboardMetricSummary(
+  reviewCount: number,
+  distributions: DashboardReviewDistributions,
+  reviews: Review[]
+): DashboardMetricSummary {
+  const averageRating = reviews.length
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+    : null;
+  const positiveShare =
+    distributions.sentiment.find((bucket) => bucket.id === "positive")?.share ?? 0;
+  const negativeShare =
+    distributions.sentiment.find((bucket) => bucket.id === "negative")?.share ?? 0;
+
+  return {
+    totalReviews: reviewCount,
+    averageRating:
+      averageRating === null ? null : Number(averageRating.toFixed(2)),
+    positiveShare: Number((positiveShare * 100).toFixed(2)),
+    negativeShare: Number((negativeShare * 100).toFixed(2)),
+    pendingReviews: reviews.filter((review) => review.status === "new").length,
+    reviewedReviews: reviews.filter((review) => review.status === "reviewed").length,
+    respondedReviews: 0,
+    activeSources: new Set(reviews.map((review) => review.source)).size,
+  };
+}
+
+function buildDashboardComparisonFromReviewsAndSales(
+  reviews: Review[],
+  salesRecords: SalesRecord[],
+  filters: DashboardFilters
+): DashboardComparison {
+  const currentReviews = filterReviews(reviews, filters);
+  const previousReviews = getPreviousWindowReviews(reviews, filters);
+  const currentSales = filterSalesRecords(salesRecords, filters.range);
+  const previousSales = getPreviousWindowSalesRecords(salesRecords, filters.range);
+  const currentView = buildSalesView(
+    currentSales,
+    previousSales,
+    currentReviews,
+    previousReviews,
+    filters.range
+  );
+  const currentMetrics = buildDashboardMetricSummary(
+    currentReviews.length,
+    {
+      sentiment: buildSentimentDistribution(currentReviews),
+      ratings: buildRatingDistribution(currentReviews),
+      sources: buildSourceDistribution(currentReviews),
+      languages: buildLanguageDistribution(currentReviews),
+    },
+    currentReviews
+  );
+  const previousMetrics = buildDashboardMetricSummary(
+    previousReviews.length,
+    {
+      sentiment: buildSentimentDistribution(previousReviews),
+      ratings: buildRatingDistribution(previousReviews),
+      sources: buildSourceDistribution(previousReviews),
+      languages: buildLanguageDistribution(previousReviews),
+    },
+    previousReviews
+  );
+  const previousSalesSummary = buildSalesSummaryFromRecords(previousSales);
+
+  return {
+    totalReviews: buildComparisonMetric(currentMetrics.totalReviews, previousMetrics.totalReviews),
+    averageRating: buildComparisonMetric(currentMetrics.averageRating, previousMetrics.averageRating),
+    positiveShare: buildComparisonMetric(currentMetrics.positiveShare, previousMetrics.positiveShare),
+    negativeShare: buildComparisonMetric(currentMetrics.negativeShare, previousMetrics.negativeShare),
+    pendingReviews: buildComparisonMetric(currentMetrics.pendingReviews, previousMetrics.pendingReviews),
+    reviewedReviews: buildComparisonMetric(currentMetrics.reviewedReviews, previousMetrics.reviewedReviews),
+    respondedReviews: buildComparisonMetric(currentMetrics.respondedReviews, previousMetrics.respondedReviews),
+    activeSources: buildComparisonMetric(currentMetrics.activeSources, previousMetrics.activeSources),
+    totalRevenue: buildComparisonMetric(
+      currentView.summary.totalRevenue,
+      previousSalesSummary.totalRevenue
+    ),
+    totalOrders: buildComparisonMetric(
+      currentView.summary.totalOrders,
+      previousSalesSummary.totalOrders
+    ),
+    averageOrderValue: buildComparisonMetric(
+      currentView.summary.averageOrderValue,
+      previousSalesSummary.averageOrderValue
+    ),
+    refundCount: buildComparisonMetric(
+      currentView.summary.refundCount,
+      previousSalesSummary.refundCount
+    ),
+    refundValue: buildComparisonMetric(
+      currentView.summary.refundValue,
+      previousSalesSummary.refundValue
+    ),
+    refundRate: buildComparisonMetric(
+      currentView.summary.refundRate,
+      previousSalesSummary.refundRate
+    ),
+  };
+}
+
 function buildTrend(
   currentValue: number,
   previousValue: number,
@@ -439,6 +739,25 @@ function buildTrend(
     displayValue: `${delta > 0 ? "+" : delta < 0 ? "-" : ""}${formattedValue}${suffix}`,
     comparisonRange: range,
   };
+}
+
+function buildTrendFromComparisonMetric(
+  metric: DashboardComparisonMetric,
+  range: DashboardTimeRange,
+  fixedOneDecimal: boolean,
+  suffix = ""
+): DashboardMetric["trend"] | undefined {
+  if (range === "all") {
+    return undefined;
+  }
+
+  return buildTrend(
+    metric.current ?? 0,
+    metric.previous ?? 0,
+    range,
+    fixedOneDecimal,
+    suffix
+  );
 }
 
 function buildSalesSparkline(
@@ -519,6 +838,69 @@ function buildReviewSparkline(
     }
     return bucket.length;
   });
+}
+
+function buildReviewSparklineFromTimeSeries(
+  points: DashboardReviewTimeSeriesPoint[],
+  metric: "count" | "positive-share",
+  range: DashboardTimeRange
+): number[] {
+  if (points.length === 0) {
+    return DEFAULT_SPARKLINE;
+  }
+
+  const records = range === "all" ? points.slice(-30) : points;
+  const bins = chunkRecords(records, 6);
+
+  return bins.map((bucket) => {
+    if (bucket.length === 0) {
+      return 0;
+    }
+
+    if (metric === "positive-share") {
+      const totalReviews = sumBy(bucket, (point) => point.totalReviews);
+      const positiveReviews = sumBy(bucket, (point) => point.positiveReviews);
+      return totalReviews ? (positiveReviews / totalReviews) * 100 : 0;
+    }
+
+    return sumBy(bucket, (point) => point.totalReviews);
+  });
+}
+
+function buildReviewTimeseriesFromReviews(
+  reviews: Review[],
+  filters: DashboardFilters
+): DashboardReviewTimeSeriesPoint[] {
+  if (reviews.length === 0) {
+    return [];
+  }
+
+  const relevantReviews = filterReviews(reviews, filters);
+  const grouped = new Map<
+    string,
+    { totalReviews: number; positiveReviews: number }
+  >();
+
+  relevantReviews.forEach((review) => {
+    const key = review.reviewCreatedAt.slice(0, 10);
+    const current = grouped.get(key) ?? { totalReviews: 0, positiveReviews: 0 };
+    current.totalReviews += 1;
+    if (review.sentiment.label === "positive") {
+      current.positiveReviews += 1;
+    }
+    grouped.set(key, current);
+  });
+
+  return Array.from(grouped.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => ({
+      date: `${key}T00:00:00.000Z`,
+      totalReviews: value.totalReviews,
+      positiveReviews: value.positiveReviews,
+      positiveShare: value.totalReviews
+        ? Number(((value.positiveReviews / value.totalReviews) * 100).toFixed(2))
+        : 0,
+    }));
 }
 
 function buildSalesSeries(salesRecords: SalesRecord[]): DashboardSalesSeriesPoint[] {
@@ -776,6 +1158,44 @@ function getActivityType(review: Review): DashboardActivityItem["type"] {
     return "positive_signal";
   }
   return "review_resolved";
+}
+
+function buildSalesSummaryFromRecords(
+  salesRecords: SalesRecord[]
+): DashboardSalesSummary {
+  const totalRevenue = sumBy(salesRecords, (record) => record.revenue);
+  const totalOrders = sumBy(salesRecords, (record) => record.orders);
+  const refundCount = sumBy(salesRecords, (record) => record.refundCount);
+  const refundValue = sumBy(salesRecords, (record) => record.refundValue);
+  const averageOrderValue = totalOrders ? totalRevenue / totalOrders : 0;
+  const refundRate = totalOrders ? (refundCount / totalOrders) * 100 : 0;
+
+  return {
+    totalRevenue,
+    totalOrders,
+    averageOrderValue,
+    refundCount,
+    refundValue,
+    refundRate,
+  };
+}
+
+function buildComparisonMetric(
+  current: number | null,
+  previous: number | null
+): DashboardComparisonMetric {
+  const normalizedCurrent = current ?? 0;
+  const normalizedPrevious = previous ?? 0;
+  const delta = normalizedCurrent - normalizedPrevious;
+
+  return {
+    current,
+    previous,
+    delta,
+    percentageChange: normalizedPrevious
+      ? Number(((delta / normalizedPrevious) * 100).toFixed(2))
+      : null,
+  };
 }
 
 function sumBy<T>(items: T[], resolver: (item: T) => number): number {

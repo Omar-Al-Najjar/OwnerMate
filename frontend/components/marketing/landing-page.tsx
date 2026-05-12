@@ -22,13 +22,7 @@ type LandingPageProps = {
 type FeatureCard = {
   title: string;
   description: string;
-  icon: React.ReactNode;
-};
-
-type ProblemCard = {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
+  eyebrow: string;
 };
 
 type StepCard = {
@@ -36,172 +30,80 @@ type StepCard = {
   description: string;
 };
 
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
+function LogoMark({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={cn("h-5 w-5", className)}
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="m12 2.75 8 4.62v9.26l-8 4.62-8-4.62V7.37l8-4.62Z"
+        fill="hsl(var(--primary) / 0.08)"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+      <circle cx="12" cy="12" fill="currentColor" r="2.9" />
+    </svg>
+  );
+}
+
+function ArrowIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={cn("h-3.5 w-3.5", className)}
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <path
+        d="M3.25 8h9.5m-3.5-3.5L12.75 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function Eyebrow({
+  children,
+  className,
 }: {
-  eyebrow?: string;
-  title: string;
-  description?: string;
+  children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
-      {eyebrow ? (
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          {eyebrow}
-        </span>
-      ) : null}
-      <h2 className="max-w-2xl text-balance text-3xl font-semibold text-foreground sm:text-4xl">
-        {title}
-      </h2>
-      {description ? (
-        <p className="max-w-2xl text-base text-muted sm:text-lg">{description}</p>
-      ) : null}
-    </div>
-  );
-}
-
-function CircleIcon({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+    <span className={cn("premium-eyebrow", className)}>
       {children}
-    </div>
+    </span>
   );
 }
 
-function ReviewsIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M7 8.75h10M7 12h6m6 4.5-3.48-1.99a2 2 0 0 0-.99-.26H7a3 3 0 0 1-3-3v-5.5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10.75Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function SentimentIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M8.5 14.5c.9.92 2.12 1.5 3.5 1.5s2.6-.58 3.5-1.5M9 10h.01M15 10h.01M21 12c0 4.97-4.03 9-9 9a8.96 8.96 0 0 1-4.57-1.25L3 21l1.25-4.43A8.96 8.96 0 0 1 3 12c0-4.97 4.03-9 9-9s9 4.03 9 9Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function DashboardIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M4 6.75A1.75 1.75 0 0 1 5.75 5h12.5A1.75 1.75 0 0 1 20 6.75v10.5A1.75 1.75 0 0 1 18.25 19H5.75A1.75 1.75 0 0 1 4 17.25V6.75Zm4 7.75v2M12 10.5v6M16 8v8"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function UploadIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M12 15.5V5.75m0 0 3.25 3.25M12 5.75 8.75 9M5.75 14.75v2.5A1.75 1.75 0 0 0 7.5 19h9a1.75 1.75 0 0 0 1.75-1.75v-2.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function ReportIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M8 7.75h8M8 11.5h8M8 15.25h5M7 3.75h7.94c.46 0 .9.18 1.23.51l2.57 2.57c.33.33.51.77.51 1.23v10.19A1.75 1.75 0 0 1 17.5 20h-10A1.75 1.75 0 0 1 5.75 18.25v-12.75A1.75 1.75 0 0 1 7.5 3.75Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function FlowArrowIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M5 12h14m-4-4 4 4-4 4"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function CtaLink({
+function LandingButton({
   children,
   href,
-  secondary = false,
+  variant = "secondary",
   className,
 }: {
   children: React.ReactNode;
   href: LinkHref;
-  secondary?: boolean;
+  variant?: "ink" | "secondary" | "ghost";
   className?: string;
 }) {
   return (
     <Link
       className={cn(
-        "inline-flex min-h-[2.9rem] items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        secondary
-          ? "border border-border/75 bg-card/50 text-foreground hover:bg-surface-low"
-          : "bg-primary-container text-white shadow-float hover:-translate-y-px hover:brightness-110",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 text-[13px] font-semibold shadow-panel transition duration-200 ease-premium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+        variant === "ink" &&
+          "border border-ink bg-ink text-background hover:-translate-y-0.5 hover:bg-ink/90 dark:bg-foreground dark:text-background dark:hover:bg-foreground/90",
+        variant === "secondary" &&
+          "border border-border bg-card text-foreground hover:-translate-y-0.5 hover:border-border/80 hover:bg-surface-low",
+        variant === "ghost" &&
+          "border border-transparent bg-transparent text-muted shadow-none hover:text-foreground",
         className
       )}
       href={href}
@@ -211,218 +113,386 @@ function CtaLink({
   );
 }
 
-function DashboardPreview({
-  dictionary,
+function SectionHeading({
+  align = "start",
+  eyebrow,
+  title,
+  description,
 }: {
-  dictionary: LandingDictionary;
+  align?: "start" | "center";
+  eyebrow: string;
+  title: string;
+  description?: string;
 }) {
   return (
-    <section
-      className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 sm:px-6 lg:px-8"
-      id="insights"
+    <div
+      className={cn(
+        "landing-reveal max-w-2xl",
+        align === "center" && "mx-auto text-center"
+      )}
     >
-      <SectionHeading
-        eyebrow={dictionary.previewEyebrow}
-        title={dictionary.previewTitle}
-        description={dictionary.previewDescription}
-      />
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="mt-3 font-serif text-[2.5rem] font-normal leading-[1.02] tracking-[-0.045em] text-foreground sm:text-[3.25rem]">
+        {title}
+      </h2>
+      {description ? (
+        <p className="mt-5 text-[15px] leading-8 text-muted sm:text-base">
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
-      <div className="panel mx-auto w-full overflow-hidden rounded-[28px] border border-border/80 bg-card p-4 shadow-float sm:p-6">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="soft-panel rounded-[24px] p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                  {dictionary.previewReviewsSectionTitle}
-                </p>
-                <h3 className="mt-2 text-xl font-semibold text-foreground">
-                  {dictionary.previewPanelTitle}
-                </h3>
-              </div>
-              <div className="rounded-full border border-border/80 bg-card px-3 py-1 text-xs font-semibold text-muted">
-                142 {dictionary.previewReviewsLabel}
-              </div>
+function ProductBadge({
+  children,
+  tone = "neutral",
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "positive" | "warning" | "negative" | "brand";
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-semibold leading-none",
+        tone === "neutral" && "bg-surface-high text-muted",
+        tone === "positive" && "bg-success/10 text-success",
+        tone === "warning" && "bg-warning/12 text-warning",
+        tone === "negative" && "bg-error/12 text-error",
+        tone === "brand" && "bg-primary/10 text-primary"
+      )}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {children}
+    </span>
+  );
+}
+
+function ProductFrame({ dictionary, locale }: { dictionary: LandingDictionary; locale: Locale }) {
+  const isRtl = locale === "ar";
+  const sentiment = [
+    {
+      label: dictionary.previewPositiveLabel,
+      value: "68%",
+      width: "68%",
+      className: "bg-success",
+    },
+    {
+      label: dictionary.previewNeutralLabel,
+      value: "21%",
+      width: "21%",
+      className: "bg-chart-neutral",
+    },
+    {
+      label: dictionary.previewNegativeLabel,
+      value: "11%",
+      width: "11%",
+      className: "bg-error",
+    },
+  ];
+  const bars = ["42%", "67%", "54%", "78%", "63%", "88%", "74%"];
+
+  return (
+    <div className="landing-reveal relative mx-auto max-w-[1180px]">
+      <div className="overflow-hidden rounded-xl border border-border bg-board shadow-frame">
+        <div className="flex min-h-12 items-center justify-between gap-4 border-b border-border bg-card px-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-12 items-center gap-2 border-e border-border pe-4">
+              <LogoMark className="text-primary" />
+              <span className="text-[12px] font-bold text-foreground" dir="ltr">
+                OwnerMate
+              </span>
             </div>
-
-            <div className="mt-6 grid gap-4">
+            <nav className="hidden items-center gap-1 md:flex">
               {[
-                {
-                  label: dictionary.previewPositiveLabel,
-                  value: "68%",
-                  tone: "bg-success/12 text-success",
-                  fill: "w-[68%] bg-success",
-                },
-                {
-                  label: dictionary.previewNeutralLabel,
-                  value: "21%",
-                  tone: "bg-surface-high text-foreground",
-                  fill: "w-[21%] bg-muted",
-                },
-                {
-                  label: dictionary.previewNegativeLabel,
-                  value: "11%",
-                  tone: "bg-error/12 text-error",
-                  fill: "w-[11%] bg-error",
-                },
-              ].map((item) => (
+                dictionary.navInsights,
+                dictionary.previewSalesSectionTitle,
+                dictionary.previewReviewsSectionTitle,
+              ].map((item, index) => (
+                <span
+                  className={cn(
+                    "relative flex h-12 items-center px-2.5 text-[12px] font-semibold",
+                    index === 0 ? "text-foreground" : "text-muted"
+                  )}
+                  key={item}
+                >
+                  {item}
+                  {index === 0 ? (
+                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-foreground" />
+                  ) : null}
+                </span>
+              ))}
+            </nav>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-muted">
+            <span className="hidden items-center gap-1.5 sm:inline-flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              {dictionary.previewChartRange}
+            </span>
+            <span className="rounded border border-border bg-surface-low px-2 py-1">
+              {dictionary.navInsights}
+            </span>
+          </div>
+        </div>
+
+        <div className="border-b border-border bg-card px-5 py-4">
+          <p className="text-[11px] text-muted">{dictionary.previewEyebrow}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h3 className="font-serif text-[25px] font-normal leading-none text-foreground">
+              {dictionary.previewTitle}
+            </h3>
+            <ProductBadge tone="warning">{dictionary.previewChartRange}</ProductBadge>
+          </div>
+        </div>
+
+        <div className="grid gap-3 bg-board p-3 lg:grid-cols-12">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-panel lg:col-span-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Eyebrow>{dictionary.previewPanelTitle}</Eyebrow>
+                <p className="mt-2 font-serif text-[28px] leading-none text-foreground">
+                  142
+                  <span className="ms-1 font-sans text-[12px] text-muted">
+                    {dictionary.previewReviewsLabel}
+                  </span>
+                </p>
+              </div>
+              <ProductBadge tone="brand">{dictionary.featureTwoTitle}</ProductBadge>
+            </div>
+            <div className="mt-5 space-y-3">
+              {sentiment.map((item) => (
                 <div
-                  className="rounded-2xl border border-border/75 bg-card/85 p-4"
+                  className="rounded-lg border border-border bg-surface-low p-3"
                   key={item.label}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-muted">{item.label}</p>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-                        item.tone
-                      )}
-                    >
+                    <span className="text-[12px] font-semibold text-foreground">
+                      {item.label}
+                    </span>
+                    <span className="font-serif text-[20px] leading-none text-foreground">
                       {item.value}
                     </span>
                   </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-highest">
-                    <div className={cn("h-full rounded-full", item.fill)} />
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-high">
+                    <div
+                      className={cn("h-full rounded-full", item.className)}
+                      style={{ width: item.width }}
+                    />
                   </div>
                 </div>
               ))}
             </div>
-
-            <div className="mt-6 rounded-2xl border border-border/75 bg-card/90 p-4">
-              <p className="text-sm font-semibold text-foreground">
-                {dictionary.previewLatestInsightsTitle}
-              </p>
-              <ul className="mt-4 space-y-3">
-                {dictionary.previewInsightItems.map((item, index) => (
-                  <li
-                    className="flex items-start gap-3 rounded-2xl border border-border/70 bg-card/85 p-3"
-                    key={item}
-                  >
-                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      {index + 1}
-                    </span>
-                    <span className="text-sm text-muted">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
 
-          <div className="soft-panel rounded-[24px] p-5">
-            <div className="flex items-start justify-between gap-4">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-panel lg:col-span-4">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                  {dictionary.previewSalesSectionTitle}
+                <Eyebrow>{dictionary.previewChartTitle}</Eyebrow>
+                <p className="mt-2 text-[12px] text-muted">
+                  {dictionary.previewSalesInsightsTitle}
                 </p>
-                <h3 className="mt-2 text-xl font-semibold text-foreground">
-                  {dictionary.previewChartTitle}
-                </h3>
               </div>
-              <div className="rounded-full border border-border/80 bg-card px-3 py-1 text-xs font-semibold text-muted">
-                {dictionary.previewChartRange}
-              </div>
+              <ProductBadge tone="positive">{dictionary.previewChartRange}</ProductBadge>
             </div>
-
-            <div className="mt-6 rounded-2xl border border-border/75 bg-card/90 p-4">
-              <div className="mt-1 flex h-40 items-end gap-3">
-                {["44%", "72%", "58%", "84%", "66%", "92%", "77%"].map((height, index) => (
-                  <div className="flex flex-1 flex-col items-center gap-3" key={height}>
-                    <div className="flex h-full w-full items-end rounded-full bg-surface-low px-1.5 pb-1.5">
-                      <div
-                        className={cn(
-                          "w-full rounded-full bg-gradient-to-t from-primary to-primary-container",
-                          index % 2 === 0 ? "opacity-90" : "opacity-75"
-                        )}
-                        style={{ height }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted">
-                      {dictionary.previewDays[index]}
-                    </span>
+            <div className="mt-5 flex h-44 items-end gap-2">
+              {bars.map((height, index) => (
+                <div className="flex h-full flex-1 flex-col items-center gap-2" key={height}>
+                  <div className="flex h-full w-full items-end rounded-full bg-surface-low px-1.5 pb-1.5">
+                    <div
+                      className="w-full rounded-full bg-gradient-to-t from-primary to-success"
+                      style={{ height }}
+                    />
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-border/75 bg-card/90 p-4">
-              <p className="text-sm font-semibold text-foreground">
-                {dictionary.previewSalesInsightsTitle}
-              </p>
-              <ul className="mt-4 space-y-3">
-                {dictionary.previewSalesInsightItems.map((item, index) => (
-                  <li
-                    className="flex items-start gap-3 rounded-2xl border border-border/70 bg-card/85 p-3"
-                    key={item}
-                  >
-                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      {index + 1}
-                    </span>
-                    <span className="text-sm text-muted">{item}</span>
-                  </li>
-                ))}
-              </ul>
+                  <span className="text-[10px] text-muted">
+                    {dictionary.previewDays[index]}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
+
+          <div className="rounded-xl border border-border bg-card shadow-panel lg:col-span-3">
+            <div className="border-b border-border px-4 py-3">
+              <Eyebrow>{dictionary.previewLatestInsightsTitle}</Eyebrow>
+            </div>
+            <div className="divide-y divide-border/70">
+              {dictionary.previewInsightItems.map((item, index) => (
+                <div
+                  className="flex gap-3 px-4 py-3 transition hover:bg-surface-low"
+                  key={item}
+                >
+                  <span className="mt-0.5 font-serif text-[18px] leading-none text-primary">
+                    {isRtl ? index + 1 : `0${index + 1}`}
+                  </span>
+                  <p className="text-[12px] leading-6 text-foreground">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-4 shadow-panel lg:col-span-12">
+            <div className="flex flex-wrap items-center gap-4">
+              <Eyebrow>{dictionary.solutionEyebrow}</Eyebrow>
+              <span className="font-serif text-[24px] leading-none text-foreground">
+                {dictionary.featureFiveTitle}
+              </span>
+              <div className="h-px min-w-16 flex-1 bg-gradient-to-r from-primary to-transparent rtl:bg-gradient-to-l" />
+              <span className="text-[12px] text-muted">{dictionary.solutionPointFour}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrustStrip({ dictionary }: { dictionary: LandingDictionary }) {
+  const items = [
+    dictionary.featureOneTitle,
+    dictionary.featureTwoTitle,
+    dictionary.featureThreeTitle,
+    dictionary.featureFourTitle,
+    dictionary.featureFiveTitle,
+  ];
+
+  return (
+    <section className="border-y border-border bg-paper py-10">
+      <div className="mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
+        <div className="landing-reveal text-center">
+          <Eyebrow>{dictionary.featuresEyebrow}</Eyebrow>
+        </div>
+        <div className="landing-reveal mt-7 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+          {items.map((item, index) => (
+            <span
+              className={cn(
+                "text-sm font-semibold text-muted transition hover:text-foreground",
+                index % 2 === 0 && "font-serif text-xl font-normal italic"
+              )}
+              key={item}
+            >
+              {item}
+            </span>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-export function LandingPage({
-  auth,
-  common,
-  dictionary,
-  locale,
-}: LandingPageProps) {
-  const homeHref = `/${locale}` as Route;
-  const signInHref = `/${locale}/sign-in` as Route;
-  const signUpHref = `/${locale}/sign-up` as Route;
-  const problemCards: ProblemCard[] = [
+function StoryPillars({ dictionary }: { dictionary: LandingDictionary }) {
+  const pillars: FeatureCard[] = [
     {
+      eyebrow: dictionary.featureOneTitle,
       title: dictionary.problemCardOneTitle,
       description: dictionary.problemCardOneDescription,
-      icon: <ReviewsIcon />,
     },
     {
-      title: dictionary.problemCardTwoTitle,
-      description: dictionary.problemCardTwoDescription,
-      icon: <SentimentIcon />,
-    },
-    {
+      eyebrow: dictionary.featureTwoTitle,
       title: dictionary.problemCardThreeTitle,
       description: dictionary.problemCardThreeDescription,
-      icon: <DashboardIcon />,
+    },
+    {
+      eyebrow: dictionary.featureThreeTitle,
+      title: dictionary.problemCardTwoTitle,
+      description: dictionary.problemCardTwoDescription,
     },
   ];
 
-  const features: FeatureCard[] = [
-    {
-      title: dictionary.featureOneTitle,
-      description: dictionary.featureOneDescription,
-      icon: <ReviewsIcon />,
-    },
-    {
-      title: dictionary.featureTwoTitle,
-      description: dictionary.featureTwoDescription,
-      icon: <SentimentIcon />,
-    },
-    {
-      title: dictionary.featureThreeTitle,
-      description: dictionary.featureThreeDescription,
-      icon: <UploadIcon />,
-    },
-    {
-      title: dictionary.featureFourTitle,
-      description: dictionary.featureFourDescription,
-      icon: <DashboardIcon />,
-    },
-    {
-      title: dictionary.featureFiveTitle,
-      description: dictionary.featureFiveDescription,
-      icon: <ReportIcon />,
-    },
-  ];
+  return (
+    <section className="bg-paper py-24 sm:py-28" id="solution">
+      <div className="mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
+        <SectionHeading
+          description={dictionary.solutionDescription}
+          eyebrow={dictionary.solutionEyebrow}
+          title={dictionary.solutionTitle}
+        />
 
+        <div className="mt-14 grid gap-5 md:grid-cols-3">
+          {pillars.map((pillar, index) => (
+            <article
+              className="landing-reveal flex h-full flex-col rounded-xl border border-border bg-card p-7 shadow-panel"
+              key={pillar.title}
+              style={{ animationDelay: `${index * 80}ms` }}
+            >
+              <div className="mb-5 flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-md border border-primary/15 bg-primary/8 text-primary">
+                  <LogoMark className="h-4 w-4" />
+                </span>
+                <Eyebrow>{pillar.eyebrow}</Eyebrow>
+              </div>
+              <h3 className="font-serif text-[24px] font-normal leading-tight tracking-[-0.025em] text-foreground">
+                {pillar.title}
+              </h3>
+              <p className="mt-4 flex-1 text-[13px] leading-7 text-muted">
+                {pillar.description}
+              </p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProductShowcase({
+  dictionary,
+  locale,
+}: {
+  dictionary: LandingDictionary;
+  locale: Locale;
+}) {
+  return (
+    <section className="border-y border-border bg-board py-24 sm:py-28" id="insights">
+      <div className="mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
+        <div className="grid items-end gap-8 md:grid-cols-[1.05fr_0.95fr]">
+          <SectionHeading
+            description={dictionary.previewDescription}
+            eyebrow={dictionary.previewEyebrow}
+            title={dictionary.previewTitle}
+          />
+          <div className="landing-reveal grid grid-cols-2 gap-5">
+            {[
+              {
+                label: dictionary.previewReviewsSectionTitle,
+                value: "142",
+                helper: dictionary.previewReviewsLabel,
+              },
+              {
+                label: dictionary.featureTwoTitle,
+                value: "68%",
+                helper: dictionary.previewPositiveLabel,
+              },
+              {
+                label: dictionary.previewSalesSectionTitle,
+                value: "7",
+                helper: dictionary.previewChartRange,
+              },
+              {
+                label: dictionary.featureFiveTitle,
+                value: "3",
+                helper: dictionary.previewLatestInsightsTitle,
+              },
+            ].map((metric) => (
+              <div key={metric.label}>
+                <Eyebrow>{metric.label}</Eyebrow>
+                <div className="mt-2 font-serif text-[30px] leading-none text-foreground">
+                  {metric.value}
+                </div>
+                <p className="mt-1 text-[11px] leading-5 text-muted">{metric.helper}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-12">
+          <ProductFrame dictionary={dictionary} locale={locale} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Workflow({ dictionary, locale }: { dictionary: LandingDictionary; locale: Locale }) {
   const steps: StepCard[] = [
     {
       title: dictionary.stepOneTitle,
@@ -443,241 +513,307 @@ export function LandingPage({
   ];
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/88 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-6 lg:px-8">
-          <Link
-            className="text-lg font-extrabold tracking-[-0.03em] text-foreground"
-            href={homeHref}
-          >
-            OwnerMate
-          </Link>
+    <section className="border-y border-border bg-board py-24 sm:py-28" id="how-it-works">
+      <div className="mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
+        <SectionHeading
+          description={dictionary.howItWorksDescription}
+          eyebrow={dictionary.howItWorksEyebrow}
+          title={dictionary.howItWorksTitle}
+        />
 
-          <nav className="hidden items-center gap-7 md:flex">
-            <a className="text-sm font-medium text-muted transition hover:text-foreground" href="#solution">
-              {dictionary.navProduct}
-            </a>
-            <a className="text-sm font-medium text-muted transition hover:text-foreground" href="#features">
-              {dictionary.navFeatures}
-            </a>
-            <a className="text-sm font-medium text-muted transition hover:text-foreground" href="#how-it-works">
-              {dictionary.navHowItWorks}
-            </a>
-            <a className="text-sm font-medium text-muted transition hover:text-foreground" href="#insights">
-              {dictionary.navInsights}
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <LanguageSwitcher common={common} locale={locale} />
-            <ThemeToggle common={common} />
-            <CtaLink
-              className="hidden sm:inline-flex"
-              href={signInHref}
-              secondary
-            >
-              {auth.signIn}
-            </CtaLink>
-            <CtaLink href={signUpHref}>{auth.signUp}</CtaLink>
-          </div>
-        </div>
-      </header>
-
-      <section className="mx-auto flex max-w-6xl flex-col items-center px-5 pb-20 pt-16 text-center sm:px-6 sm:pt-24 lg:px-8 lg:pb-28">
-        <span className="rounded-full border border-primary/15 bg-primary/8 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          {dictionary.heroEyebrow}
-        </span>
-        <h1 className="mt-8 max-w-5xl text-balance text-4xl font-extrabold text-foreground sm:text-5xl lg:text-6xl">
-          {dictionary.heroTitle}
-        </h1>
-        <p className="mt-6 max-w-3xl text-lg text-muted sm:text-xl">
-          {dictionary.heroDescription}
-        </p>
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <CtaLink className="min-w-[10rem]" href={signInHref} secondary>
-            {auth.signIn}
-          </CtaLink>
-          <CtaLink className="min-w-[10rem]" href={signUpHref}>
-            {auth.signUp}
-          </CtaLink>
-        </div>
-      </section>
-
-      <section className="bg-surface-low py-20 sm:py-24 lg:py-28">
-        <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
-          <SectionHeading
-            title={dictionary.problemTitle}
-            description={dictionary.problemDescription}
-          />
-
-          <div className="mt-12 grid gap-5 md:grid-cols-3">
-            {problemCards.map((card) => (
-              <article
-                className="panel rounded-[24px] border border-border/75 p-6"
-                key={card.title}
-              >
-                <CircleIcon>{card.icon}</CircleIcon>
-                <h3 className="mt-5 text-xl font-semibold text-foreground">
-                  {card.title}
-                </h3>
-                <p className="mt-3 text-sm leading-7 text-muted">
-                  {card.description}
-                </p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-20 sm:py-24 lg:py-28" id="solution">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-          <div className="flex flex-col justify-center">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-              {dictionary.solutionEyebrow}
-            </span>
-            <h2 className="mt-4 max-w-xl text-balance text-3xl font-semibold text-foreground sm:text-4xl">
-              {dictionary.solutionTitle}
-            </h2>
-            <p className="mt-5 max-w-xl text-base text-muted sm:text-lg">
-              {dictionary.solutionDescription}
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[dictionary.solutionPointOne, dictionary.solutionPointTwo, dictionary.solutionPointThree, dictionary.solutionPointFour].map(
-              (item, index) => (
-                <div
-                  className="soft-panel rounded-[24px] border border-border/75 p-5"
-                  key={item}
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-sm font-semibold text-primary">
-                    0{index + 1}
-                  </div>
-                  <p className="mt-4 text-sm leading-7 text-foreground">{item}</p>
-                </div>
-              )
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-surface-low py-20 sm:py-24 lg:py-28" id="features">
-        <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
-          <SectionHeading
-            eyebrow={dictionary.featuresEyebrow}
-            title={dictionary.featuresTitle}
-            description={dictionary.featuresDescription}
-          />
-
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature) => (
-              <article
-                className="panel rounded-[24px] border border-border/75 p-6"
-                key={feature.title}
-              >
-                <CircleIcon>{feature.icon}</CircleIcon>
-                <h3 className="mt-5 text-xl font-semibold text-foreground">
-                  {feature.title}
-                </h3>
-                <p className="mt-3 text-sm leading-7 text-muted">
-                  {feature.description}
-                </p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-20 sm:py-24 lg:py-28" id="how-it-works">
-        <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
-          <SectionHeading
-            eyebrow={dictionary.howItWorksEyebrow}
-            title={dictionary.howItWorksTitle}
-            description={dictionary.howItWorksDescription}
-          />
-
-          <div className="mt-12 grid gap-4 lg:grid-cols-4">
+        <div className="relative mt-14">
+          <div className="absolute left-[5%] right-[5%] top-3 hidden h-px bg-border md:block" />
+          <div className="grid gap-8 md:grid-cols-4">
             {steps.map((step, index) => (
               <article
-                className="soft-panel relative rounded-[24px] border border-border/75 p-6"
+                className="landing-reveal relative"
                 key={step.title}
+                style={{ animationDelay: `${index * 80}ms` }}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-                    0{index + 1}
+                <div className="mb-5 flex items-center gap-3">
+                  <span className="relative z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-primary bg-card font-serif text-[13px] text-primary">
+                    {index + 1}
                   </span>
-                  {index < steps.length - 1 ? (
-                    <span
-                      className={cn(
-                        "hidden text-primary/60 lg:inline-flex",
-                        locale === "ar" && "rotate-180"
-                      )}
-                    >
-                      <FlowArrowIcon />
-                    </span>
-                  ) : null}
+                  <Eyebrow>
+                    {locale === "ar" ? `${index + 1}` : `Step 0${index + 1}`}
+                  </Eyebrow>
                 </div>
-                <h3 className="mt-6 text-xl font-semibold text-foreground">
+                <h3 className="font-serif text-[24px] font-normal leading-tight tracking-[-0.03em] text-foreground">
                   {step.title}
                 </h3>
-                <p className="mt-3 text-sm leading-7 text-muted">
+                <p className="mt-3 text-[13px] leading-7 text-muted">
                   {step.description}
                 </p>
               </article>
             ))}
           </div>
         </div>
-      </section>
-
-      <div className="pb-20 pt-4 sm:pb-24 lg:pb-28 lg:pt-6">
-        <DashboardPreview dictionary={dictionary} />
       </div>
+    </section>
+  );
+}
 
-      <section className="bg-primary-container py-20 text-center text-white sm:py-24 lg:py-28">
-        <div className="mx-auto max-w-3xl px-5 sm:px-6 lg:px-8">
-          <h2 className="text-balance text-3xl font-semibold sm:text-4xl">
-            {dictionary.finalCtaTitle}
-          </h2>
-          <p className="mt-5 text-base text-white/72 sm:text-lg">
-            {dictionary.finalCtaDescription}
+function FeatureGrid({ dictionary }: { dictionary: LandingDictionary }) {
+  const features: FeatureCard[] = [
+    {
+      eyebrow: dictionary.previewReviewsSectionTitle,
+      title: dictionary.featureOneTitle,
+      description: dictionary.featureOneDescription,
+    },
+    {
+      eyebrow: dictionary.previewPanelTitle,
+      title: dictionary.featureTwoTitle,
+      description: dictionary.featureTwoDescription,
+    },
+    {
+      eyebrow: dictionary.previewSalesSectionTitle,
+      title: dictionary.featureThreeTitle,
+      description: dictionary.featureThreeDescription,
+    },
+    {
+      eyebrow: dictionary.navInsights,
+      title: dictionary.featureFourTitle,
+      description: dictionary.featureFourDescription,
+    },
+    {
+      eyebrow: dictionary.previewLatestInsightsTitle,
+      title: dictionary.featureFiveTitle,
+      description: dictionary.featureFiveDescription,
+    },
+    {
+      eyebrow: dictionary.howItWorksEyebrow,
+      title: dictionary.solutionTitle,
+      description: dictionary.solutionPointFour,
+    },
+  ];
+
+  return (
+    <section className="bg-paper py-24 sm:py-28" id="features">
+      <div className="mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
+        <SectionHeading
+          description={dictionary.featuresDescription}
+          eyebrow={dictionary.featuresEyebrow}
+          title={dictionary.featuresTitle}
+        />
+
+        <div className="landing-reveal mt-12 grid overflow-hidden rounded-xl border border-border bg-border shadow-panel sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((feature) => (
+            <article
+              className="min-h-56 bg-card p-7 transition duration-200 hover:bg-surface-low"
+              key={feature.title}
+            >
+              <Eyebrow>{feature.eyebrow}</Eyebrow>
+              <h3 className="mt-5 text-[15px] font-bold leading-6 text-foreground">
+                {feature.title}
+              </h3>
+              <p className="mt-3 text-[12.5px] leading-7 text-muted">
+                {feature.description}
+              </p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCta({
+  auth,
+  dictionary,
+  signInHref,
+  signUpHref,
+}: {
+  auth: AuthDictionary;
+  dictionary: LandingDictionary;
+  signInHref: Route;
+  signUpHref: Route;
+}) {
+  return (
+    <section className="bg-paper py-24 sm:py-28">
+      <div className="mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
+        <div className="landing-reveal relative overflow-hidden rounded-2xl border border-ink bg-ink px-6 py-16 text-center text-background shadow-frame sm:px-10">
+          <div className="landing-dot-grid absolute inset-0 opacity-[0.08]" />
+          <div className="relative mx-auto max-w-3xl">
+            <Eyebrow className="text-background/55">{dictionary.solutionEyebrow}</Eyebrow>
+            <h2 className="mt-4 font-serif text-[3rem] font-normal leading-[1.03] tracking-[-0.045em] text-background sm:text-[4rem]">
+              {dictionary.finalCtaTitle}
+            </h2>
+            <p className="mx-auto mt-5 max-w-xl text-[15px] leading-8 text-background/70">
+              {dictionary.finalCtaDescription}
+            </p>
+            <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
+              <LandingButton
+                className="border-background bg-background text-ink hover:bg-background/90"
+                href={signInHref}
+              >
+                {auth.signIn}
+                <ArrowIcon />
+              </LandingButton>
+              <LandingButton
+                className="border-background/20 bg-background/5 text-background hover:bg-background/10"
+                href={signUpHref}
+                variant="secondary"
+              >
+                {auth.signUp}
+              </LandingButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer({
+  dictionary,
+  homeHref,
+}: {
+  dictionary: LandingDictionary;
+  homeHref: Route;
+}) {
+  const links = [
+    { href: "#solution", label: dictionary.navProduct },
+    { href: "#features", label: dictionary.navFeatures },
+    { href: "#how-it-works", label: dictionary.navHowItWorks },
+    { href: "#insights", label: dictionary.navInsights },
+  ];
+
+  return (
+    <footer className="border-t border-border bg-paper">
+      <div className="mx-auto grid max-w-[1280px] gap-10 px-5 py-14 sm:px-6 lg:grid-cols-[1.2fr_1fr] lg:px-8">
+        <div>
+          <Link className="inline-flex items-center gap-2" href={homeHref}>
+            <LogoMark className="text-primary" />
+            <span className="text-sm font-bold text-foreground" dir="ltr">
+              OwnerMate
+            </span>
+          </Link>
+          <p className="mt-5 max-w-sm text-[13px] leading-7 text-muted">
+            {dictionary.footerNote}
           </p>
-          <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
-            <CtaLink
-              className="min-w-[10rem] border border-white/90 bg-white !text-slate-950 shadow-none hover:bg-white hover:!text-slate-950 hover:brightness-95"
-              href={signInHref}
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {links.map((link) => (
+            <a
+              className="text-[12.5px] font-semibold text-muted transition hover:text-foreground"
+              href={link.href}
+              key={link.href}
             >
+              {link.label}
+            </a>
+          ))}
+        </div>
+      </div>
+      <div className="border-t border-border px-5 py-5 text-center text-[11.5px] text-text-subtle">
+        OwnerMate
+      </div>
+    </footer>
+  );
+}
+
+export function LandingPage({
+  auth,
+  common,
+  dictionary,
+  locale,
+}: LandingPageProps) {
+  const homeHref = `/${locale}` as Route;
+  const signInHref = `/${locale}/sign-in` as Route;
+  const signUpHref = `/${locale}/sign-up` as Route;
+
+  return (
+    <main className="landing-page min-h-screen overflow-x-hidden bg-paper text-foreground">
+      <header className="sticky top-0 z-50 border-b border-border/70 bg-paper/88 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-4 px-5 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-8">
+            <Link className="flex items-center gap-2" href={homeHref}>
+              <LogoMark className="text-primary" />
+              <span
+                className="text-[15px] font-bold tracking-[-0.02em] text-foreground"
+                dir="ltr"
+              >
+                OwnerMate
+              </span>
+            </Link>
+            <nav className="hidden items-center gap-7 lg:flex">
+              {[
+                { href: "#solution", label: dictionary.navProduct },
+                { href: "#features", label: dictionary.navFeatures },
+                { href: "#how-it-works", label: dictionary.navHowItWorks },
+                { href: "#insights", label: dictionary.navInsights },
+              ].map((item) => (
+                <a
+                  className="text-[13px] font-semibold text-muted transition hover:text-foreground"
+                  href={item.href}
+                  key={item.href}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <LanguageSwitcher common={common} locale={locale} />
+            <ThemeToggle common={common} />
+            <LandingButton className="hidden sm:inline-flex" href={signInHref} variant="ghost">
               {auth.signIn}
-            </CtaLink>
-            <CtaLink
-              className="min-w-[10rem] border-white/20 bg-white/8 text-white hover:bg-white/14"
-              href={signUpHref}
-              secondary
-            >
+            </LandingButton>
+            <LandingButton href={signUpHref} variant="ink">
               {auth.signUp}
-            </CtaLink>
+            </LandingButton>
+          </div>
+        </div>
+      </header>
+
+      <section className="relative overflow-hidden pb-24 pt-20 sm:pb-28 sm:pt-24">
+        <div className="landing-dot-grid absolute inset-0 opacity-60" />
+        <div className="relative mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
+          <div className="landing-reveal mx-auto mb-8 flex justify-center">
+            <a
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card py-1 pe-3.5 ps-1 shadow-panel transition hover:border-border/80"
+              href="#insights"
+            >
+              <ProductBadge tone="brand">{dictionary.heroEyebrow}</ProductBadge>
+              <span className="text-[12px] text-muted">{dictionary.previewTitle}</span>
+              <ArrowIcon
+                className={cn("text-text-subtle", locale === "ar" && "rotate-180")}
+              />
+            </a>
+          </div>
+
+          <h1 className="landing-reveal mx-auto max-w-5xl text-center font-serif text-[4.2rem] font-normal leading-[0.95] tracking-[-0.065em] text-foreground sm:text-[5.5rem] lg:text-[6.5rem]">
+            {dictionary.heroTitle}
+          </h1>
+          <p className="landing-reveal mx-auto mt-7 max-w-2xl text-center text-[17px] leading-8 text-muted">
+            {dictionary.heroDescription}
+          </p>
+          <div className="landing-reveal mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <LandingButton href={signUpHref} variant="ink">
+              {auth.signUp}
+              <ArrowIcon className={locale === "ar" ? "rotate-180" : undefined} />
+            </LandingButton>
+            <LandingButton href={signInHref}>{auth.signIn}</LandingButton>
+          </div>
+
+          <div className="mt-16">
+            <ProductFrame dictionary={dictionary} locale={locale} />
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-border/70 bg-background">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-8 text-sm text-muted sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div>
-            <p className="font-semibold text-foreground">OwnerMate</p>
-            <p className="mt-1">{dictionary.footerNote}</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <a className="transition hover:text-foreground" href="#solution">
-              {dictionary.navProduct}
-            </a>
-            <a className="transition hover:text-foreground" href="#features">
-              {dictionary.navFeatures}
-            </a>
-            <a className="transition hover:text-foreground" href="#how-it-works">
-              {dictionary.navHowItWorks}
-            </a>
-          </div>
-        </div>
-      </footer>
+      <TrustStrip dictionary={dictionary} />
+      <StoryPillars dictionary={dictionary} />
+      <ProductShowcase dictionary={dictionary} locale={locale} />
+      <Workflow dictionary={dictionary} locale={locale} />
+      <FeatureGrid dictionary={dictionary} />
+      <FinalCta
+        auth={auth}
+        dictionary={dictionary}
+        signInHref={signInHref}
+        signUpHref={signUpHref}
+      />
+      <Footer dictionary={dictionary} homeHref={homeHref} />
     </main>
   );
 }

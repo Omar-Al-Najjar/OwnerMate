@@ -4,6 +4,7 @@ export type CommonDictionary = {
   dark: string;
   system: string;
   language: string;
+  loading: string;
   openNavigation: string;
   closeNavigation: string;
   switchLanguage: string;
@@ -338,6 +339,7 @@ export type DashboardDictionary = {
   datasetBaseline: string;
   openReviewAction: string;
   jumpToReviewsAction: string;
+  backToDashboard: string;
   viewFullSalesAnalytics: string;
   exploreReviewInsights: string;
   openReviewQueue: string;

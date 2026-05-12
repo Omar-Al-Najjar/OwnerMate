@@ -59,9 +59,9 @@
     navFeatures: "Features",
     navHowItWorks: "How it works",
     navInsights: "Insights",
-    heroEyebrow: "AI business intelligence",
+    heroEyebrow: "Review and sales intelligence",
     heroTitle:
-      "OwnerMate helps business owners understand reviews, sales data, and business performance with AI",
+      "Understand reviews and sales performance in one calm workspace",
     heroDescription:
       "Import Google Reviews for sentiment analysis, upload sales data for deeper insights, and turn business information into clear decisions.",
     previewEyebrow: "Simple dashboard preview",
@@ -302,6 +302,7 @@
     datasetBaseline: "Dataset baseline",
     openReviewAction: "Open the review queue",
     jumpToReviewsAction: "Go to Reviews",
+    backToDashboard: "Back to Dashboard",
     viewFullSalesAnalytics: "View full sales analytics →",
     exploreReviewInsights: "Explore review insights →",
     openReviewQueue: "Open review queue →",

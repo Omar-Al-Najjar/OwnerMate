@@ -10,17 +10,15 @@ export function SectionHeader({
   description,
 }: SectionHeaderProps) {
   return (
-    <header className="space-y-4 text-start">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
-        {eyebrow}
-      </p>
-      <div className="space-y-3">
-        <h1 className="max-w-4xl font-display text-[2.35rem] font-bold tracking-[-0.055em] text-foreground sm:text-[3rem]">
-          {title}
-        </h1>
-        <p className="max-w-3xl text-sm leading-7 text-muted sm:text-base">
-          {description}
-        </p>
+    <header className="border-b border-border bg-card px-5 py-5 text-start shadow-panel sm:px-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="premium-eyebrow">{eyebrow}</p>
+          <h1 className="premium-page-title mt-1.5">{title}</h1>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-muted">
+            {description}
+          </p>
+        </div>
       </div>
     </header>
   );

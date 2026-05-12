@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
@@ -11,7 +11,6 @@ import { Button } from "@/components/forms/button";
 import { Select } from "@/components/forms/select";
 import {
   DEFAULT_DASHBOARD_FILTERS,
-  getDashboardView,
   normalizeTimeSeriesData,
 } from "@/lib/dashboard/derive";
 import type { Dictionary } from "@/lib/i18n/get-dictionary";
@@ -32,6 +31,7 @@ import type {
   SalesChannelId,
   SalesProductCategory,
 } from "@/types/dashboard";
+import { formatSourceLabel } from "@/lib/api/adapters";
 
 type DashboardWorkspaceProps = {
   locale: string;
@@ -97,7 +97,7 @@ const ACTIVITY_TONE_STYLES: Record<DashboardActivityItem["type"], string> = {
 };
 
 const CHART_RESET_BUTTON_CLASS =
-  "rounded-full border border-primary/15 bg-primary/8 px-4 py-2 text-foreground shadow-sm hover:border-primary/30 hover:bg-primary/12 hover:text-foreground dark:bg-primary/10 dark:hover:bg-primary/15";
+  "rounded-full border border-primary/15 bg-primary/8 px-4 py-2 text-foreground shadow-sm hover:border-primary/30 hover:bg-primary/12 hover:text-foreground dark:bg-primary/10 dark:text-foreground dark:hover:bg-primary/15 dark:hover:text-foreground";
 
 const EXPANDED_BASE_SLOT_WIDTH = 24;
 const EXPANDED_MIN_SLOT_WIDTH = 14;
@@ -177,6 +177,7 @@ export function DashboardWorkspace({
 }: DashboardWorkspaceProps) {
   const isRTL = locale === "ar";
   const pathname = usePathname();
+  const router = useRouter();
   const [filters, setFilters] = useState<DashboardFilters>(
     DEFAULT_DASHBOARD_FILTERS
   );
@@ -203,43 +204,13 @@ export function DashboardWorkspace({
     );
   }, [data, pathname]);
 
-  useEffect(() => {
-    if (!data) {
-      return;
-    }
-
-    const nextSearchParams = new URLSearchParams();
-
-    if (filters.range !== DEFAULT_DASHBOARD_FILTERS.range) {
-      nextSearchParams.set("range", filters.range);
-    }
-    if (filters.source !== "all") {
-      nextSearchParams.set("source", filters.source);
-    }
-    if (filters.language !== "all") {
-      nextSearchParams.set("language", filters.language);
-    }
-    if (filters.sentiment !== "all") {
-      nextSearchParams.set("sentiment", filters.sentiment);
-    }
-
-    const nextUrl = nextSearchParams.toString()
-      ? `${pathname}?${nextSearchParams.toString()}`
-      : pathname;
-    const currentUrl = `${window.location.pathname}${window.location.search}`;
-
-    if (nextUrl !== currentUrl) {
-      window.history.replaceState(null, "", nextUrl as Route);
-    }
-  }, [data, filters, pathname]);
-
   const view = useMemo<DashboardView | null>(() => {
     if (!data) {
       return null;
     }
 
-    return getDashboardView(data.reviews, data.salesRecords, filters);
-  }, [data, filters]);
+    return data.view;
+  }, [data]);
 
   const normalizedRevenueSeries = useMemo(
     () =>
@@ -309,7 +280,9 @@ export function DashboardWorkspace({
           metric.id === "total_reviews" || metric.id === "positive_share"
       );
   const sourceLabel =
-    filters.source === "all" ? dictionary.dashboard.allSources : filters.source;
+    filters.source === "all"
+      ? dictionary.dashboard.allSources
+      : formatSourceLabel(filters.source);
   const languageLabel =
     filters.language === "all"
       ? dictionary.dashboard.allLanguages
@@ -323,6 +296,7 @@ export function DashboardWorkspace({
     null;
   const salesAnalyticsHref = `/${locale}/dashboard/sales` as Route;
   const reviewInsightsHref = `/${locale}/dashboard/reviews/insights` as Route;
+  const dashboardHref = `/${locale}/dashboard` as Route;
   const reviewQueueHref = `/${locale}/reviews?sentiment=negative` as Route;
   const reviewsHref = `/${locale}/reviews` as Route;
   const queuePreview = view.review.priorityReviews.slice(0, 2);
@@ -345,9 +319,43 @@ export function DashboardWorkspace({
         : dictionary.dashboard.description;
 
   const handleClearFilters = () => {
-    setFilters(DEFAULT_DASHBOARD_FILTERS);
+    handleUpdateFilters(DEFAULT_DASHBOARD_FILTERS);
     setSelectedSalesPointDate(null);
     setSalesChartResetToken((current) => current + 1);
+  };
+
+  const handleUpdateFilters: React.Dispatch<
+    React.SetStateAction<DashboardFilters>
+  > = (update) => {
+    setFilters((current) => {
+      const nextFilters =
+        typeof update === "function" ? update(current) : update;
+      const nextSearchParams = new URLSearchParams();
+
+      if (nextFilters.range !== DEFAULT_DASHBOARD_FILTERS.range) {
+        nextSearchParams.set("range", nextFilters.range);
+      }
+      if (nextFilters.source !== "all") {
+        nextSearchParams.set("source", nextFilters.source);
+      }
+      if (nextFilters.language !== "all") {
+        nextSearchParams.set("language", nextFilters.language);
+      }
+      if (nextFilters.sentiment !== "all") {
+        nextSearchParams.set("sentiment", nextFilters.sentiment);
+      }
+
+      const nextUrl = nextSearchParams.toString()
+        ? `${pathname}?${nextSearchParams.toString()}`
+        : pathname;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+      if (nextUrl !== currentUrl) {
+        router.replace(nextUrl as Route, { scroll: false });
+      }
+
+      return nextFilters;
+    });
   };
 
   return (
@@ -357,6 +365,21 @@ export function DashboardWorkspace({
         eyebrow={dictionary.navigation.dashboard}
         title={pageTitle}
       />
+
+      {mode !== "overview" ? (
+        <div className={cn("flex", isRTL ? "justify-end" : "justify-start")}>
+          <Link
+            className={cn(
+              "inline-flex items-center gap-2 rounded-2xl border border-border/70 bg-card/80 px-4 py-2.5 text-sm font-semibold text-foreground shadow-panel backdrop-blur-xl transition hover:bg-surface-high/80 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              isRTL && "flex-row-reverse"
+            )}
+            href={dashboardHref}
+          >
+            <span aria-hidden="true">{isRTL ? "→" : "←"}</span>
+            <span>{dictionary.dashboard.backToDashboard}</span>
+          </Link>
+        </div>
+      ) : null}
 
       {mode === "overview" ? (
         <section className="soft-panel relative overflow-hidden p-6 sm:p-8">
@@ -467,7 +490,7 @@ export function DashboardWorkspace({
         locale={locale}
         numberDisplayMode={numberDisplayMode}
         onClearFilters={handleClearFilters}
-        onUpdateFilters={setFilters}
+        onUpdateFilters={handleUpdateFilters}
         reviewCount={view.review.reviewCount}
       />
 
@@ -485,7 +508,7 @@ export function DashboardWorkspace({
                     className={cn(
                       "cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15",
                       numberDisplayMode === displayMode
-                        ? "bg-primary text-white shadow-sm"
+                        ? "bg-primary text-primary-foreground shadow-sm dark:text-card"
                         : "text-muted hover:-translate-y-px hover:bg-surface hover:text-foreground"
                     )}
                     key={displayMode}
@@ -553,10 +576,14 @@ export function DashboardWorkspace({
                   {latestRevenuePoint ? (
                     <PreviewMetricRow
                       label={dictionary.dashboard.revenueTrend}
-                      value={`${latestRevenuePoint.label} · ${formatCurrencyValue(
-                        latestRevenuePoint.revenue,
-                        numberDisplayMode
-                      )}`}
+                      value={`${latestRevenuePoint.label} · ${
+                        latestRevenuePoint.revenue === null
+                          ? "No data"
+                          : formatCurrencyValue(
+                              latestRevenuePoint.revenue,
+                              numberDisplayMode
+                            )
+                      }`}
                     />
                   ) : null}
                 </PreviewInsightCard>
@@ -833,7 +860,7 @@ function SectionCtaLink({
       className={cn(
         "inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         variant === "primary"
-          ? "bg-primary text-white shadow-sm hover:-translate-y-px hover:bg-primary-hover"
+          ? "bg-primary text-primary-foreground shadow-sm hover:-translate-y-px hover:bg-primary-hover dark:text-card"
           : "border border-border bg-background text-foreground hover:-translate-y-px hover:border-primary/30 hover:bg-surface"
       )}
       href={href}
@@ -1298,7 +1325,7 @@ function DashboardFiltersPanel({
                   className={cn(
                     "cursor-pointer rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15",
                     isActive
-                      ? "border-primary bg-primary text-white shadow-sm"
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm dark:text-card"
                       : "border-border bg-background text-foreground hover:-translate-y-px hover:border-primary/40 hover:bg-surface hover:shadow-sm"
                   )}
                   key={range}
@@ -1329,7 +1356,7 @@ function DashboardFiltersPanel({
                 value: "all",
               },
               ...data.filterOptions.sources.map((source) => ({
-                label: source,
+                label: formatSourceLabel(source),
                 value: source,
               })),
             ]}
@@ -1500,7 +1527,15 @@ function RevenueTrendPanel({
   numberDisplayMode: "compact" | "full";
   range: DashboardTimeRange;
 }) {
-  const activePoint = selectedPoint ?? points[points.length - 1] ?? null;
+  const activePoint = useMemo(
+    () =>
+      selectedPoint ??
+      [...points]
+        .reverse()
+        .find((point) => isFiniteNumber(point.revenue)) ??
+      null,
+    [points, selectedPoint]
+  );
   const [isExpanded, setIsExpanded] = useState(false);
   const expandedViewport = useExpandedChartViewport(points.length);
   const openExpandedChart = () => {
@@ -1526,7 +1561,9 @@ function RevenueTrendPanel({
               containerClassName="h-full border-0 p-4 shadow-none"
               expandedViewport={expandedViewport}
               formatTooltipValue={(point) =>
-                formatCurrencyValue(point.revenue, numberDisplayMode)
+                point.revenue === null
+                  ? "No data"
+                  : formatCurrencyValue(point.revenue, numberDisplayMode)
               }
               locale={locale}
               onSelectPoint={onSelectPoint}
@@ -1548,7 +1585,9 @@ function RevenueTrendPanel({
             <LineAreaChart
               colorClass="text-primary"
               formatTooltipValue={(point) =>
-                formatCurrencyValue(point.revenue, numberDisplayMode)
+                point.revenue === null
+                  ? "No data"
+                  : formatCurrencyValue(point.revenue, numberDisplayMode)
               }
               locale={locale}
               onSelectPoint={onSelectPoint}
@@ -1583,7 +1622,9 @@ function RevenueTrendPanel({
             {formatChartDate(activePoint.date, locale)}
           </p>
           <p className="mt-2 text-2xl font-semibold text-foreground">
-            {formatCurrencyValue(activePoint.revenue, numberDisplayMode)}
+            {activePoint.revenue === null
+              ? "No data"
+              : formatCurrencyValue(activePoint.revenue, numberDisplayMode)}
           </p>
         </div>
       ) : null}
@@ -1697,11 +1738,14 @@ function OrdersRevenuePanel({
                 {formatChartDate(currentPoint.date, locale)}
               </p>
               <p className="mt-1.5 text-[1.05rem] font-semibold text-foreground">
-                {formatCurrencyValue(currentPoint.revenue, numberDisplayMode)}
+                {currentPoint.revenue === null
+                  ? "No data"
+                  : formatCurrencyValue(currentPoint.revenue, numberDisplayMode)}
               </p>
               <p className="mt-0.5 text-[13px] text-muted">
-                {formatCountValue(currentPoint.orders, numberDisplayMode)}{" "}
-                {dictionary.dashboard.ordersLabel}
+                {currentPoint.orders === null
+                  ? "No data"
+                  : `${formatCountValue(currentPoint.orders, numberDisplayMode)} ${dictionary.dashboard.ordersLabel}`}
               </p>
             </div>
           </div>
@@ -1714,7 +1758,7 @@ function OrdersRevenuePanel({
                 label: dictionary.dashboard.revenueLabel,
               },
               {
-                colorClass: "bg-emerald-500",
+                colorClass: "bg-chart-orders",
                 label: dictionary.dashboard.ordersLabel,
               },
             ]}
@@ -1950,7 +1994,9 @@ function RefundPanel({
                   containerClassName="h-full border-0 p-4 shadow-none"
                   expandedViewport={expandedViewport}
                   formatTooltipValue={(point) =>
-                    formatCurrencyValue(point.refundValue, numberDisplayMode)
+                    point.refundValue === null
+                      ? "No data"
+                      : formatCurrencyValue(point.refundValue, numberDisplayMode)
                   }
                   locale={locale}
                   onSelectPoint={onSelectPoint}
@@ -1972,7 +2018,9 @@ function RefundPanel({
                 colorClass="text-amber-500"
                 containerClassName="px-2 py-6 lg:px-1"
                 formatTooltipValue={(point) =>
-                  formatCurrencyValue(point.refundValue, numberDisplayMode)
+                  point.refundValue === null
+                    ? "No data"
+                    : formatCurrencyValue(point.refundValue, numberDisplayMode)
                 }
                 locale={locale}
                 onSelectPoint={onSelectPoint}
@@ -2000,7 +2048,9 @@ function RefundPanel({
             }
             value={
               currentPoint
-                ? formatCurrencyValue(currentPoint.refundValue, numberDisplayMode)
+                ? currentPoint.refundValue === null
+                  ? "No data"
+                  : formatCurrencyValue(currentPoint.refundValue, numberDisplayMode)
                 : formatCurrencyValue(summary.refundValue, numberDisplayMode)
             }
           />
@@ -2463,8 +2513,14 @@ function RevenueOrdersComboChart({
   const bars = points;
   const isDense = bars.length > 12;
   const isUltraDense = bars.length > 24;
-  const maxRevenue = Math.max(...bars.map((point) => point.revenue), 1);
-  const maxOrders = Math.max(...bars.map((point) => point.orders), 1);
+  const maxRevenue = Math.max(
+    ...bars.map((point) => point.revenue).filter(isFiniteNumber),
+    1
+  );
+  const maxOrders = Math.max(
+    ...bars.map((point) => point.orders).filter(isFiniteNumber),
+    1
+  );
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
@@ -2476,7 +2532,11 @@ function RevenueOrdersComboChart({
   const slotWidth = expandedViewport?.slotWidth ?? null;
 
   useEffect(() => {
-    if (!hoveredPoint || !containerRef.current || !tooltipRef.current) {
+    if (
+      !hoveredPoint ||
+      !containerRef.current ||
+      !tooltipRef.current
+    ) {
       setTooltipStyle(undefined);
       return;
     }
@@ -2488,10 +2548,13 @@ function RevenueOrdersComboChart({
       expanded && expandedViewport
         ? hoveredIndex * expandedViewport.slotWidth + expandedViewport.slotWidth / 2
         : (hoveredIndex + 0.5) * (container.clientWidth / Math.max(bars.length, 1));
-    const barHeight = Math.max(
-      (hoveredPoint.revenue / maxRevenue) * (expanded ? 352 : 240),
-      (hoveredPoint.orders / maxOrders) * (expanded ? 352 : 240)
-    );
+    const revenueHeight = isFiniteNumber(hoveredPoint.revenue)
+      ? (hoveredPoint.revenue / maxRevenue) * (expanded ? 352 : 240)
+      : 0;
+    const ordersHeight = isFiniteNumber(hoveredPoint.orders)
+      ? (hoveredPoint.orders / maxOrders) * (expanded ? 352 : 240)
+      : 0;
+    const barHeight = Math.max(revenueHeight, ordersHeight);
     const anchorY = (expanded ? 376 : 264) - barHeight;
 
     setTooltipStyle(
@@ -2531,11 +2594,15 @@ function RevenueOrdersComboChart({
           </p>
           <p className="mt-1 text-sm font-semibold text-foreground">
             {dictionary.dashboard.revenueLabel}:{" "}
-            {formatCurrencyValue(hoveredPoint.revenue, numberDisplayMode)}
+            {hoveredPoint.revenue === null
+              ? "No data"
+              : formatCurrencyValue(hoveredPoint.revenue, numberDisplayMode)}
           </p>
           <p className="text-sm font-semibold text-foreground">
             {dictionary.dashboard.ordersLabel}:{" "}
-            {formatCountValue(hoveredPoint.orders, numberDisplayMode)}
+            {hoveredPoint.orders === null
+              ? "No data"
+              : formatCountValue(hoveredPoint.orders, numberDisplayMode)}
           </p>
         </div>
       ) : null}
@@ -2589,48 +2656,52 @@ function RevenueOrdersComboChart({
                 isUltraDense ? "gap-px" : isDense ? "gap-0.5" : "gap-1"
               )}
             >
-              <div
-                className={cn(
-                  "rounded-full bg-primary/85 transition-all duration-200 group-hover:opacity-100",
-                  !expanded &&
-                    (isUltraDense
-                      ? "w-1.5"
-                      : isDense
-                        ? "w-2"
-                        : "w-3"),
-                  selectedDate === point.date ? "ring-2 ring-primary/30" : "",
-                  hoveredDate === point.date ? "bg-primary brightness-110" : ""
-                )}
-                style={{
-                  height: `${(point.revenue / maxRevenue) * 100}%`,
-                  width:
-                    expanded && slotWidth
-                      ? `${clampNumber(slotWidth * 0.22, 4, 12)}px`
-                      : undefined,
-                }}
-              />
-              <div
-                className={cn(
-                  "rounded-full bg-emerald-500/85 transition-all duration-200 group-hover:opacity-100",
-                  !expanded &&
-                    (isUltraDense
-                      ? "w-1.5"
-                      : isDense
-                        ? "w-2"
-                        : "w-3"),
-                  selectedDate === point.date ? "ring-2 ring-emerald-500/30" : "",
-                  hoveredDate === point.date
-                    ? "bg-emerald-400 brightness-110"
-                    : ""
-                )}
-                style={{
-                  height: `${(point.orders / maxOrders) * 100}%`,
-                  width:
-                    expanded && slotWidth
-                      ? `${clampNumber(slotWidth * 0.22, 4, 12)}px`
-                      : undefined,
-                }}
-              />
+              {isFiniteNumber(point.revenue) ? (
+                <div
+                  className={cn(
+                    "rounded-full bg-primary/85 transition-all duration-200 group-hover:opacity-100",
+                    !expanded &&
+                      (isUltraDense
+                        ? "w-1.5"
+                        : isDense
+                          ? "w-2"
+                          : "w-3"),
+                    selectedDate === point.date ? "ring-2 ring-primary/30" : "",
+                    hoveredDate === point.date ? "bg-primary brightness-110" : ""
+                  )}
+                  style={{
+                    height: `${(point.revenue / maxRevenue) * 100}%`,
+                    width:
+                      expanded && slotWidth
+                        ? `${clampNumber(slotWidth * 0.22, 4, 12)}px`
+                        : undefined,
+                  }}
+                />
+              ) : null}
+              {isFiniteNumber(point.orders) ? (
+                <div
+                  className={cn(
+                    "rounded-full bg-chart-orders/85 transition-all duration-200 group-hover:opacity-100",
+                    !expanded &&
+                      (isUltraDense
+                        ? "w-1.5"
+                        : isDense
+                          ? "w-2"
+                          : "w-3"),
+                    selectedDate === point.date ? "ring-2 ring-chart-orders/30" : "",
+                    hoveredDate === point.date
+                      ? "bg-chart-orders brightness-110"
+                      : ""
+                  )}
+                  style={{
+                    height: `${(point.orders / maxOrders) * 100}%`,
+                    width:
+                      expanded && slotWidth
+                        ? `${clampNumber(slotWidth * 0.22, 4, 12)}px`
+                        : undefined,
+                  }}
+                />
+              ) : null}
             </div>
             <span
               className={cn(
@@ -2669,7 +2740,7 @@ function LineAreaChart({
   expandedViewport,
 }: {
   points: DashboardSalesSeriesPoint[];
-  valueSelector: (point: DashboardSalesSeriesPoint) => number;
+  valueSelector: (point: DashboardSalesSeriesPoint) => number | null;
   colorClass: string;
   formatTooltipValue: (point: DashboardSalesSeriesPoint) => string;
   locale: string;
@@ -2686,9 +2757,9 @@ function LineAreaChart({
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | undefined>(
     undefined
   );
-  const values = points.map(valueSelector);
-  const maxValue = Math.max(...values, 1);
-  const minValue = Math.min(...values, 0);
+  const values = points.map(valueSelector).filter(isFiniteNumber);
+  const maxValue = values.length ? Math.max(...values, 1) : 1;
+  const minValue = values.length ? Math.min(...values, 0) : 0;
   const range = maxValue - minValue || 1;
   const expanded = Boolean(expandedViewport);
   const chartWidth = expandedViewport?.chartWidth ?? 100;
@@ -2700,21 +2771,46 @@ function LineAreaChart({
       : points.length === 1
         ? 50
         : (index / (points.length - 1)) * 100;
-    const y = expanded
-      ? chartHeight - 24 - ((valueSelector(point) - minValue) / range) * (chartHeight - 48)
-      : 90 - ((valueSelector(point) - minValue) / range) * 72;
+    const metricValue = valueSelector(point);
+    const y = metricValue === null
+      ? null
+      : expanded
+        ? chartHeight - 24 - ((metricValue - minValue) / range) * (chartHeight - 48)
+        : 90 - ((metricValue - minValue) / range) * 72;
 
     return {
       ...point,
-      metricValue: valueSelector(point),
+      metricValue,
       x,
       y,
     };
   });
-  const polylinePoints = chartPoints.map((point) => `${point.x},${point.y}`).join(" ");
-  const areaPath = expanded
-    ? `M0,${chartHeight - 24} ${polylinePoints} ${chartWidth},${chartHeight - 24} Z`
-    : `M0,90 ${polylinePoints} 100,90 Z`;
+  const chartSegments = chartPoints.reduce<
+    Array<Array<(typeof chartPoints)[number]>>
+  >((segments, point, index) => {
+    if (point.y === null) {
+      return segments;
+    }
+    const previousPoint = chartPoints[index - 1];
+    const shouldStartNewSegment =
+      !segments.length || !previousPoint || previousPoint.y === null;
+    if (shouldStartNewSegment) {
+      segments.push([point]);
+      return segments;
+    }
+    segments[segments.length - 1].push(point);
+    return segments;
+  }, []);
+  const polylineSegments = chartSegments.map((segment) =>
+    segment.map((point) => `${point.x},${point.y}`).join(" ")
+  );
+  const areaSegments = chartSegments.map((segment) => {
+    const start = segment[0];
+    const end = segment[segment.length - 1];
+    const baseline = expanded ? chartHeight - 24 : 90;
+    const linePoints = segment.map((point) => `${point.x},${point.y}`).join(" ");
+    return `M${start.x},${baseline} ${linePoints} ${end.x},${baseline} Z`;
+  });
   const activeDate = hoveredDate ?? selectedDate;
   const activePoint =
     chartPoints.find((point) => point.date === activeDate) ?? null;
@@ -2790,14 +2886,19 @@ function LineAreaChart({
       setTooltipStyle(undefined);
       return;
     }
+    if (hoveredPoint.y === null) {
+      setTooltipStyle(undefined);
+      return;
+    }
 
     const container = containerRef.current;
     const tooltip = tooltipRef.current;
     const padding = 10;
     const anchorX = expanded ? hoveredPoint.x : (hoveredPoint.x / 100) * container.clientWidth;
+    const hoveredY = hoveredPoint.y;
     const anchorY = expanded
-      ? hoveredPoint.y
-      : (hoveredPoint.y / 90) * container.clientHeight;
+      ? hoveredY
+      : (hoveredY / 90) * container.clientHeight;
 
     setTooltipStyle(
       getTooltipPositionStyle({
@@ -2885,22 +2986,31 @@ function LineAreaChart({
               vectorEffect={expanded ? undefined : "non-scaling-stroke"}
             />
           ) : null}
-          <path
-            d={areaPath}
-            fill="currentColor"
-            fillOpacity={areaFillOpacity}
-          />
-          <polyline
-            points={polylinePoints}
-            stroke="currentColor"
-            strokeLinecap={expanded ? "round" : "butt"}
-            strokeLinejoin="round"
-            strokeOpacity={lineStrokeOpacity}
-            strokeWidth={lineStrokeWidth}
-            vectorEffect={expanded ? undefined : "non-scaling-stroke"}
-          />
+          {areaSegments.map((areaPath, index) => (
+            <path
+              d={areaPath}
+              fill="currentColor"
+              fillOpacity={areaFillOpacity}
+              key={`area-${index}`}
+            />
+          ))}
+          {polylineSegments.map((polylinePoints, index) => (
+            <polyline
+              key={`line-${index}`}
+              points={polylinePoints}
+              stroke="currentColor"
+              strokeLinecap={expanded ? "round" : "butt"}
+              strokeLinejoin="round"
+              strokeOpacity={lineStrokeOpacity}
+              strokeWidth={lineStrokeWidth}
+              vectorEffect={expanded ? undefined : "non-scaling-stroke"}
+            />
+          ))}
           {chartPoints.map((point) => {
             const isActive = activeDate === point.date;
+            if (point.y === null) {
+              return null;
+            }
             return (
               <g key={point.date}>
                 <circle
@@ -2910,7 +3020,7 @@ function LineAreaChart({
                   fill="transparent"
                   r={hitAreaRadius}
                 />
-                {expanded || isActive ? (
+                {(expanded || isActive) && point.y !== null ? (
                   <circle
                     cx={point.x}
                     cy={point.y}
@@ -2929,7 +3039,7 @@ function LineAreaChart({
             className="pointer-events-none absolute rounded-full bg-current"
             style={{
               left: `${activePoint.x}%`,
-              top: `${(activePoint.y / 90) * 100}%`,
+              top: `${((activePoint.y ?? 90) / 90) * 100}%`,
               width: "5px",
               height: "5px",
               transform: "translate(-50%, -50%)",
@@ -2949,6 +3059,10 @@ function getRangeLabel(range: DashboardTimeRange, dictionary: Dictionary) {
     return dictionary.dashboard.last30Days;
   }
   return dictionary.dashboard.allTime;
+}
+
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function clampNumber(value: number, min: number, max: number) {

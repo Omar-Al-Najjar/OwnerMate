@@ -1,18 +1,33 @@
-﻿"use client";
+"use client";
 
 import type { Route } from "next";
-import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { startTransition, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { formatSourceLabel } from "@/lib/api/adapters";
 import { Button } from "@/components/forms/button";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { ReviewFilters } from "@/components/reviews/review-filters";
 import { ReviewTable } from "@/components/reviews/review-table";
-import type { Review } from "@/types/review";
+import type { ReviewListItem } from "@/types/review";
+
+type ReviewFiltersState = {
+  query: string;
+  sentiment: string;
+  language: string;
+  source: string;
+  rating: string;
+  date: string;
+};
 
 type ReviewsWorkspaceProps = {
   locale: string;
-  reviews: Review[];
+  reviews: ReviewListItem[];
+  totalResults: number;
+  totalPages: number;
+  currentPage: number;
+  sourceOptions: string[];
+  filters: ReviewFiltersState;
   dictionary: {
     common: {
       all: string;
@@ -68,17 +83,6 @@ type ReviewsWorkspaceProps = {
 
 type ReviewsState = "ready" | "error";
 
-type ReviewFiltersState = {
-  query: string;
-  sentiment: string;
-  language: string;
-  source: string;
-  rating: string;
-  date: string;
-};
-
-const PAGE_SIZE = 6;
-
 function getDefaultFilters(): ReviewFiltersState {
   return {
     query: "",
@@ -90,22 +94,6 @@ function getDefaultFilters(): ReviewFiltersState {
   };
 }
 
-function getFiltersFromSearchParams(searchParams: URLSearchParams) {
-  return {
-    query: searchParams.get("q") ?? "",
-    sentiment: searchParams.get("sentiment") ?? "all",
-    language: searchParams.get("language") ?? "all",
-    source: searchParams.get("source") ?? "all",
-    rating: searchParams.get("rating") ?? "all",
-    date: searchParams.get("date") ?? "newest",
-  };
-}
-
-function getPageFromSearchParams(searchParams: URLSearchParams) {
-  const pageParam = Number(searchParams.get("page") ?? "1");
-  return Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
-}
-
 function serializeFilters(filters: ReviewFiltersState) {
   return JSON.stringify(filters);
 }
@@ -113,31 +101,46 @@ function serializeFilters(filters: ReviewFiltersState) {
 export function ReviewsWorkspace({
   locale,
   reviews,
+  totalResults,
+  totalPages,
+  currentPage,
+  sourceOptions,
+  filters: initialFilters,
   dictionary,
 }: ReviewsWorkspaceProps) {
   const pathname = usePathname();
-  const [filters, setFilters] = useState<ReviewFiltersState>(getDefaultFilters);
-  const [page, setPage] = useState(1);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<ReviewFiltersState>(initialFilters);
+  const [page, setPage] = useState(currentPage);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialFilters.query);
   const [requestState] = useState<ReviewsState>("ready");
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const nextFilters = getFiltersFromSearchParams(searchParams);
-    const nextPage = getPageFromSearchParams(searchParams);
-
     setFilters((current) =>
-      serializeFilters(nextFilters) !== serializeFilters(current)
-        ? nextFilters
+      serializeFilters(initialFilters) !== serializeFilters(current)
+        ? initialFilters
         : current
     );
-    setPage((current) => (nextPage !== current ? nextPage : current));
-  }, [pathname]);
+    setPage((current) => (currentPage !== current ? currentPage : current));
+    setDebouncedQuery((current) =>
+      initialFilters.query !== current ? initialFilters.query : current
+    );
+  }, [currentPage, initialFilters, pathname, searchParams]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(filters.query);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [filters.query]);
 
   useEffect(() => {
     const nextSearchParams = new URLSearchParams();
 
-    if (filters.query) {
-      nextSearchParams.set("q", filters.query);
+    if (debouncedQuery) {
+      nextSearchParams.set("q", debouncedQuery);
     }
     if (filters.sentiment !== "all") {
       nextSearchParams.set("sentiment", filters.sentiment);
@@ -161,59 +164,36 @@ export function ReviewsWorkspace({
     const nextUrl = nextSearchParams.toString()
       ? `${pathname}?${nextSearchParams.toString()}`
       : pathname;
-    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    const currentSearch = searchParams.toString();
+    const currentUrl = currentSearch ? `${pathname}?${currentSearch}` : pathname;
 
     if (nextUrl !== currentUrl) {
-      window.history.replaceState(null, "", nextUrl as Route);
+      startTransition(() => {
+        router.replace(nextUrl as Route, { scroll: false });
+      });
     }
-  }, [filters, page, pathname]);
+  }, [
+    debouncedQuery,
+    filters.date,
+    filters.language,
+    filters.rating,
+    filters.sentiment,
+    filters.source,
+    page,
+    pathname,
+    router,
+    searchParams,
+  ]);
 
-  const filteredReviews = useMemo(() => {
-    const items = reviews.filter((review) => {
-      const queryMatch = filters.query
-        ? `${review.reviewerName} ${review.reviewText}`
-            .toLowerCase()
-            .includes(filters.query.toLowerCase())
-        : true;
-      const sentimentMatch =
-        filters.sentiment === "all" ||
-        review.sentiment.label === filters.sentiment;
-      const languageMatch =
-        filters.language === "all" || review.language === filters.language;
-      const sourceMatch =
-        filters.source === "all" || review.source === filters.source;
-      const ratingMatch =
-        filters.rating === "all" || review.rating === Number(filters.rating);
-
-      return (
-        queryMatch &&
-        sentimentMatch &&
-        languageMatch &&
-        sourceMatch &&
-        ratingMatch
-      );
-    });
-
-    return [...items].sort((left, right) => {
-      return filters.date === "oldest"
-        ? new Date(left.reviewCreatedAt).getTime() -
-            new Date(right.reviewCreatedAt).getTime()
-        : new Date(right.reviewCreatedAt).getTime() -
-            new Date(left.reviewCreatedAt).getTime();
-    });
-  }, [filters, reviews]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredReviews.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pageEnd = pageStart + PAGE_SIZE;
-  const paginatedReviews = filteredReviews.slice(pageStart, pageEnd);
-  const sourceOptions = Array.from(
-    new Set(reviews.map((review) => review.source))
-  ).map((source) => ({
-    label: source,
-    value: source,
-  }));
+  const sourceFilterOptions = useMemo(
+    () =>
+      sourceOptions.map((source) => ({
+        label: formatSourceLabel(source),
+        value: source,
+      })),
+    [sourceOptions]
+  );
   const activeFilterCount = [
     filters.query,
     filters.sentiment !== "all" ? filters.sentiment : "",
@@ -222,6 +202,7 @@ export function ReviewsWorkspace({
     filters.rating !== "all" ? filters.rating : "",
     filters.date !== "newest" ? filters.date : "",
   ].filter(Boolean).length;
+  const visibleResultsCount = reviews.length;
 
   const labels = {
     sentiment: dictionary.sentimentLabels,
@@ -242,38 +223,67 @@ export function ReviewsWorkspace({
     setPage(1);
   };
 
-  const paginationPages = Array.from(
-    { length: totalPages },
-    (_, index) => index + 1
-  );
+  const paginationPages = Array.from({ length: totalPages }, (_, index) => index + 1);
 
   return (
     <div className="space-y-6">
-      <div className="soft-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-start">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
-            {dictionary.reviews.filtersTitle}
-          </p>
-          <p className="mt-2 text-sm text-foreground">
-            {dictionary.common.showing} {filteredReviews.length}{" "}
-            {dictionary.common.results}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-          <span>
-            {dictionary.reviews.activeFilters}: {activeFilterCount}
-          </span>
-          <Button
-            variant="secondary"
-            disabled={activeFilterCount === 0}
-            onClick={() => {
-              setFilters(getDefaultFilters());
-              setPage(1);
-            }}
-            type="button"
-          >
-            {dictionary.common.clear}
-          </Button>
+      <div className="soft-panel overflow-hidden p-4 sm:p-5">
+        <div className="absolute -right-12 top-0 h-28 w-28 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative flex flex-col gap-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-start">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
+                {dictionary.reviews.filtersTitle}
+              </p>
+              <p className="mt-2 text-sm text-foreground">
+                {dictionary.common.showing} {totalResults} {dictionary.common.results}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+              <span className="inline-flex items-center rounded-full border border-border/70 bg-background/72 px-3 py-1.5">
+                {dictionary.reviews.activeFilters}: {activeFilterCount}
+              </span>
+              <Button
+                variant="secondary"
+                disabled={activeFilterCount === 0}
+                onClick={() => {
+                  setFilters(getDefaultFilters());
+                  setPage(1);
+                }}
+                type="button"
+              >
+                {dictionary.common.clear}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border/70 bg-background/72 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted">
+                {dictionary.common.showing}
+              </p>
+              <p className="metric-value mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                {visibleResultsCount}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/72 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted">
+                {dictionary.common.results}
+              </p>
+              <p className="metric-value mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                {totalResults}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/72 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted">
+                {dictionary.reviews.pageLabel}
+              </p>
+              <p className="metric-value mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                {safePage}/{totalPages}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -302,7 +312,7 @@ export function ReviewsWorkspace({
           ],
           source: [
             { label: dictionary.reviews.allSources, value: "all" },
-            ...sourceOptions,
+            ...sourceFilterOptions,
           ],
           rating: [
             { label: dictionary.reviews.allRatings, value: "all" },
@@ -332,14 +342,14 @@ export function ReviewsWorkspace({
           />
         ) : null}
 
-        {requestState === "ready" && filteredReviews.length === 0 ? (
+        {requestState === "ready" && totalResults === 0 ? (
           <EmptyState
             description={dictionary.reviews.noResultsDescription}
             title={dictionary.reviews.noResultsTitle}
           />
         ) : null}
 
-        {requestState === "ready" && filteredReviews.length > 0 ? (
+        {requestState === "ready" && totalResults > 0 ? (
           <>
             <ReviewTable
               columns={{
@@ -352,11 +362,11 @@ export function ReviewsWorkspace({
               detailLabel={dictionary.reviews.openReview}
               labels={labels}
               locale={locale}
-              reviews={paginatedReviews}
+              reviews={reviews}
             />
 
             {totalPages > 1 ? (
-              <div className="soft-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="soft-panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <Button
                   variant="secondary"
                   disabled={safePage === 1}
@@ -373,10 +383,10 @@ export function ReviewsWorkspace({
                     return (
                       <button
                         key={pageNumber}
-                        className={`inline-flex h-10 min-w-10 items-center justify-center rounded-lg border px-3 text-sm font-semibold transition ${
+                        className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl border px-3 text-sm font-semibold transition ${
                           isActive
-                            ? "border-primary bg-gradient-to-br from-sidebar to-primary-container text-white"
-                            : "border-border/70 bg-card text-foreground hover:bg-surface-low"
+                            ? "border-primary bg-gradient-to-br from-primary to-primary-container text-primary-foreground shadow-sm dark:text-card"
+                            : "border-border/70 bg-card text-foreground hover:-translate-y-px hover:bg-surface-low"
                         }`}
                         onClick={() => setPage(pageNumber)}
                         type="button"

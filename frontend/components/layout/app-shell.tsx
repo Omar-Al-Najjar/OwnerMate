@@ -45,6 +45,7 @@ export function AppShell({
   signOutPendingLabel,
 }: AppShellProps) {
   const pathname = usePathname();
+  const skipLinkLabel = locale === "ar" ? "تجاوز إلى المحتوى" : "Skip to content";
 
   const navItems = useMemo(
     () => [
@@ -82,10 +83,9 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-x-0 top-0 h-96 bg-[radial-gradient(circle_at_top,rgba(0,83,219,0.12),transparent_52%)]" />
-        <div className="absolute -right-24 top-48 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(0,23,75,0.12),transparent_68%)] blur-3xl dark:bg-[radial-gradient(circle,rgba(106,152,255,0.16),transparent_68%)]" />
-      </div>
+      <a className="skip-link" href="#main-content">
+        {skipLinkLabel}
+      </a>
 
       <Header
         common={common}

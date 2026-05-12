@@ -141,17 +141,14 @@ function getInitials(name: string) {
 }
 
 function SettingsSectionHeader({
-  index,
+  index: _index,
   title,
 }: {
   index: string;
   title: string;
 }) {
   return (
-    <div className="flex items-center gap-4">
-      <span className="inline-flex rounded-lg bg-surface-high px-3 py-1.5 text-[11px] font-semibold tracking-[0.22em] text-muted ring-1 ring-inset ring-border/70">
-        {index}
-      </span>
+    <div className="flex items-center">
       <h2 className="font-display text-2xl font-bold tracking-[-0.045em] text-foreground sm:text-[1.9rem]">
         {title}
       </h2>
@@ -693,10 +690,10 @@ export function SettingsWorkspace({
               />
               <div className="space-y-2 text-start">
                 <label className="block space-y-2 text-start">
-                  <span className="text-sm font-medium text-foreground">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted">
                     {dictionary.settings.emailLabel}
                   </span>
-                  <div className="w-full rounded-2xl border border-border/70 bg-surface-low px-4 py-3 text-sm text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+                  <div className="w-full rounded-2xl border border-border/70 bg-surface-low px-4 py-3.5 text-sm text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
                     {profile.email}
                   </div>
                 </label>
@@ -726,7 +723,7 @@ export function SettingsWorkspace({
                 {dictionary.settings.imageHint}
               </p>
               <div className="flex flex-wrap gap-3">
-                <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-transparent px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-surface-low">
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl border border-border/70 bg-card/72 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:-translate-y-px hover:bg-surface-low">
                   <input
                     accept="image/*"
                     className="sr-only"
@@ -787,10 +784,10 @@ export function SettingsWorkspace({
                     <button
                       key={option.value}
                       className={cn(
-                        "rounded-xl px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] transition",
+                        "rounded-2xl px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] transition",
                         isActive
                           ? "bg-card text-foreground shadow-panel"
-                          : "text-muted hover:bg-card/70 hover:text-foreground"
+                          : "text-muted hover:-translate-y-px hover:bg-card/70 hover:text-foreground"
                       )}
                       onClick={() => setTheme(option.value as ThemePreference)}
                       type="button"
@@ -874,7 +871,7 @@ export function SettingsWorkspace({
                   </Button>
                 </div>
                 {googleImportNotice ? (
-                  <p className="text-sm text-muted">{googleImportNotice}</p>
+                  <p className="rounded-2xl border border-border/70 bg-card/72 px-4 py-3 text-sm leading-7 text-muted">{googleImportNotice}</p>
                 ) : null}
                 {googleImportJob?.status === "needs_selection" &&
                 googleImportJob.candidates.length > 0 ? (
@@ -1020,7 +1017,7 @@ export function SettingsWorkspace({
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   {salesNotice ? (
-                    <p className="text-sm text-muted">{salesNotice}</p>
+                    <p className="rounded-2xl border border-border/70 bg-card/72 px-4 py-3 text-sm leading-7 text-muted">{salesNotice}</p>
                   ) : (
                     <span />
                   )}
@@ -1103,12 +1100,12 @@ export function SettingsWorkspace({
                 />
                 <p
                   className={cn(
-                    "text-sm",
+                    "rounded-2xl border px-4 py-3 text-sm leading-7",
                     passwordNoticeTone === "error"
-                      ? "text-red-600"
+                      ? "border-red-200 bg-red-50 text-red-600 dark:border-red-900/70 dark:bg-red-950/30"
                       : passwordNoticeTone === "success"
-                        ? "text-emerald-700"
-                        : "text-muted"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30"
+                        : "border-border/70 bg-card/72 text-muted"
                   )}
                 >
                   {passwordNotice || dictionary.settings.passwordStrengthHint}
@@ -1128,7 +1125,7 @@ export function SettingsWorkspace({
 
       <div className="flex flex-wrap justify-end gap-3 pt-2">
         {saveNotice ? (
-          <p className="self-center text-sm text-muted">{saveNotice}</p>
+          <p className="self-center rounded-2xl border border-border/70 bg-card/72 px-4 py-3 text-sm leading-7 text-muted">{saveNotice}</p>
         ) : null}
         <div className="flex flex-wrap gap-3">
           <Button

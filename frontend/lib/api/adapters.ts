@@ -1,4 +1,4 @@
-import type { Review } from "@/types/review";
+import type { Review, ReviewListItem } from "@/types/review";
 
 type BackendReviewRead = {
   id: string;
@@ -17,15 +17,15 @@ type BackendSentimentResultRead = {
   summary_tags: string[] | null;
 };
 
-function normalizeLanguage(value: string | null): Review["language"] {
+export function normalizeLanguage(value: string | null): Review["language"] {
   return value === "ar" ? "ar" : "en";
 }
 
-function normalizeStatus(value: BackendReviewRead["status"]): Review["status"] {
+export function normalizeStatus(value: BackendReviewRead["status"]): Review["status"] {
   return value === "pending" ? "new" : "reviewed";
 }
 
-function formatSourceLabel(value: string): string {
+export function formatSourceLabel(value: string): string {
   if (!value.trim()) {
     return "Unknown";
   }
@@ -54,6 +54,25 @@ export function toFrontendReview(
       label: sentiment?.label ?? "neutral",
       confidence: sentiment?.confidence ?? 0,
       summaryTags: sentiment?.summary_tags ?? [],
+    },
+  };
+}
+
+export function toFrontendReviewListItem(
+  review: BackendReviewRead,
+  sentiment?: Pick<BackendSentimentResultRead, "label"> | null
+): ReviewListItem {
+  return {
+    id: review.id,
+    source: formatSourceLabel(review.source_type),
+    rating: review.rating ?? 0,
+    language: normalizeLanguage(review.language),
+    reviewerName: review.reviewer_name ?? "Anonymous",
+    reviewText: review.review_text,
+    reviewCreatedAt: review.review_created_at ?? new Date().toISOString(),
+    status: normalizeStatus(review.status),
+    sentiment: {
+      label: sentiment?.label ?? "neutral",
     },
   };
 }

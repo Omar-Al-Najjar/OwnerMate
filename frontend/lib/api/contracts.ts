@@ -1,5 +1,5 @@
 import type { DashboardPayload } from "@/types/dashboard";
-import type { Review } from "@/types/review";
+import type { Review, ReviewListItem } from "@/types/review";
 import type { Locale, ThemePreference, UserProfile } from "@/types/settings";
 
 export type ApiStatus = "idle" | "loading" | "success" | "error";
@@ -21,11 +21,20 @@ export type ReviewsListRequest = {
   query?: string;
   sentiment?: Review["sentiment"]["label"] | "all";
   language?: Review["language"] | "all";
+  source?: string | "all";
+  rating?: string | "all";
+  date?: "newest" | "oldest";
+  page?: number;
+  pageSize?: number;
 };
 
 export type ReviewsListResponse = ApiResult<{
-  items: Review[];
+  items: ReviewListItem[];
   total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  sourceOptions: string[];
 }>;
 
 export type ReviewDetailResponse = ApiResult<Review>;

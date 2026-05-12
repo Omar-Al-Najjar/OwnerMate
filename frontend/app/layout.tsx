@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cairo, Inter } from "next/font/google";
+import { Cairo, Instrument_Serif, Inter } from "next/font/google";
 import "@/styles/globals.css";
 
 const sans = Inter({
@@ -18,6 +18,14 @@ const arabic = Cairo({
   fallback: ["Tahoma", "Arial", "sans-serif"],
 });
 
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-serif",
+  display: "swap",
+  fallback: ["Georgia", "serif"],
+});
+
 export const metadata: Metadata = {
   title: "OwnerMate",
   description: "Bilingual reviews and sales insights workspace for SMB owners.",
@@ -28,7 +36,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html suppressHydrationWarning>
-      <body className={`${sans.variable} ${arabic.variable}`}>
+      <body className={`${sans.variable} ${arabic.variable} ${serif.variable}`}>
         {children}
       </body>
     </html>

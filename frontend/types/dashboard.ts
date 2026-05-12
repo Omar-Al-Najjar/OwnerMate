@@ -60,6 +60,24 @@ export type DashboardDistributionBucket = {
   tone?: DashboardDistributionTone;
 };
 
+export type DashboardReviewDistributions = {
+  sentiment: DashboardDistributionBucket[];
+  ratings: DashboardDistributionBucket[];
+  sources: DashboardDistributionBucket[];
+  languages: DashboardDistributionBucket[];
+};
+
+export type DashboardMetricSummary = {
+  totalReviews: number;
+  averageRating: number | null;
+  positiveShare: number;
+  negativeShare: number;
+  pendingReviews: number;
+  reviewedReviews: number;
+  respondedReviews: number;
+  activeSources: number;
+};
+
 export type DashboardPriorityLevel = "high" | "medium" | "low";
 export type DashboardPriorityReason =
   | "negative_low_rating"
@@ -133,9 +151,16 @@ export type SalesRecord = {
 export type DashboardSalesSeriesPoint = {
   date: string;
   label: string;
-  revenue: number;
-  orders: number;
-  refundValue: number;
+  revenue: number | null;
+  orders: number | null;
+  refundValue: number | null;
+};
+
+export type DashboardReviewTimeSeriesPoint = {
+  date: string;
+  totalReviews: number;
+  positiveReviews: number;
+  positiveShare: number;
 };
 
 export type DashboardSalesChannelBreakdown = {
@@ -152,6 +177,39 @@ export type DashboardSalesProduct = {
   revenue: number;
   units: number;
   share: number;
+};
+
+export type DashboardSalesSummary = {
+  totalRevenue: number;
+  totalOrders: number;
+  averageOrderValue: number;
+  refundCount: number;
+  refundValue: number;
+  refundRate: number;
+};
+
+export type DashboardComparisonMetric = {
+  current: number | null;
+  previous: number | null;
+  delta: number | null;
+  percentageChange: number | null;
+};
+
+export type DashboardComparison = {
+  totalReviews: DashboardComparisonMetric;
+  averageRating: DashboardComparisonMetric;
+  positiveShare: DashboardComparisonMetric;
+  negativeShare: DashboardComparisonMetric;
+  pendingReviews: DashboardComparisonMetric;
+  reviewedReviews: DashboardComparisonMetric;
+  respondedReviews: DashboardComparisonMetric;
+  activeSources: DashboardComparisonMetric;
+  totalRevenue: DashboardComparisonMetric;
+  totalOrders: DashboardComparisonMetric;
+  averageOrderValue: DashboardComparisonMetric;
+  refundCount: DashboardComparisonMetric;
+  refundValue: DashboardComparisonMetric;
+  refundRate: DashboardComparisonMetric;
 };
 
 export type DashboardSalesView = {
@@ -172,12 +230,7 @@ export type DashboardSalesView = {
 };
 
 export type DashboardReviewView = {
-  distributions: {
-    sentiment: DashboardDistributionBucket[];
-    ratings: DashboardDistributionBucket[];
-    sources: DashboardDistributionBucket[];
-    languages: DashboardDistributionBucket[];
-  };
+  distributions: DashboardReviewDistributions;
   recentReviews: Review[];
   priorityReviews: DashboardPriorityReview[];
   activityFeed: DashboardActivityItem[];
@@ -195,15 +248,34 @@ export type DashboardCapabilities = {
   salesDataNote: string | null;
 };
 
-export type DashboardPayload = {
-  reviews: Review[];
+export type DashboardFilterOptions = {
+  sources: string[];
+  languages: ReviewLanguage[];
+  sentiments: SentimentLabel[];
+  timeRanges: DashboardTimeRange[];
+};
+
+export type DashboardOverviewData = {
+  metrics: DashboardMetricSummary;
+  distributions: DashboardReviewDistributions;
+  recentReviews: Review[];
+  priorityReviews: DashboardPriorityReview[];
+  activityFeed: DashboardActivityItem[];
+  filterOptions: Omit<DashboardFilterOptions, "timeRanges">;
+  reviewTimeseries: DashboardReviewTimeSeriesPoint[];
+  comparison: DashboardComparison;
+  salesSummary: DashboardSalesSummary;
   salesRecords: SalesRecord[];
   capabilities: DashboardCapabilities;
-  filterOptions: {
-    sources: string[];
-    languages: ReviewLanguage[];
-    sentiments: SentimentLabel[];
-    timeRanges: DashboardTimeRange[];
-  };
+};
+
+export type DashboardPayload = {
+  salesRecords: SalesRecord[];
+  capabilities: DashboardCapabilities;
+  filterOptions: DashboardFilterOptions;
+  metrics?: DashboardMetricSummary;
+  comparison?: DashboardComparison;
+  reviewTimeseries?: DashboardReviewTimeSeriesPoint[];
+  salesSummary?: DashboardSalesSummary;
   view: DashboardView;
 };

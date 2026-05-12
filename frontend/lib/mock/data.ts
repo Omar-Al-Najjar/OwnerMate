@@ -1,5 +1,6 @@
 import { getDashboardPayload } from "@/lib/dashboard/derive";
 import type {
+  DashboardFilters,
   DashboardPayload,
   SalesChannelId,
   SalesProductCategory,
@@ -284,8 +285,10 @@ export const dashboardData: DashboardPayload = getDashboardPayload(
   getSalesRecords()
 );
 
-export function getDashboardData(): DashboardPayload {
-  return getDashboardPayload(getReviews(), getSalesRecords());
+export function getDashboardData(
+  filters?: DashboardFilters
+): DashboardPayload {
+  return getDashboardPayload(getReviews(), getSalesRecords(), undefined, filters);
 }
 
 export const settingsProfile: SettingsPayload = {

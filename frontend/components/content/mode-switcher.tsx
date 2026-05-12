@@ -10,7 +10,7 @@
 
 export function ModeSwitcher({ value, modes, onChange }: ModeSwitcherProps) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-1.5">
+    <div className="rounded-3xl border border-border/70 bg-surface/80 p-1.5 shadow-panel">
       <div className="grid gap-1.5 md:grid-cols-2">
         {modes.map((mode) => {
           const active = value === mode.value;
@@ -18,10 +18,10 @@ export function ModeSwitcher({ value, modes, onChange }: ModeSwitcherProps) {
           return (
             <button
               key={mode.value}
-              className={`rounded-xl px-4 py-3 text-start transition ${
+              className={`rounded-2xl px-4 py-3.5 text-start transition ${
                 active
                   ? "bg-card shadow-panel ring-1 ring-primary/20"
-                  : "bg-transparent hover:bg-card/70"
+                  : "bg-transparent hover:-translate-y-px hover:bg-card/70"
               }`}
               onClick={() => onChange(mode.value)}
               type="button"

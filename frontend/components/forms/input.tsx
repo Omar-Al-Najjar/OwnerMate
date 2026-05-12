@@ -55,7 +55,7 @@ export function Input({
   }, []);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <label
         className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-muted"
         htmlFor={inputId}
@@ -65,7 +65,7 @@ export function Input({
       <span className="relative block">
         <input
           className={cn(
-            "w-full rounded-2xl border px-3.5 py-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] outline-none transition duration-200 focus:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+            "w-full rounded-2xl border px-4 py-3.5 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] outline-none transition duration-200 focus:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
             isPasswordField ? (isRtl ? "pl-12" : "pr-12") : "",
             validationTone,
             className
@@ -94,7 +94,7 @@ export function Input({
       {error ? (
         <span
           aria-live="polite"
-          className="block text-sm font-medium text-error"
+          className="block rounded-xl border border-error/15 bg-error/6 px-3 py-2 text-sm font-medium text-error"
           id={messageId}
           role="alert"
         >
@@ -103,13 +103,13 @@ export function Input({
       ) : success ? (
         <span
           aria-live="polite"
-          className="block text-sm font-medium text-success"
+          className="block rounded-xl border border-success/15 bg-success/6 px-3 py-2 text-sm font-medium text-success"
           id={messageId}
         >
           {typeof success === "string" ? success : hint ?? ""}
         </span>
       ) : hint ? (
-        <span className="block text-sm text-muted" id={messageId}>
+        <span className="block px-1 text-sm text-muted" id={messageId}>
           {hint}
         </span>
       ) : null}

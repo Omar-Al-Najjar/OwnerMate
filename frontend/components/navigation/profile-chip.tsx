@@ -31,6 +31,7 @@ export function ProfileChip({ isRtl, variant = "default" }: ProfileChipProps) {
     >
       <div
         className={`${isSidebar ? "h-11 w-11" : "h-10 w-10"} flex items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-sidebar to-primary-container text-xs font-semibold tracking-[0.14em] text-white shadow-panel`}
+        dir="ltr"
       >
         {profile.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -47,6 +48,7 @@ export function ProfileChip({ isRtl, variant = "default" }: ProfileChipProps) {
       <div className={`min-w-0 ${isRtl ? "text-right" : "text-left"}`}>
         <p
           className={`${isSidebar ? "max-w-full text-sidebar-foreground" : "max-w-36 md:max-w-40 text-foreground"} truncate text-sm font-semibold`}
+          dir="auto"
         >
           {profile.fullName}
         </p>
@@ -54,6 +56,7 @@ export function ProfileChip({ isRtl, variant = "default" }: ProfileChipProps) {
           className={`mt-0.5 truncate text-xs ${
             isSidebar ? "text-sidebar-muted" : "text-muted"
           }`}
+          dir={isSidebar ? "ltr" : "auto"}
         >
           {isSidebar ? profile.email : profile.role}
         </p>

@@ -34,6 +34,8 @@ export function LanguageSwitcher({
         className
       )}
       href={nextPath}
+      dir={targetLocale === "ar" ? "rtl" : "ltr"}
+      lang={targetLocale}
     >
       {targetLocale === "ar" ? "\u0627\u0644\u0639\u0631\u0628\u064A\u0629" : "English"}
     </Link>

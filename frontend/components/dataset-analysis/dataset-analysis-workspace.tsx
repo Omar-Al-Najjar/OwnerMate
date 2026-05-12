@@ -194,7 +194,7 @@ function JsonPanel({
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-      <pre className="overflow-x-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs leading-6 text-slate-100">
+      <pre className="overflow-x-auto rounded-3xl bg-slate-950 px-4 py-4 text-xs leading-6 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
         {JSON.stringify(value, null, 2)}
       </pre>
     </div>
@@ -217,7 +217,7 @@ function MetricTile({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-surface/70 p-4 transition-colors duration-200 hover:border-primary/15",
+        "rounded-3xl border border-border bg-surface/72 p-4 transition-colors duration-200 hover:-translate-y-px hover:border-primary/15 hover:shadow-panel",
         className
       )}
     >
@@ -226,7 +226,7 @@ function MetricTile({
       </p>
       <p
         className={cn(
-          "mt-3 break-words text-2xl font-semibold tracking-tight text-foreground",
+          "metric-value mt-3 break-words text-2xl font-semibold tracking-tight text-foreground",
           valueClassName
         )}
         title={valueTitle ?? value}
@@ -980,13 +980,13 @@ export function DatasetAnalysisWorkspace({
 
         {job && result ? (
           <div className="space-y-5">
-            <div className="panel space-y-5 p-5">
+            <div className="panel space-y-5 p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     {dictionary.datasetAnalysis.resultTitle}
                   </p>
-                  <p className="mt-1 text-sm text-muted">
+                  <p className="mt-1 text-sm leading-7 text-muted">
                     {result.task_type}
                   </p>
                 </div>
@@ -1011,10 +1011,10 @@ export function DatasetAnalysisWorkspace({
                   <button
                     key={tab.key}
                     className={cn(
-                      "inline-flex cursor-pointer items-center rounded-full border px-4 py-2 text-sm font-medium transition",
+                      "inline-flex min-h-11 cursor-pointer items-center rounded-full border px-4 py-2 text-sm font-medium transition",
                       activeTab === tab.key
-                        ? "border-primary bg-indigo-50 text-primary dark:bg-indigo-950/30 dark:text-indigo-100"
-                        : "border-border bg-card text-muted hover:border-primary/35 hover:text-foreground"
+                        ? "border-primary bg-indigo-50 text-primary shadow-sm dark:bg-indigo-950/30 dark:text-indigo-100"
+                        : "border-border bg-card text-muted hover:-translate-y-px hover:border-primary/35 hover:text-foreground"
                     )}
                     onClick={() => setActiveTab(tab.key)}
                     type="button"

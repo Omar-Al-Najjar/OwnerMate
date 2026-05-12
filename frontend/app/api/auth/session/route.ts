@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  BUSINESS_CONTEXT_COOKIE_NAME,
+  createSignedBusinessContextCookie,
+  seedBusinessContextCache,
+} from "@/lib/auth/business-context";
 import { createServerSupabaseClient } from "@/lib/auth/supabase-server";
 
 function getBackendBaseUrl() {
@@ -10,6 +15,24 @@ function decodeJwtPart(value: string) {
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
   return JSON.parse(Buffer.from(padded, "base64").toString("utf-8"));
 }
+
+type BackendAuthSession = {
+  user?: {
+    id?: string;
+  };
+  businesses?: Array<{
+    id?: string | null;
+  }>;
+};
+
+type BackendEnvelope<T> = {
+  success?: boolean;
+  data?: T;
+  error?: {
+    message?: string;
+    code?: string;
+  };
+};
 
 export async function POST(request: Request) {
   try {
@@ -56,16 +79,11 @@ export async function POST(request: Request) {
       },
       cache: "no-store",
     });
+    const backendBody = (await backendResponse.json().catch(() => null)) as
+      | BackendEnvelope<BackendAuthSession>
+      | null;
 
-    if (!backendResponse.ok) {
-      const backendBody = (await backendResponse.json().catch(() => null)) as
-        | {
-            error?: {
-              message?: string;
-              code?: string;
-            };
-          }
-        | null;
+    if (!backendResponse.ok || !backendBody?.success) {
       const [headerPart, payloadPart] = payload.access_token.split(".");
 
       try {
@@ -103,6 +121,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const [, payloadPart] = payload.access_token.split(".");
+    const accessTokenPayload = payloadPart ? decodeJwtPart(payloadPart) : null;
+    const resolvedUserId =
+      typeof accessTokenPayload?.sub === "string"
+        ? accessTokenPayload.sub
+        : null;
+    const resolvedBusinessId = backendBody.data?.businesses?.[0]?.id ?? null;
+    if (resolvedUserId && resolvedBusinessId) {
+      seedBusinessContextCache(resolvedUserId, resolvedBusinessId);
+    }
+
     const response = NextResponse.json({ success: true });
     response.cookies.set("ownermate-access-token", payload.access_token, {
       httpOnly: true,
@@ -111,8 +140,24 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 60 * 60,
     });
+    const signedBusinessContext = resolvedUserId
+      ? createSignedBusinessContextCookie(
+          resolvedUserId,
+          resolvedBusinessId ?? ""
+        )
+      : null;
+    if (signedBusinessContext) {
+      response.cookies.set(BUSINESS_CONTEXT_COOKIE_NAME, signedBusinessContext, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: false,
+        path: "/",
+        maxAge: 60 * 60,
+      });
+    }
     return response;
-  } catch {
+  } catch (error) {
+    console.error("auth session route failed", error);
     return NextResponse.json(
       {
         success: false,

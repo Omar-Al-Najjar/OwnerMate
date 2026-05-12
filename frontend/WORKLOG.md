@@ -427,3 +427,240 @@ Align the public OwnerMate landing page with the real product scope by reflectin
 ### Notes
 - no backend logic, auth logic, or dashboard behavior was changed
 - this was a content-and-presentation update only
+
+## 2026-05-06 19:36 - Replaced global navigation busy cursor with per-tab pending spinner
+
+### Goal
+Remove the unprofessional global busy cursor during route navigation and keep loading feedback scoped to the single navigation item the user clicked.
+
+### Files changed
+- `components/layout/header.tsx`
+
+### What was implemented
+- removed the header navigation `cursor-wait` behavior so route changes no longer force a global busy cursor
+- removed shared navigation busy state from the nav containers and kept `aria-busy` only on the pending link itself
+- kept the normal pointer behavior for clickable tabs while preserving focus-visible styles
+- updated the route click handler to track a single `pendingHref` and clear it when the pathname changes
+- rendered a small inline spinner only beside the clicked Dashboard, Reviews, or Dataset Analysis tab
+- kept the spinner placement compatible with both LTR and RTL layouts by aligning it after the label in reading order
+- preserved active-tab styling while pending navigation is in progress
+
+### Testing status
+- lint and production build verification were run after the change
+- manual browser verification for Dashboard and Reviews navigation was queued after rebuild
+
+## 2026-05-06 20:32 - Cached trusted business context to remove repeated backend session fetches
+
+### Goal
+Remove the repeated frontend-to-backend `/auth/me` dependency during protected Dashboard and Reviews route renders without weakening auth or trusting client-supplied business scope.
+
+### Files changed
+- `lib/auth/business-context.ts`
+- `lib/auth/session.ts`
+- `app/api/auth/session/route.ts`
+- `app/api/auth/logout/route.ts`
+
+### What was implemented
+- added a server-only business-context helper that resolves the authenticated user's first business once from the backend and reuses it through a short-lived user-scoped cache
+- added a signed `ownermate-business-context` httpOnly cookie so later route renders can recover trusted business scope without calling `/auth/me` again
+- updated `getAppSession()` to prefer business scope from JWT metadata, then the signed cookie, then the server cache, and only fall back to `/auth/me` on a true cache miss
+- updated auth session sync to seed the cache and cookie immediately after a successful backend `/auth/me` call at sign-in time
+- updated logout to clear both the in-memory business cache and the signed business-context cookie
+- fixed JWT payload decoding in the auth-session route so session sync no longer fails while extracting the authenticated Supabase user id
+
+### Notes
+- backend authorization still enforces `business_id` ownership on protected data routes
+- this phase intentionally does not change Dashboard caching or Reviews pagination
+- frontend auth/session behavior changed by adding a trusted business-context cookie; API payload shapes did not change
+
+### Testing status
+- `npm run lint` passed
+- `npm run build` passed inside the Docker rebuild
+- `npx tsc --noEmit` still fails due an unrelated pre-existing Playwright typing issue in `tests/e2e/readability.spec.ts`
+- authenticated browser verification confirmed one `/auth/me` call at session sync time, followed by Dashboard and Reviews page-data requests without extra `/auth/me` calls during tab navigation
+
+## 2026-05-06 21:05 - Paginated Reviews initial load to stop fetching 100 full rows on every navigation
+
+### Goal
+Reduce the initial Reviews page load cost by replacing the heavy `limit=100` full-list fetch with a smaller paginated list contract while preserving auth, detail pages, and import/status flows.
+
+### Files changed
+- `app/[locale]/(app)/reviews/page.tsx`
+- `components/reviews/review-table.tsx`
+- `components/reviews/reviews-workspace.tsx`
+- `lib/api/adapters.ts`
+- `lib/api/client.ts`
+- `lib/api/contracts.ts`
+- `types/review.ts`
+
+### What was implemented
+- switched the Reviews page to request a small first page from the backend instead of loading up to 100 reviews and paginating again in the browser
+- moved Reviews query-string search/filter/page handling onto the request boundary so filter and page changes fetch only the slice the UI needs
+- kept the Reviews list UI and detail-link flow intact while using the server response for total count and pagination state
+- preserved source/language/rating/date/search filtering behavior through request params instead of client-only full-list filtering
+- narrowed the list payload to a list-specific shape that keeps the fields used by the table plus the sentiment label needed for badges
+
+### Notes
+- auth/business-context logic was not changed in this phase
+- Dashboard caching was not changed in this phase
+- review detail pages still use the existing detail endpoint for full sentiment metadata
+- the Reviews list API contract changed from a raw array-like list response to a paginated payload with `items`, `total`, `limit`, `offset`, and `source_types`
+
+### Testing status
+- `npm run lint` passed
+- `npm run build` passed locally and in the frontend Docker rebuild
+- `npx tsc --noEmit` still fails due the unrelated pre-existing Playwright typing issue in `tests/e2e/readability.spec.ts`
+- authenticated browser verification confirmed the Reviews page loaded 10 rows for the 104-review business, preserved sentiment badges and detail-page status, and used the lighter `limit=10` backend request
+
+## 2026-05-06 21:25 - Fixed Reviews hydration mismatch from timezone-dependent table rendering
+
+### Goal
+Remove the React production hydration mismatch on the Reviews table by making review timestamp formatting deterministic across server and browser renders.
+
+### Files changed
+- `components/reviews/review-table.tsx`
+
+### What was implemented
+- added an explicit `timeZone` to the `Intl.DateTimeFormat` calls used for the Reviews table date and time cells
+- chose `UTC` as the shared rendering timezone because there is no existing project-wide business display timezone setting in this flow
+- kept the table layout, locale-aware month/day formatting, sentiment badges, and detail links unchanged
+
+### Notes
+- this was a targeted UI rendering fix only
+- Reviews pagination and API behavior were not changed
+- the root cause was server-side rendering in a UTC container and client hydration in a browser running a different local timezone
+
+### Testing status
+- `npm run lint` passed
+- `npm run build` passed
+
+## 2026-05-12 01:08 - Began approved premium UI migration from reference v2
+
+### Goal
+Start migrating the real OwnerMate frontend toward the approved premium UI direction from `C:\Users\retaj\OneDrive\سطح المكتب\ui reference\v2\f4e62996-c3e0-4cd3-982d-6ec08cae4dcc` without redesigning workflows, changing data contracts, or copying the reference screen-by-screen.
+
+### Files changed
+- `app/layout.tsx`
+- `tailwind.config.ts`
+- `styles/globals.css`
+- `components/common/premium-primitives.tsx`
+- `components/common/data-panel.tsx`
+- `components/common/stat-card.tsx`
+- `components/common/section-header.tsx`
+- `components/forms/button.tsx`
+- `components/feedback/empty-state.tsx`
+- `components/feedback/error-state.tsx`
+- `components/feedback/loading-skeleton.tsx`
+- `components/layout/app-shell.tsx`
+- `components/layout/header.tsx`
+- `components/layout/page-container.tsx`
+- `components/reviews/review-table.tsx`
+
+### What was implemented
+- moved light-mode tokens toward the approved warm operational palette: board/paper surfaces, ink text, restrained green primary, muted hairline borders, and dedicated chart/status colors
+- kept dark mode separately tokenized so the light reference palette is not blindly applied to dark mode
+- added `Instrument Serif` for premium display/metric hierarchy while keeping Cairo for Arabic and Inter for UI text
+- introduced shared premium primitives and CSS utilities for cards, eyebrows, metrics, and dense tables
+- refactored app shell/header styling toward the approved compact top-nav direction while preserving existing navigation, auth/session, language, theme, and user-menu behavior
+- refreshed shared page headers, data panels, stat cards, buttons, feedback states, and the review table using centralized styling foundations
+
+### Notes
+- this is the first safe migration slice only
+- dashboard/reviews business logic, API requests, route structure, filters, auth behavior, and data types were not changed
+- the next recommended slices are dashboard overview, review insights, reviews workspace, review detail, sales analytics, then remaining pages
+
+### Testing status
+- `npm run lint` passed
+- `npm run build` passed
+- `npx tsc --noEmit` is blocked by an existing Playwright test typing issue in `tests/e2e/readability.spec.ts`
+- Docker frontend was rebuilt with `docker compose up -d --build frontend`
+- `http://127.0.0.1:3000/en/sign-in` returned HTTP 200
+- headless Playwright rendered the sign-in route with non-empty page content
+- production-style authenticated smoke verification no longer surfaced the previous React `#418` page errors on the Reviews page
+
+## 2026-05-07 00:10 - Fixed Dashboard hydration mismatch from timezone-dependent timestamp cards
+
+### Goal
+Remove the remaining React production hydration mismatch on `/dashboard` by making dashboard timestamp text render identically in the UTC server container and the browser.
+
+### Files changed
+- `lib/utils/formatters.ts`
+
+### What was implemented
+- added an explicit `timeZone` to the shared `formatDate()` helper used by the dashboard priority-review and activity-feed timestamp text
+- chose `UTC` to match the existing deterministic timestamp approach used in the Reviews fixes because there is still no project-wide business display timezone setting
+
+### Notes
+- this was a targeted rendering fix only
+- Dashboard caching, auth flow, and Reviews pagination were not changed
+- the root cause was server-rendered dashboard timestamp text using the container default timezone while the browser hydrated using the local timezone
+
+## 2026-05-08 19:47 - Refined shared frontend UI shell and reviews presentation without logic changes
+
+### Goal
+Improve the perceived quality and usability of the frontend by polishing the shared shell, section framing, and Reviews presentation while keeping routing, data flow, and backend contracts unchanged.
+
+### Files changed
+- `styles/globals.css`
+- `components/common/section-header.tsx`
+- `components/layout/app-shell.tsx`
+- `components/layout/header.tsx`
+- `components/layout/page-container.tsx`
+- `components/reviews/review-table.tsx`
+- `components/reviews/reviews-workspace.tsx`
+
+### What was implemented
+- strengthened the shared visual system with better layered backgrounds, refined panel treatment, global focus visibility, reduced-motion handling, and softer scrollbars
+- added a skip link and improved page framing so protected app pages feel more intentional and remain more keyboard-accessible
+- upgraded the header with a clearer secondary context band that surfaces the current workspace description without changing navigation behavior
+- refreshed section headers to use a stronger eyebrow treatment and cleaner hierarchy
+- improved the Reviews summary panel and pagination styling for clearer scanability
+- added a mobile-first review card presentation while preserving the existing desktop table, review links, and list data contract
+
+### Notes
+- this pass did not change frontend logic, API requests, filtering semantics, or routing
+- existing uncommitted frontend work in unrelated files was preserved
+- the goal here was UI/UX polish only, especially around readability, hierarchy, and responsive presentation
+
+### Testing status
+- `npm run lint` passed
+- `npm run build` passed
+
+## 2026-05-08 20:02 - Extended the UI/UX refresh across the full frontend surface
+
+### Goal
+Move the UI pass beyond the shared app shell and Reviews into a broader frontend-wide refinement covering landing, auth, forms, feedback states, dataset analysis, and settings while preserving existing logic and data flow.
+
+### Files changed
+- `components/forms/button.tsx`
+- `components/forms/input.tsx`
+- `components/forms/select.tsx`
+- `components/forms/textarea.tsx`
+- `components/feedback/empty-state.tsx`
+- `components/feedback/error-state.tsx`
+- `components/feedback/loading-skeleton.tsx`
+- `components/common/data-panel.tsx`
+- `components/common/stat-card.tsx`
+- `components/common/placeholder-page.tsx`
+- `components/content/mode-switcher.tsx`
+- `components/marketing/landing-page.tsx`
+- `components/auth/auth-form.tsx`
+- `components/dataset-analysis/dataset-analysis-workspace.tsx`
+- `components/settings/settings-workspace.tsx`
+
+### What was implemented
+- upgraded the shared button, input, select, textarea, and feedback patterns so forms and status messaging feel more polished and consistent across the product
+- refined cards, panels, and lightweight data-display primitives to improve visual hierarchy and readability in dense views
+- improved the landing page hero, CTAs, branding treatment, and section presentation so the marketing surface feels stronger and more intentional
+- extended the auth experience with richer supporting context, clearer state messaging, and stronger visual structure without changing sign-in or sign-up logic
+- polished dataset-analysis result framing, metric tiles, and tabs to make heavy analytical output easier to scan
+- improved settings sections, notices, toggles, and admin-style cards so the workspace feels more cohesive with the rest of the application
+
+### Notes
+- no frontend business logic, API route behavior, or backend integration flow was changed
+- this pass intentionally focused on presentation, hierarchy, responsive behavior, and perceived quality only
+- existing unrelated uncommitted frontend work was preserved
+
+### Testing status
+- `npm run lint` passed
+- `npm run build` passed

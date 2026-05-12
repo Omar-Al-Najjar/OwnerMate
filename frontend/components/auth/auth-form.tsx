@@ -657,6 +657,35 @@ export function AuthForm({
               </div>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                {
+                  label: dictionary.secureTitle,
+                  value: locale === "ar" ? "مؤمن" : "Secure",
+                },
+                {
+                  label: dictionary.intelligenceTitle,
+                  value: locale === "ar" ? "مدعوم بالذكاء" : "AI-ready",
+                },
+                {
+                  label: dictionary.bilingualTitle,
+                  value: locale === "ar" ? "ثنائي اللغة" : "Bilingual",
+                },
+              ].map((item) => (
+                <div
+                  className="rounded-3xl border border-border/70 bg-white/55 p-4 shadow-panel backdrop-blur dark:bg-white/5"
+                  key={item.label}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-foreground">
+                    {item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               {[
                 {
@@ -819,7 +848,7 @@ export function AuthForm({
                 {error ? (
                   <div
                     aria-live="polite"
-                    className="rounded-2xl border border-error/25 bg-error/10 px-4 py-3 text-sm text-error"
+                    className="rounded-2xl border border-error/25 bg-error/10 px-4 py-3 text-sm leading-7 text-error"
                     role="alert"
                   >
                     {error}
@@ -829,7 +858,7 @@ export function AuthForm({
                 {notice ? (
                   <div
                     aria-live="polite"
-                    className="rounded-2xl border border-success/25 bg-success/10 px-4 py-3 text-sm text-success"
+                    className="rounded-2xl border border-success/25 bg-success/10 px-4 py-3 text-sm leading-7 text-success"
                   >
                     {notice}
                   </div>

@@ -1,8 +1,7 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { LanguageSwitcher } from "@/components/navigation/language-switcher";
-import { ThemeToggle } from "@/components/navigation/theme-toggle";
+import { usePathname, useRouter } from "next/navigation";
+import { startTransition, useEffect, useState } from "react";
 import { UserMenu } from "@/components/navigation/user-menu";
 import type { Locale } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils/cn";
@@ -43,52 +42,123 @@ function MenuIcon() {
   );
 }
 
+function NavSpinner() {
+  return (
+    <span
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-current border-t-transparent"
+    />
+  );
+}
+
 export function Header({
   common,
   currentSection,
   locale,
   navigation,
   sections,
-  shell,
+  shell: _shell,
   signOutLabel,
   signOutPendingLabel,
 }: HeaderProps) {
   const isRtl = locale === "ar";
+  const pathname = usePathname();
+  const router = useRouter();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [pendingHref, setPendingHref] = useState<Route | null>(null);
   const dashboardHref = `/${locale}/dashboard` as Route;
 
   useEffect(() => {
+    setPendingHref(null);
     setIsMobileNavOpen(false);
-  }, [currentSection, locale]);
+  }, [currentSection, locale, pathname]);
 
-  const currentDescription =
-    currentSection === "dashboard"
-      ? shell.dashboardDescription
-      : currentSection === "reviews"
-        ? shell.reviewsDescription
-        : currentSection === "dataset-analysis"
-          ? shell.datasetAnalysisDescription
-          : shell.settingsDescription;
+  const handleNavigation = (href: Route, isActive: boolean) => {
+    return (event: React.MouseEvent<HTMLAnchorElement>) => {
+      if (isActive) {
+        event.preventDefault();
+        return;
+      }
+
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      setPendingHref(href);
+      startTransition(() => {
+        router.push(href);
+      });
+    };
+  };
+
+  const renderSectionLink = (
+    section: HeaderProps["sections"][number],
+    mobile = false
+  ) => {
+    const isActive = currentSection === section.key;
+    const isPending = pendingHref === section.href;
+
+    return (
+      <Link
+        aria-busy={isPending ? "true" : undefined}
+        aria-current={isActive ? "page" : undefined}
+        className={cn(
+          "relative inline-flex items-center gap-2 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
+          mobile
+            ? "min-h-10 rounded-md px-3 py-2 focus-visible:ring-offset-card"
+            : "h-12 px-3 focus-visible:ring-offset-card",
+          isActive
+            ? "text-foreground"
+            : mobile
+              ? "text-muted hover:bg-surface-low hover:text-foreground"
+              : "text-muted hover:text-foreground",
+          isPending &&
+            "text-primary",
+          mobile && (isRtl ? "text-right" : "text-left")
+        )}
+        href={section.href}
+        key={section.href}
+        onClick={handleNavigation(section.href, isActive)}
+      >
+        <span className="inline-flex items-center gap-2" dir={isRtl ? "rtl" : "ltr"}>
+          <span>{section.label}</span>
+          {isPending ? <NavSpinner /> : null}
+        </span>
+        {isActive && !mobile ? (
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-foreground"
+          />
+        ) : null}
+        {isPending ? (
+          <span className="sr-only">
+            {section.label} {common.loading}
+          </span>
+        ) : null}
+      </Link>
+    );
+  };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-background/84 backdrop-blur-2xl">
-      <div className="mx-auto flex w-full max-w-[96rem] flex-col px-4 py-4 md:px-8">
-        <div
-          className={cn(
-            "flex items-center justify-between gap-4",
-            isRtl && "flex-row-reverse"
-          )}
-        >
-          <div
-            className={cn(
-              "flex min-w-0 items-center gap-3 lg:gap-5",
-              isRtl && "flex-row-reverse"
-            )}
-          >
+    <header
+      className="sticky top-0 z-30 border-b border-border bg-card/95 shadow-panel backdrop-blur-xl"
+      dir={isRtl ? "rtl" : "ltr"}
+    >
+      <div className="mx-auto flex w-full max-w-[96rem] flex-col px-4 md:px-6">
+        <div className="flex min-h-14 items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-3 lg:gap-5">
             <button
               aria-expanded={isMobileNavOpen}
               aria-label={common.openNavigation}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-card/90 text-foreground transition hover:bg-surface-low hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground transition hover:bg-surface-low hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
               onClick={() => setIsMobileNavOpen((value) => !value)}
               type="button"
             >
@@ -96,67 +166,33 @@ export function Header({
             </button>
 
             <Link
-              className={cn(
-                "flex min-w-0 items-center gap-3 rounded-full px-1 py-1 transition hover:opacity-90",
-                isRtl && "flex-row-reverse"
-              )}
+              className="flex h-14 min-w-0 items-center gap-3 border-border pe-4 transition hover:opacity-90 md:border-e"
               href={dashboardHref}
             >
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-container text-sm font-bold tracking-[0.18em] text-white shadow-float">
+              <span
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-[11px] font-bold text-primary shadow-panel"
+                dir="ltr"
+              >
                 OM
               </span>
               <span className={cn("min-w-0", isRtl && "text-right")}>
-                <span className="block truncate text-base font-bold tracking-[-0.04em] text-foreground">
+                <span
+                  className="block truncate text-sm font-bold text-foreground"
+                  dir="ltr"
+                >
                   {navigation.appName}
-                </span>
-                <span className="hidden truncate text-xs text-muted lg:block">
-                  {navigation.frontendOnly}
                 </span>
               </span>
             </Link>
 
-            <nav
-              className={cn(
-                "hidden items-center gap-1 rounded-full border border-border/70 bg-card/92 p-1 shadow-panel md:flex",
-                isRtl && "flex-row-reverse"
-              )}
-            >
-              {sections.map((section) => {
-                const isActive = currentSection === section.key;
-                return (
-                  <Link
-                    aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "inline-flex min-h-10 items-center rounded-full px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                      isActive
-                        ? "bg-primary/12 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-inset ring-primary/20"
-                        : "text-muted hover:bg-surface-low hover:text-foreground"
-                    )}
-                    href={section.href}
-                    key={section.href}
-                  >
-                    {section.label}
-                  </Link>
-                );
-              })}
+            <nav className="hidden h-14 items-center gap-0.5 md:flex">
+              {sections.map((section) => renderSectionLink(section))}
             </nav>
           </div>
 
-          <div
-            className={cn(
-              "flex shrink-0 items-center gap-2",
-              isRtl && "flex-row-reverse"
-            )}
-          >
-            <div
-              className="hidden items-center gap-1 rounded-full border border-border/70 bg-card/92 p-1 shadow-panel sm:flex"
-              dir="ltr"
-            >
-              <LanguageSwitcher common={common} locale={locale} />
-              <ThemeToggle common={common} />
-            </div>
-
+          <div className="flex shrink-0 items-center gap-2">
             <UserMenu
+              common={common}
               isRtl={isRtl}
               locale={locale}
               pendingLabel={signOutPendingLabel}
@@ -167,53 +203,11 @@ export function Header({
         </div>
 
         {isMobileNavOpen ? (
-          <div className="mt-4 md:hidden">
-            <div className="rounded-3xl border border-border/70 bg-card/94 p-3 shadow-panel backdrop-blur-xl">
+          <div className="pb-4 md:hidden">
+            <div className="rounded-xl border border-border bg-card p-3 shadow-panel">
               <nav className="grid gap-2">
-                {sections.map((section) => {
-                  const isActive = currentSection === section.key;
-                  return (
-                    <Link
-                      aria-current={isActive ? "page" : undefined}
-                      className={cn(
-                        "rounded-2xl px-4 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
-                        isRtl ? "text-right" : "text-left",
-                        isActive
-                          ? "bg-primary/12 text-primary ring-1 ring-inset ring-primary/20"
-                          : "text-foreground hover:bg-surface-low"
-                      )}
-                      href={section.href}
-                      key={section.href}
-                      onClick={() => setIsMobileNavOpen(false)}
-                    >
-                      {section.label}
-                    </Link>
-                  );
-                })}
+                {sections.map((section) => renderSectionLink(section, true))}
               </nav>
-
-              <div
-                className={cn(
-                  "mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-surface-low/70 px-4 py-3",
-                  isRtl && "flex-row-reverse"
-                )}
-              >
-                <div className={cn("min-w-0", isRtl && "text-right")}>
-                  <p className="text-sm font-semibold text-foreground">
-                    {navigation.appName}
-                  </p>
-                  <p className="truncate text-xs text-muted">
-                    {currentDescription}
-                  </p>
-                </div>
-                <div
-                  className="flex items-center gap-1 rounded-full border border-border/70 bg-card/92 p-1 shadow-panel"
-                  dir="ltr"
-                >
-                  <LanguageSwitcher common={common} locale={locale} />
-                  <ThemeToggle common={common} />
-                </div>
-              </div>
             </div>
           </div>
         ) : null}
