@@ -1,0 +1,385 @@
+import logging
+from collections.abc import Sequence
+from uuid import UUID
+
+from fastapi import status
+from sqlalchemy.exc import IntegrityError
+
+from ..core.exceptions import AppError
+from ..models.review import Review
+from ..repositories.business import BusinessRepository
+from ..repositories.review import ReviewRepository
+from ..repositories.sentiment_result import SentimentResultRepository
+from ..schemas.review import (
+    ReviewImportDuplicate,
+    ReviewImportRequest,
+    ReviewImportResult,
+    ReviewImportItem,
+    ReviewBusinessScope,
+    ReviewDetailResponse,
+    ReviewListItemRead,
+    ReviewListQuery,
+    ReviewListResponse,
+    ReviewListSentimentRead,
+    ReviewRead,
+    ReviewStatusUpdateRequest,
+)
+from ..schemas.sentiment import (
+    SentimentAnalyzeBatchRequest,
+    SentimentAnalyzeRequest,
+    SentimentResultRead,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SentimentAnalysisServiceLike:
+    def analyze_review(self, payload: SentimentAnalyzeRequest): ...
+
+    def analyze_review_batch(self, payload: SentimentAnalyzeBatchRequest): ...
+
+
+class ReviewService:
+    def __init__(
+        self,
+        *,
+        review_repository: ReviewRepository,
+        business_repository: BusinessRepository,
+        sentiment_result_repository: SentimentResultRepository,
+        sentiment_analysis_service: SentimentAnalysisServiceLike | None = None,
+    ) -> None:
+        self.review_repository = review_repository
+        self.business_repository = business_repository
+        self.sentiment_result_repository = sentiment_result_repository
+        self.sentiment_analysis_service = sentiment_analysis_service
+
+    def list_reviews(self, query: ReviewListQuery) -> list[ReviewRead]:
+        self._ensure_business_exists(query.business_id)
+        reviews = self.review_repository.list_reviews(
+            business_id=query.business_id,
+            review_source_id=query.review_source_id,
+            source_type=query.source_type,
+            status=query.status,
+            language=query.language,
+            min_rating=query.min_rating,
+            max_rating=query.max_rating,
+            reviewer_name=query.reviewer_name,
+            search_text=query.search_text,
+            created_from=query.created_from,
+            created_to=query.created_to,
+            limit=query.limit,
+            offset=query.offset,
+        )
+        self._ensure_sentiments_for_reviews(reviews)
+        latest_sentiments = self.sentiment_result_repository.get_latest_by_review_ids(
+            [review.id for review in reviews]
+        )
+        results: list[ReviewRead] = []
+        for review in reviews:
+            review_payload = ReviewRead.model_validate(review)
+            sentiment_result = latest_sentiments.get(review.id)
+            results.append(
+                review_payload.model_copy(
+                    update={
+                        "sentiment": (
+                            SentimentResultRead.model_validate(sentiment_result)
+                            if sentiment_result
+                            else None
+                        )
+                    }
+                )
+            )
+        return results
+
+    def list_reviews_page(self, query: ReviewListQuery) -> ReviewListResponse:
+        self._ensure_business_exists(query.business_id)
+        review_rows = self.review_repository.list_review_page(
+            business_id=query.business_id,
+            review_source_id=query.review_source_id,
+            source_type=query.source_type,
+            status=query.status,
+            sentiment_label=query.sentiment_label,
+            language=query.language,
+            min_rating=query.min_rating,
+            max_rating=query.max_rating,
+            reviewer_name=query.reviewer_name,
+            search_text=query.search_text,
+            created_from=query.created_from,
+            created_to=query.created_to,
+            date_order=query.date_order,
+            limit=query.limit,
+            offset=query.offset,
+        )
+        total = self.review_repository.count_review_page(
+            business_id=query.business_id,
+            review_source_id=query.review_source_id,
+            source_type=query.source_type,
+            status=query.status,
+            sentiment_label=query.sentiment_label,
+            language=query.language,
+            min_rating=query.min_rating,
+            max_rating=query.max_rating,
+            reviewer_name=query.reviewer_name,
+            search_text=query.search_text,
+            created_from=query.created_from,
+            created_to=query.created_to,
+        )
+        source_types = list(
+            self.review_repository.list_source_types(business_id=query.business_id)
+        )
+
+        items = [
+            ReviewListItemRead(
+                id=row["id"],
+                source_type=row["source_type"],
+                reviewer_name=row["reviewer_name"],
+                rating=row["rating"],
+                language=row["language"],
+                review_text=row["review_text"],
+                review_created_at=row["review_created_at"],
+                status=row["status"],
+                sentiment=(
+                    ReviewListSentimentRead(label=row["sentiment_label"])
+                    if row["sentiment_label"]
+                    else None
+                ),
+            )
+            for row in review_rows
+        ]
+
+        return ReviewListResponse(
+            items=items,
+            total=total,
+            limit=query.limit,
+            offset=query.offset,
+            source_types=source_types,
+        )
+
+    def get_review(self, review_id: UUID, scope: ReviewBusinessScope) -> ReviewDetailResponse:
+        self._ensure_business_exists(scope.business_id)
+        review = self.review_repository.get_by_id(review_id, business_id=scope.business_id)
+        if review is None:
+            raise AppError(
+                code="REVIEW_NOT_FOUND",
+                message="Review not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        self._ensure_sentiments_for_reviews([review])
+        sentiment = self.sentiment_result_repository.get_latest_by_review_id(review.id)
+        review_payload = ReviewDetailResponse.model_validate(review)
+        return review_payload.model_copy(
+            update={
+                "sentiment": (
+                    SentimentResultRead.model_validate(sentiment) if sentiment else None
+                )
+            },
+        )
+
+    def import_reviews(self, payload: ReviewImportRequest) -> ReviewImportResult:
+        self._ensure_business_exists(payload.business_id)
+
+        normalized_items = [self._normalize_item(item) for item in payload.reviews]
+        deduped_items, payload_duplicates = self._drop_duplicate_items_in_payload(
+            normalized_items
+        )
+        source_ids = [item.source_review_id for item in deduped_items]
+        existing_ids = self.review_repository.get_existing_source_ids(
+            business_id=payload.business_id,
+            source_type=payload.source,
+            source_review_ids=source_ids,
+        )
+
+        duplicates: list[ReviewImportDuplicate] = list(payload_duplicates)
+        pending_reviews: list[Review] = []
+
+        for item in deduped_items:
+            if item.source_review_id in existing_ids:
+                duplicates.append(
+                    ReviewImportDuplicate(
+                        source_review_id=item.source_review_id,
+                        reason="already_imported",
+                    )
+                )
+                continue
+
+            pending_reviews.append(
+                Review(
+                    business_id=payload.business_id,
+                    review_source_id=payload.review_source_id,
+                    source_type=payload.source,
+                    source_review_id=item.source_review_id,
+                    reviewer_name=item.reviewer_name,
+                    rating=item.rating,
+                    language=item.language,
+                    review_text=item.review_text,
+                    source_metadata=item.source_metadata,
+                    review_created_at=item.review_created_at,
+                    status=item.status,
+                    response_status=item.response_status,
+                )
+            )
+
+        try:
+            created = self.review_repository.add_many(pending_reviews) if pending_reviews else []
+            self.review_repository.save()
+        except IntegrityError as exc:
+            self.review_repository.rollback()
+            raise AppError(
+                code="REVIEW_IMPORT_CONFLICT",
+                message="Review import conflicted with existing records.",
+                status_code=status.HTTP_409_CONFLICT,
+                details={"reason": str(exc.orig)},
+            ) from exc
+
+        self._ensure_sentiments_for_reviews(created)
+        latest_sentiments = self.sentiment_result_repository.get_latest_by_review_ids(
+            [review.id for review in created]
+        )
+        imported_reviews = [
+            ReviewRead.model_validate(review).model_copy(
+                update={
+                    "sentiment": (
+                        SentimentResultRead.model_validate(latest_sentiments.get(review.id))
+                        if latest_sentiments.get(review.id)
+                        else None
+                    )
+                }
+            )
+            for review in created
+        ]
+        unique_duplicates = self._deduplicate_duplicate_results(duplicates)
+        return ReviewImportResult(
+            source=payload.source,
+            business_id=payload.business_id,
+            review_source_id=payload.review_source_id,
+            requested_count=len(payload.reviews),
+            imported_count=len(imported_reviews),
+            duplicate_count=len(unique_duplicates),
+            processed_count=len(payload.reviews),
+            imported_reviews=imported_reviews,
+            duplicates=unique_duplicates,
+        )
+
+    def update_review_status(
+        self,
+        review_id: UUID,
+        scope: ReviewBusinessScope,
+        payload: ReviewStatusUpdateRequest,
+    ) -> ReviewRead:
+        self._ensure_business_exists(scope.business_id)
+        review = self.review_repository.get_by_id(review_id, business_id=scope.business_id)
+        if review is None:
+            raise AppError(
+                code="REVIEW_NOT_FOUND",
+                message="Review not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        review.status = payload.status
+        self.review_repository.save()
+        self.review_repository.refresh(review)
+        return ReviewRead.model_validate(review)
+
+    def _ensure_business_exists(self, business_id: UUID) -> None:
+        business = self.business_repository.get_by_id(business_id)
+        if business is None:
+            raise AppError(
+                code="BUSINESS_NOT_FOUND",
+                message="Business not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+    def _normalize_item(self, item: ReviewImportItem) -> ReviewImportItem:
+        normalized_language = item.language.lower() if item.language else None
+        return item.model_copy(
+            update={
+                "language": normalized_language,
+                "review_text": item.review_text.strip(),
+                "reviewer_name": item.reviewer_name.strip()
+                if item.reviewer_name
+                else None,
+                "response_status": item.response_status.strip()
+                if item.response_status
+                else None,
+                "source_metadata": item.source_metadata or None,
+            }
+        )
+
+    def _drop_duplicate_items_in_payload(
+        self, items: Sequence[ReviewImportItem]
+    ) -> tuple[list[ReviewImportItem], list[ReviewImportDuplicate]]:
+        seen: set[str] = set()
+        deduped: list[ReviewImportItem] = []
+        duplicates: list[ReviewImportDuplicate] = []
+        for item in items:
+            if item.source_review_id in seen:
+                duplicates.append(
+                    ReviewImportDuplicate(
+                        source_review_id=item.source_review_id,
+                        reason="duplicate_in_payload",
+                    )
+                )
+                continue
+            seen.add(item.source_review_id)
+            deduped.append(item)
+        return deduped, duplicates
+
+    def _deduplicate_duplicate_results(
+        self, duplicates: Sequence[ReviewImportDuplicate]
+    ) -> list[ReviewImportDuplicate]:
+        unique_by_key: dict[tuple[str, str], ReviewImportDuplicate] = {}
+        for duplicate in duplicates:
+            unique_by_key[(duplicate.source_review_id, duplicate.reason)] = duplicate
+        return sorted(
+            unique_by_key.values(),
+            key=lambda duplicate: (duplicate.source_review_id, duplicate.reason),
+        )
+
+    def _ensure_sentiments_for_reviews(self, reviews: Sequence[Review]) -> None:
+        if not reviews or self.sentiment_analysis_service is None:
+            return
+
+        latest_sentiments = self.sentiment_result_repository.get_latest_by_review_ids(
+            [review.id for review in reviews]
+        )
+        missing_review_ids = [
+            review.id for review in reviews if latest_sentiments.get(review.id) is None
+        ]
+        if not missing_review_ids:
+            return
+
+        try:
+            if len(missing_review_ids) == 1:
+                target_review = next(
+                    review for review in reviews if review.id == missing_review_ids[0]
+                )
+                self.sentiment_analysis_service.analyze_review(
+                    SentimentAnalyzeRequest(
+                        review_id=target_review.id,
+                        language_hint=target_review.language,
+                    )
+                )
+            else:
+                language_hints = {
+                    review.language.lower()
+                    for review in reviews
+                    if review.id in missing_review_ids and review.language
+                }
+                self.sentiment_analysis_service.analyze_review_batch(
+                    SentimentAnalyzeBatchRequest(
+                        review_ids=missing_review_ids,
+                        language_hint=next(iter(language_hints))
+                        if len(language_hints) == 1
+                        else None,
+                    )
+                )
+        except AppError:
+            logger.warning(
+                "Sentiment backfill skipped for %s reviews due to application error.",
+                len(missing_review_ids),
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected sentiment backfill failure for %s reviews.",
+                len(missing_review_ids),
+            )

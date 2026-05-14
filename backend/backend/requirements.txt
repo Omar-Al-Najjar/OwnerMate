@@ -1,0 +1,12 @@
+alembic
+fastapi
+httpx
+openpyxl
+pyjwt[crypto]
+pydantic
+pydantic-settings
+psycopg[binary]
+pytest
+python-multipart
+sqlalchemy
+uvicorn[standard]

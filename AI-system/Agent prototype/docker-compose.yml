@@ -1,0 +1,9 @@
+services:
+  dataset-analysis:
+    build:
+      context: .
+    env_file:
+      - ${DATASET_ANALYSIS_ENV_FILE:-.env}
+    ports:
+      - "${HOST_PORT:-8020}:8020"
+    restart: unless-stopped

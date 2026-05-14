@@ -1,0 +1,59 @@
+from fastapi import APIRouter, Depends
+
+from ...core.responses import success_response
+from ...models.user import User
+from ...schemas.common import SuccessResponse
+from ...schemas.settings import (
+    BusinessSettingsUpdateRequest,
+    LanguagePreferenceUpdateRequest,
+    ProfileUpdateRequest,
+    ThemePreferenceUpdateRequest,
+)
+from ...services.settings import SettingsService
+from ..dependencies import get_current_user, get_settings_service
+
+router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+@router.get("", response_model=SuccessResponse)
+async def get_settings(
+    current_user: User = Depends(get_current_user),
+    service: SettingsService = Depends(get_settings_service),
+):
+    return success_response(service.get_settings(current_user))
+
+
+@router.patch("/theme", response_model=SuccessResponse)
+async def update_theme_preference(
+    payload: ThemePreferenceUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    service: SettingsService = Depends(get_settings_service),
+):
+    return success_response(service.update_theme(current_user, payload))
+
+
+@router.patch("/language", response_model=SuccessResponse)
+async def update_language_preference(
+    payload: LanguagePreferenceUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    service: SettingsService = Depends(get_settings_service),
+):
+    return success_response(service.update_language(current_user, payload))
+
+
+@router.patch("/profile", response_model=SuccessResponse)
+async def update_profile(
+    payload: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    service: SettingsService = Depends(get_settings_service),
+):
+    return success_response(service.update_profile(current_user, payload))
+
+
+@router.patch("/business", response_model=SuccessResponse)
+async def update_business_settings(
+    payload: BusinessSettingsUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    service: SettingsService = Depends(get_settings_service),
+):
+    return success_response(service.update_business_settings(current_user, payload))

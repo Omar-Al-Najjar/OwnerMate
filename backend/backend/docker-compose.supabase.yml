@@ -1,0 +1,8 @@
+services:
+  backend:
+    build:
+      context: .
+    env_file:
+      - .env.supabase
+    ports:
+      - "8000:8000"

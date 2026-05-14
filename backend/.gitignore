@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+backend/.env
+backend/.env.local
+backend/.env.supabase
+backend/.env.*
+frontend/.env
+frontend/.env.local
+
+frontend/.next/
+frontend/node_modules/
+frontend/test-results/
+
+frontend-dev.log
+frontend-dev.err.log
