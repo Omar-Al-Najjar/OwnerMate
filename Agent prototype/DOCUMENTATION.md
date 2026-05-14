@@ -430,6 +430,7 @@ cp .env.example .env
 
 ```bash
 OWNERMATE_LLM_API_KEY=your_provider_key
+# Or use OPENAI_API_KEY=your_provider_key
 ```
 
 4. Run the reference UI shell:

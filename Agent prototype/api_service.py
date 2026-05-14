@@ -359,7 +359,7 @@ class AnalysisJobManager:
 
     def _execute_job_sync(self, job: AnalysisJob) -> dict[str, Any]:
         try:
-            dataframe = pd.read_csv(io.BytesIO(job.file_bytes))
+            raw_dataframe = pd.read_csv(io.BytesIO(job.file_bytes))
         except Exception as exc:
             return _build_error_envelope(
                 code="CSV_READ_ERROR",
@@ -368,10 +368,12 @@ class AnalysisJobManager:
                 details=str(exc),
             )
 
+        analysis_dataframe = raw_dataframe.copy(deep=True)
         return run_analysis(
-            dataframe,
+            analysis_dataframe,
             dataset_name=job.dataset_name,
             source_name=job.source_name or job.file_name,
+            metadata_df=raw_dataframe,
         )
 
     def _purge_expired_jobs_locked(self) -> None:

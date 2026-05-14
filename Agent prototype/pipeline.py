@@ -181,6 +181,7 @@ DEFAULT_BASE_URL = "https://api.moonshot.ai/v1"
 DEFAULT_TEMPERATURE = 0.6
 DEFAULT_TASK_TYPE = "analyze_dataset"
 DEFAULT_AGENT_NAME = "dataset_analysis_orchestrator"
+SUPPORTED_LLM_API_KEY_ENV_VARS = ("OWNERMATE_LLM_API_KEY", "OPENAI_API_KEY")
 
 _SEMANTIC_CACHE: dict[str, DatasetSemantics] = {}
 _AGENTS_CACHE: dict[tuple[str, str, bool], dict[str, Agent]] = {}
@@ -190,6 +191,14 @@ def _as_bool(raw: Optional[str], default: bool = True) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_llm_api_key() -> Optional[str]:
+    for env_var in SUPPORTED_LLM_API_KEY_ENV_VARS:
+        value = os.getenv(env_var)
+        if value:
+            return value
+    return None
 
 
 def _is_overload_error(exc: Exception) -> bool:
@@ -238,9 +247,10 @@ def _json_dumps(payload: Any) -> str:
 
 
 def get_runtime_config() -> RuntimeConfig:
-    api_key = os.getenv("OWNERMATE_LLM_API_KEY")
+    api_key = _get_llm_api_key()
     if not api_key:
-        raise ConfigError("Missing `OWNERMATE_LLM_API_KEY` environment variable.")
+        supported = " or ".join(f"`{name}`" for name in SUPPORTED_LLM_API_KEY_ENV_VARS)
+        raise ConfigError(f"Missing {supported} environment variable.")
     raw_agent_timeout = os.getenv("OWNERMATE_AGENT_TIMEOUT", "120").strip()
     parsed_agent_timeout = int(raw_agent_timeout)
     return RuntimeConfig(
@@ -262,7 +272,7 @@ def get_runtime_summary() -> dict[str, Any]:
     raw_agent_timeout = os.getenv("OWNERMATE_AGENT_TIMEOUT", "120").strip()
     parsed_agent_timeout = int(raw_agent_timeout)
     return {
-        "api_key_configured": bool(os.getenv("OWNERMATE_LLM_API_KEY")),
+        "api_key_configured": bool(_get_llm_api_key()),
         "model": os.getenv("OWNERMATE_LLM_MODEL", DEFAULT_MODEL),
         "base_url": os.getenv("OWNERMATE_LLM_BASE_URL", DEFAULT_BASE_URL),
         "temperature": float(os.getenv("OWNERMATE_LLM_TEMPERATURE", str(DEFAULT_TEMPERATURE))),
@@ -678,7 +688,9 @@ def _serialize_refinement(refinement: Optional[RefinementDecision]) -> Optional[
     return _to_json_safe(refinement.model_dump())
 
 
-def _build_dataset_section(df: pd.DataFrame, dataset_name: str, source_name: Optional[str]) -> dict[str, Any]:
+def _build_dataset_section(
+    df: pd.DataFrame, dataset_name: str, source_name: Optional[str]
+) -> dict[str, Any]:
     return _to_json_safe({
         "file_name": source_name,
         "dataset_name": dataset_name,
@@ -694,7 +706,7 @@ def _build_dataset_section(df: pd.DataFrame, dataset_name: str, source_name: Opt
 def _build_success_envelope(
     raw_result: dict[str, Any],
     *,
-    df: pd.DataFrame,
+    metadata_df: pd.DataFrame,
     dataset_name: str,
     source_name: Optional[str],
     duration_ms: int,
@@ -719,7 +731,9 @@ def _build_success_envelope(
         "task_type": DEFAULT_TASK_TYPE,
         "status": status,
         "data": {
-            "dataset": _build_dataset_section(df, dataset_name, source_name),
+            "dataset": _build_dataset_section(
+                metadata_df, dataset_name, source_name
+            ),
             "semantic_model": _serialize_semantic_model(semantic_model),
             "questions": _serialize_questions(questions, raw_result.get("question_floor", 0)),
             "findings": findings,
@@ -1488,18 +1502,21 @@ def analyze_dataset(
     *,
     dataset_name: Optional[str] = None,
     source_name: Optional[str] = None,
+    metadata_df: Optional[pd.DataFrame] = None,
 ) -> dict[str, Any]:
     start = time.perf_counter()
     dataset_name = _safe_dataset_name(dataset_name, source_name)
+    raw_df = metadata_df.copy(deep=True) if metadata_df is not None else df.copy(deep=True)
+    analysis_df = df.copy(deep=True)
 
     try:
-        _validate_dataframe(df)
+        _validate_dataframe(raw_df)
         config = get_runtime_config()
-        raw_result, log_text = _execute_pipeline(df, dataset_name, config)
+        raw_result, log_text = _execute_pipeline(analysis_df, dataset_name, config)
         duration_ms = int((time.perf_counter() - start) * 1000)
         return _build_success_envelope(
             raw_result,
-            df=df,
+            metadata_df=raw_df,
             dataset_name=dataset_name,
             source_name=source_name,
             duration_ms=duration_ms,
@@ -1537,6 +1554,12 @@ def run_analysis(
     df: pd.DataFrame,
     dataset_name: Optional[str] = None,
     source_name: Optional[str] = None,
+    metadata_df: Optional[pd.DataFrame] = None,
 ) -> dict[str, Any]:
     """Backward-compatible public entry point used by the UI shell."""
-    return analyze_dataset(df, dataset_name=dataset_name, source_name=source_name)
+    return analyze_dataset(
+        df,
+        dataset_name=dataset_name,
+        source_name=source_name,
+        metadata_df=metadata_df,
+    )

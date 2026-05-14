@@ -195,7 +195,7 @@ with st.sidebar:
     if runtime["api_key_configured"]:
         st.success("Server API key detected.")
     else:
-        st.error("Missing `OWNERMATE_LLM_API_KEY` on the server.")
+        st.error("Missing `OWNERMATE_LLM_API_KEY` or `OPENAI_API_KEY` on the server.")
     st.caption(f"Model: {runtime['model']}")
     st.caption(f"Base URL: {runtime['base_url']}")
     st.caption(f"Batch size: {runtime['batch_size']}")
