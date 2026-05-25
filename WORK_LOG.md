@@ -112,3 +112,64 @@
   - `http://localhost:3000/en` returned HTTP 200 and rendered the new landing headline from the container
 - Notes:
   - `docker compose up -d --build frontend` built images successfully but hit stale duplicate-name conflicts while trying to recreate dependent API containers; the frontend was updated separately without modifying those dependency containers
+
+## 2026-05-25 00:00 Asia/Amman
+
+- Task: investigated and optimized slow authenticated page navigation and reviews table pagination in the Docker stack.
+- Files changed:
+  - `.gitignore`
+  - `frontend/frontend/app/api/reviews/route.ts`
+  - `frontend/frontend/app/[locale]/(app)/loading.tsx`
+  - `frontend/frontend/app/api/dashboard/route.ts`
+  - `backend/backend/app/main.py`
+  - `backend/backend/app/api/dependencies.py`
+  - `backend/backend/app/services/auth.py`
+  - `backend/backend/app/services/authorization.py`
+  - `backend/backend/app/repositories/review.py`
+  - `backend/backend/app/services/dashboard.py`
+  - `backend/backend/app/services/review.py`
+  - `frontend/frontend/components/dashboard/dashboard-workspace.tsx`
+  - `frontend/frontend/components/layout/header.tsx`
+  - `frontend/frontend/components/reviews/reviews-workspace.tsx`
+  - `frontend/frontend/lib/api/client.ts`
+  - `frontend/frontend/lib/api/server.ts`
+  - `frontend/frontend/lib/auth/session.ts`
+  - `WORK_LOG.md`
+- Implemented:
+  - added a frontend API route for review table pagination/filter fetches so page changes do not need to rerender the full Next.js route
+  - changed the reviews workspace to update table data client-side while keeping the URL query in sync
+  - added an authenticated app loading boundary so route clicks show immediate skeleton UI while server data loads
+  - added short-lived in-memory caching for authenticated backend GET requests in frontend server code
+  - removed eager app-section route prefetching from the header after it caused multiple dynamic backend reads to warm at once
+  - kept route prefetching on hover/focus only
+  - moved dashboard filter changes to a client-side `/api/dashboard` fetch instead of a full server route navigation
+  - added backend request timing logs and an `X-Process-Time-Ms` header for diagnosing remaining slow calls
+  - added timing breakdowns for backend auth, review listing, and dashboard overview work
+  - removed synchronous sentiment backfill from review detail reads
+  - removed duplicate business existence checks from review list/detail services after route authorization already verifies access
+  - added a 60-second backend cache for authenticated user identity lookups
+  - added a 60-second backend cache for business authorization checks
+  - optimized reviews pagination by avoiding the latest-sentiment window join/count join when no sentiment filter is active
+  - fetches latest sentiments only for the current reviews page in the common unfiltered table path
+  - added a 60-second backend cache for review totals/source metadata used across table page changes
+  - added a 60-second backend cache for assembled dashboard overview payloads
+  - lowered dashboard overview requests from 200 reviews to 75 reviews per request
+  - reused the business id already present in the app session before falling back to backend `/auth/me`
+  - changed server session resolution to prefer the Supabase session payload and only call `getUser()` when the session is missing user details
+  - removed the forced backend `/auth/me` round trip from settings data loading
+  - ignored local env files in git
+- Env/setup changes:
+  - copied the existing local `env` file to `.env` for Docker Compose runtime use
+  - backend is running locally in Docker on host port `8001`; Supabase remains the remote auth/database backend
+- API payload or UI behavior changed:
+  - added `GET /api/reviews` returning the same review-list fields used by the reviews workspace
+  - added `GET /api/dashboard` returning the same dashboard payload used by the dashboard workspace
+  - reviews table pagination/filtering now updates client-side instead of triggering a full app route navigation
+  - dashboard filters now update client-side instead of triggering a full app route navigation
+  - dashboard/review repeated reads may return cached backend payloads for up to 60 seconds
+  - authenticated page navigation now displays route-level loading UI immediately instead of appearing frozen until server data resolves
+- Testing:
+  - `docker compose build frontend` passed
+  - recreated the frontend container with `docker compose up -d --no-deps frontend`
+  - unauthenticated `/en` returned HTTP 200 locally
+  - unauthenticated `/en/reviews` redirected to sign-in as expected

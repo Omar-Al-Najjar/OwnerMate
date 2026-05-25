@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
+import logging
+from time import monotonic, perf_counter
 from typing import Any
 
 from ..repositories.review import ReviewRepository
@@ -27,6 +29,9 @@ from ..schemas.dashboard import (
 )
 
 SENTIMENT_LABELS = ("positive", "neutral", "negative")
+DASHBOARD_OVERVIEW_CACHE_TTL_SECONDS = 60
+_dashboard_overview_cache: dict[tuple, tuple[float, DashboardOverviewRead]] = {}
+timing_logger = logging.getLogger("uvicorn.error")
 
 
 @dataclass
@@ -57,6 +62,23 @@ class DashboardService:
         self.sentiment_result_repository = sentiment_result_repository
 
     def get_overview(self, query: DashboardOverviewQuery) -> DashboardOverviewRead:
+        started_at = perf_counter()
+        cache_key = (
+            str(query.business_id),
+            query.limit,
+            query.recent_limit,
+            query.priority_limit,
+            query.activity_limit,
+            query.range,
+            query.source or "",
+            query.language or "",
+            query.sentiment or "",
+        )
+        cached = _dashboard_overview_cache.get(cache_key)
+        if cached and cached[0] > monotonic():
+            timing_logger.info("dashboard overview cache hit in %.1fms", (perf_counter() - started_at) * 1000)
+            return cached[1]
+
         reviews = list(
             self.review_repository.list_reviews(
                 business_id=query.business_id,
@@ -64,13 +86,16 @@ class DashboardService:
                 offset=0,
             )
         )
+        reviews_loaded_at = perf_counter()
         latest_sentiments = self.sentiment_result_repository.get_latest_by_review_ids(
             [review.id for review in reviews]
         )
+        sentiments_loaded_at = perf_counter()
         sales_records = sorted(
             self.sales_record_repository.list_for_business(query.business_id),
             key=lambda record: record.record_date,
         )
+        sales_loaded_at = perf_counter()
 
         review_context = self._build_review_window_context(
             query=query,
@@ -82,7 +107,7 @@ class DashboardService:
             sales_records=sales_records,
         )
 
-        return DashboardOverviewRead(
+        overview = DashboardOverviewRead(
             business_id=query.business_id,
             generated_at=datetime.now(timezone.utc),
             metrics=self._build_metric_summary(
@@ -141,6 +166,20 @@ class DashboardService:
                 ),
             ),
         )
+        finished_at = perf_counter()
+        _dashboard_overview_cache[cache_key] = (
+            monotonic() + DASHBOARD_OVERVIEW_CACHE_TTL_SECONDS,
+            overview,
+        )
+        timing_logger.info(
+            "dashboard overview timings reviews=%.1fms sentiments=%.1fms sales=%.1fms compute=%.1fms total=%.1fms",
+            (reviews_loaded_at - started_at) * 1000,
+            (sentiments_loaded_at - reviews_loaded_at) * 1000,
+            (sales_loaded_at - sentiments_loaded_at) * 1000,
+            (finished_at - sales_loaded_at) * 1000,
+            (finished_at - started_at) * 1000,
+        )
+        return overview
 
     def _build_review_window_context(
         self,

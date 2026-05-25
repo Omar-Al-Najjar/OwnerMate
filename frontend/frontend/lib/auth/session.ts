@@ -28,15 +28,80 @@ function readString(metadata: UserMetadata, key: string) {
   return typeof value === "string" ? value : null;
 }
 
-export const getAppSession = cache(async (): Promise<AppSession | null> => {
-  const supabase = await createServerSupabaseClient();
-  const cookieStore = await cookies();
-  const [{ data: userResult }, { data: sessionResult }] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase.auth.getSession(),
-  ]);
+function decodeJwtPayload(token: string) {
+  const [, payloadPart] = token.split(".");
+  if (!payloadPart) {
+    return null;
+  }
 
-  const user = userResult.user;
+  try {
+    const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const payload = JSON.parse(Buffer.from(padded, "base64").toString("utf-8"));
+    return payload && typeof payload === "object" ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+export const getAppSession = cache(async (): Promise<AppSession | null> => {
+  const cookieStore = await cookies();
+  const cookieAccessToken = cookieStore.get("ownermate-access-token")?.value ?? null;
+
+  if (cookieAccessToken) {
+    const tokenPayload = decodeJwtPayload(cookieAccessToken);
+    const userId = typeof tokenPayload?.sub === "string" ? tokenPayload.sub : null;
+    const email =
+      typeof tokenPayload?.email === "string" ? tokenPayload.email : null;
+
+    if (userId && email) {
+      const userMetadata =
+        tokenPayload?.user_metadata && typeof tokenPayload.user_metadata === "object"
+          ? tokenPayload.user_metadata
+          : {};
+      const appMetadata =
+        tokenPayload?.app_metadata && typeof tokenPayload.app_metadata === "object"
+          ? tokenPayload.app_metadata
+          : {};
+      const claimedBusinessId = readString(appMetadata, "business_id");
+      const cookieBusinessId = parseSignedBusinessContextCookie(
+        cookieStore.get(BUSINESS_CONTEXT_COOKIE_NAME)?.value ?? "",
+        userId
+      );
+      let resolvedBusinessId =
+        claimedBusinessId ?? cookieBusinessId ?? getCachedBusinessId(userId);
+
+      if (claimedBusinessId) {
+        seedBusinessContextCache(userId, claimedBusinessId);
+      } else if (cookieBusinessId) {
+        seedBusinessContextCache(userId, cookieBusinessId);
+      } else if (!resolvedBusinessId) {
+        resolvedBusinessId = await resolveBusinessContext(cookieAccessToken, userId);
+      }
+
+      return {
+        accessToken: cookieAccessToken,
+        businessId: resolvedBusinessId,
+        defaultLanguage: readString(userMetadata, "language_preference"),
+        email,
+        fullName:
+          readString(userMetadata, "full_name") ?? readString(userMetadata, "name"),
+        role: readString(appMetadata, "role") ?? "owner",
+        themePreference: readString(userMetadata, "theme_preference"),
+        userId,
+      };
+    }
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: sessionResult } = await supabase.auth.getSession();
+
+  let user = sessionResult.session?.user ?? null;
+  if (!user?.email) {
+    const { data: userResult } = await supabase.auth.getUser();
+    user = userResult.user;
+  }
+
   if (!user || !user.email) {
     return null;
   }

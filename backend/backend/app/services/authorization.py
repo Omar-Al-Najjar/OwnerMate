@@ -1,14 +1,19 @@
 from collections.abc import Sequence
+from time import monotonic
 from uuid import UUID
 
 from fastapi import status
 
 from ..core.exceptions import AppError
 from ..models.user import User
+from ..models.business import Business
 from ..repositories.agent_run import AgentRunRepository
 from ..repositories.business import BusinessRepository
 from ..repositories.generated_content import GeneratedContentRepository
 from ..repositories.review import ReviewRepository
+
+BUSINESS_ACCESS_CACHE_TTL_SECONDS = 60
+_business_access_cache: dict[tuple[str, str, str], tuple[float, Business]] = {}
 
 
 class AuthorizationService:
@@ -26,6 +31,11 @@ class AuthorizationService:
         self.agent_run_repository = agent_run_repository
 
     def ensure_business_access(self, user: User, business_id: UUID):
+        cache_key = (str(user.id), str(business_id), user.role)
+        cached = _business_access_cache.get(cache_key)
+        if cached and cached[0] > monotonic():
+            return cached[1]
+
         business = self.business_repository.get_by_id(business_id)
         if business is None:
             raise AppError(
@@ -34,7 +44,23 @@ class AuthorizationService:
                 status_code=status.HTTP_404_NOT_FOUND,
             )
         self._ensure_user_can_access_business(user, business.id, business.owner_user_id)
-        return business
+        cached_business = Business(
+            owner_user_id=business.owner_user_id,
+            name=business.name,
+            industry=business.industry,
+            country_code=business.country_code,
+            default_language=business.default_language,
+            google_review_business_name=business.google_review_business_name,
+        )
+        cached_business.id = business.id
+        _business_access_cache[cache_key] = (
+            monotonic() + BUSINESS_ACCESS_CACHE_TTL_SECONDS,
+            cached_business,
+        )
+        if len(_business_access_cache) > 512:
+            oldest_key = next(iter(_business_access_cache))
+            _business_access_cache.pop(oldest_key, None)
+        return cached_business
 
     def ensure_review_access(self, user: User, review_id: UUID):
         review = self.review_repository.get_by_id(review_id)

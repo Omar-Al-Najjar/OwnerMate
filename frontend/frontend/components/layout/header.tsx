@@ -126,6 +126,8 @@ export function Header({
         )}
         href={section.href}
         key={section.href}
+        onFocus={() => router.prefetch(section.href)}
+        onMouseEnter={() => router.prefetch(section.href)}
         onClick={handleNavigation(section.href, isActive)}
       >
         <span className="inline-flex items-center gap-2" dir={isRtl ? "rtl" : "ltr"}>

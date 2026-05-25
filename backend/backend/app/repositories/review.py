@@ -2,7 +2,7 @@ from datetime import datetime
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, literal, select
 
 from ..models.review import Review
 from ..models.sentiment_result import SentimentResult
@@ -152,7 +152,14 @@ class ReviewRepository(Repository):
         limit: int = 25,
         offset: int = 0,
     ) -> Sequence[dict]:
-        latest_sentiment_subquery = self._latest_sentiment_subquery()
+        latest_sentiment_subquery = (
+            self._latest_sentiment_subquery() if sentiment_label else None
+        )
+        sentiment_label_column = (
+            latest_sentiment_subquery.c.sentiment_label
+            if latest_sentiment_subquery is not None
+            else literal(None)
+        )
         statement = (
             select(
                 Review.id.label("id"),
@@ -163,15 +170,16 @@ class ReviewRepository(Repository):
                 Review.review_text.label("review_text"),
                 Review.review_created_at.label("review_created_at"),
                 Review.status.label("status"),
-                latest_sentiment_subquery.c.sentiment_label.label("sentiment_label"),
+                sentiment_label_column.label("sentiment_label"),
             )
             .select_from(Review)
-            .outerjoin(
+            .where(Review.business_id == business_id)
+        )
+        if latest_sentiment_subquery is not None:
+            statement = statement.outerjoin(
                 latest_sentiment_subquery,
                 latest_sentiment_subquery.c.review_id == Review.id,
             )
-            .where(Review.business_id == business_id)
-        )
 
         statement = self._apply_list_review_filters(
             statement,
@@ -219,16 +227,17 @@ class ReviewRepository(Repository):
         created_from: datetime | None = None,
         created_to: datetime | None = None,
     ) -> int:
-        latest_sentiment_subquery = self._latest_sentiment_subquery()
-        statement = (
-            select(func.count())
-            .select_from(Review)
-            .outerjoin(
+        latest_sentiment_subquery = (
+            self._latest_sentiment_subquery() if sentiment_label else None
+        )
+        statement = select(func.count()).select_from(Review).where(
+            Review.business_id == business_id
+        )
+        if latest_sentiment_subquery is not None:
+            statement = statement.outerjoin(
                 latest_sentiment_subquery,
                 latest_sentiment_subquery.c.review_id == Review.id,
             )
-            .where(Review.business_id == business_id)
-        )
 
         statement = self._apply_list_review_filters(
             statement,

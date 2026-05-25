@@ -66,6 +66,15 @@ type BackendAuthSession = {
   authenticated_at: string;
 };
 
+const BACKEND_GET_CACHE_TTL_MS = 60_000;
+const backendGetCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: unknown;
+  }
+>();
+
 type BackendReviewRead = {
   id: string;
   business_id: string;
@@ -279,6 +288,17 @@ function getBackendBaseUrl() {
   return process.env.BACKEND_API_BASE_URL ?? "http://127.0.0.1:8000";
 }
 
+function getBackendCacheKey(path: string, init?: RequestInit) {
+  const method = init?.method ?? "GET";
+  if (method.toUpperCase() !== "GET") {
+    return null;
+  }
+
+  const headers = init?.headers instanceof Headers ? init.headers : null;
+  const authorization = headers?.get("Authorization") ?? "";
+  return `${authorization}:${path}`;
+}
+
 async function getProtectedHeaders() {
   const session = await getAppSession();
   const headers = new Headers();
@@ -340,6 +360,14 @@ async function getBackendAuthContext(options?: {
 }
 
 async function getJson<T>(path: string, init?: RequestInit) {
+  const cacheKey = getBackendCacheKey(path, init);
+  if (cacheKey) {
+    const cached = backendGetCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return success(cached.value as T, "backend");
+    }
+  }
+
   const response = await fetch(`${getBackendBaseUrl()}${path}`, {
     ...init,
     headers: init?.headers,
@@ -359,6 +387,13 @@ async function getJson<T>(path: string, init?: RequestInit) {
       body?.error?.code ?? "BACKEND_REQUEST_FAILED",
       body?.error?.message ?? "Backend request failed."
     );
+  }
+
+  if (cacheKey) {
+    backendGetCache.set(cacheKey, {
+      expiresAt: Date.now() + BACKEND_GET_CACHE_TTL_MS,
+      value: body.data as T,
+    });
   }
 
   return success(body.data as T, "backend");
@@ -729,6 +764,7 @@ export const apiClient = {
     if (authContext.kind === "ready" && authContext.businessId) {
       const dashboardQuery = new URLSearchParams({
         business_id: authContext.businessId,
+        limit: "75",
       });
       appendDashboardFilters(dashboardQuery, normalizedFilters);
 
@@ -905,7 +941,7 @@ export const apiClient = {
   },
   async getSettings(): Promise<SettingsResponse> {
     const authContext = await getBackendAuthContext({
-      requireBackendSession: true,
+      requireBackendSession: false,
     });
 
     if (authContext.kind === "unauthenticated") {

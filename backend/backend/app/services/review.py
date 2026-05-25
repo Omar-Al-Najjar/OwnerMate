@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Sequence
+from time import monotonic, perf_counter
 from uuid import UUID
 
 from fastapi import status
@@ -31,6 +32,9 @@ from ..schemas.sentiment import (
 )
 
 logger = logging.getLogger(__name__)
+timing_logger = logging.getLogger("uvicorn.error")
+REVIEW_META_CACHE_TTL_SECONDS = 60
+_review_meta_cache: dict[tuple, tuple[float, int, list[str]]] = {}
 
 
 class SentimentAnalysisServiceLike:
@@ -92,7 +96,8 @@ class ReviewService:
         return results
 
     def list_reviews_page(self, query: ReviewListQuery) -> ReviewListResponse:
-        self._ensure_business_exists(query.business_id)
+        started_at = perf_counter()
+        business_checked_at = perf_counter()
         review_rows = self.review_repository.list_review_page(
             business_id=query.business_id,
             review_source_id=query.review_source_id,
@@ -110,23 +115,52 @@ class ReviewService:
             limit=query.limit,
             offset=query.offset,
         )
-        total = self.review_repository.count_review_page(
-            business_id=query.business_id,
-            review_source_id=query.review_source_id,
-            source_type=query.source_type,
-            status=query.status,
-            sentiment_label=query.sentiment_label,
-            language=query.language,
-            min_rating=query.min_rating,
-            max_rating=query.max_rating,
-            reviewer_name=query.reviewer_name,
-            search_text=query.search_text,
-            created_from=query.created_from,
-            created_to=query.created_to,
+        rows_loaded_at = perf_counter()
+        meta_cache_key = (
+            str(query.business_id),
+            str(query.review_source_id) if query.review_source_id else "",
+            query.source_type or "",
+            query.status or "",
+            query.sentiment_label or "",
+            query.language or "",
+            query.min_rating or "",
+            query.max_rating or "",
+            query.reviewer_name or "",
+            query.search_text or "",
+            query.created_from.isoformat() if query.created_from else "",
+            query.created_to.isoformat() if query.created_to else "",
         )
-        source_types = list(
-            self.review_repository.list_source_types(business_id=query.business_id)
+        cached_meta = _review_meta_cache.get(meta_cache_key)
+        if cached_meta and cached_meta[0] > monotonic():
+            _, total, source_types = cached_meta
+        else:
+            total = self.review_repository.count_review_page(
+                business_id=query.business_id,
+                review_source_id=query.review_source_id,
+                source_type=query.source_type,
+                status=query.status,
+                sentiment_label=query.sentiment_label,
+                language=query.language,
+                min_rating=query.min_rating,
+                max_rating=query.max_rating,
+                reviewer_name=query.reviewer_name,
+                search_text=query.search_text,
+                created_from=query.created_from,
+                created_to=query.created_to,
+            )
+            source_types = list(
+                self.review_repository.list_source_types(business_id=query.business_id)
+            )
+            _review_meta_cache[meta_cache_key] = (
+                monotonic() + REVIEW_META_CACHE_TTL_SECONDS,
+                total,
+                source_types,
+            )
+        meta_loaded_at = perf_counter()
+        latest_sentiments = self.sentiment_result_repository.get_latest_by_review_ids(
+            [row["id"] for row in review_rows]
         )
+        sentiments_loaded_at = perf_counter()
 
         items = [
             ReviewListItemRead(
@@ -139,24 +173,39 @@ class ReviewService:
                 review_created_at=row["review_created_at"],
                 status=row["status"],
                 sentiment=(
-                    ReviewListSentimentRead(label=row["sentiment_label"])
-                    if row["sentiment_label"]
+                    ReviewListSentimentRead(
+                        label=(
+                            row["sentiment_label"]
+                            or getattr(latest_sentiments.get(row["id"]), "label", None)
+                        )
+                    )
+                    if row["sentiment_label"] or latest_sentiments.get(row["id"])
                     else None
                 ),
             )
             for row in review_rows
         ]
 
-        return ReviewListResponse(
+        response = ReviewListResponse(
             items=items,
             total=total,
             limit=query.limit,
             offset=query.offset,
             source_types=source_types,
         )
+        finished_at = perf_counter()
+        timing_logger.info(
+            "review list timings business=%.1fms rows=%.1fms meta=%.1fms sentiments=%.1fms serialize=%.1fms total=%.1fms",
+            (business_checked_at - started_at) * 1000,
+            (rows_loaded_at - business_checked_at) * 1000,
+            (meta_loaded_at - rows_loaded_at) * 1000,
+            (sentiments_loaded_at - meta_loaded_at) * 1000,
+            (finished_at - sentiments_loaded_at) * 1000,
+            (finished_at - started_at) * 1000,
+        )
+        return response
 
     def get_review(self, review_id: UUID, scope: ReviewBusinessScope) -> ReviewDetailResponse:
-        self._ensure_business_exists(scope.business_id)
         review = self.review_repository.get_by_id(review_id, business_id=scope.business_id)
         if review is None:
             raise AppError(
@@ -164,7 +213,6 @@ class ReviewService:
                 message="Review not found.",
                 status_code=status.HTTP_404_NOT_FOUND,
             )
-        self._ensure_sentiments_for_reviews([review])
         sentiment = self.sentiment_result_repository.get_latest_by_review_id(review.id)
         review_payload = ReviewDetailResponse.model_validate(review)
         return review_payload.model_copy(

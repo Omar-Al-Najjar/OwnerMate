@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from time import monotonic
 
 from ..models.business import Business
 from ..models.user import User
@@ -11,6 +12,9 @@ from ..schemas.auth import (
     SessionRead,
 )
 from .token_verifier import VerifiedIdentity
+
+USER_IDENTITY_CACHE_TTL_SECONDS = 60
+_user_identity_cache: dict[str, tuple[float, User]] = {}
 
 
 class AuthService:
@@ -57,6 +61,10 @@ class AuthService:
         )
 
     def get_or_create_user_for_identity(self, identity: VerifiedIdentity) -> User:
+        cached = _user_identity_cache.get(identity.subject)
+        if cached and cached[0] > monotonic():
+            return cached[1]
+
         user = self.user_repository.get_by_supabase_user_id(identity.subject)
         if user is None:
             user = self.user_repository.get_by_email(identity.email)
@@ -75,6 +83,7 @@ class AuthService:
             self._ensure_default_business_for_user(user, businesses=[])
             self.user_repository.save()
             self.user_repository.refresh(user)
+            self._cache_user_identity(identity.subject, user)
             return user
 
         businesses = self.business_repository.list_for_owner(user.id)
@@ -107,7 +116,27 @@ class AuthService:
         if is_dirty or len(businesses) != business_count_before:
             self.user_repository.save()
             self.user_repository.refresh(user)
+        self._cache_user_identity(identity.subject, user)
         return user
+
+    def _cache_user_identity(self, subject: str, user: User) -> None:
+        cached_user = User(
+            email=user.email,
+            supabase_user_id=user.supabase_user_id,
+            full_name=user.full_name,
+            role=user.role,
+            language_preference=user.language_preference,
+            theme_preference=user.theme_preference,
+        )
+        cached_user.id = user.id
+        _user_identity_cache[subject] = (
+            monotonic() + USER_IDENTITY_CACHE_TTL_SECONDS,
+            cached_user,
+        )
+
+        if len(_user_identity_cache) > 256:
+            oldest_subject = next(iter(_user_identity_cache))
+            _user_identity_cache.pop(oldest_subject, None)
 
     def _resolve_role(self, role: str | None) -> str:
         if role in {"owner", "manager", "admin", "staff"}:

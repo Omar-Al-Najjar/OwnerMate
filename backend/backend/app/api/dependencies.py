@@ -1,5 +1,7 @@
 from collections.abc import Callable, Generator
 from functools import lru_cache
+import logging
+from time import perf_counter
 
 from uuid import UUID
 
@@ -40,6 +42,8 @@ from ..services.settings import SettingsService
 from ..services.source_review_import import SourceReviewImportService
 from ..services.token_verifier import SupabaseTokenVerifier
 from ..schemas.review import ReviewUploadImportRequest
+
+timing_logger = logging.getLogger("uvicorn.error")
 
 
 def get_db_session() -> Generator[Session, None, None]:
@@ -92,6 +96,7 @@ def get_current_user(
         get_token_verifier_factory
     ),
 ) -> User:
+    started_at = perf_counter()
     if authorization is None:
         raise AppError(
             code="AUTHENTICATION_REQUIRED",
@@ -108,7 +113,16 @@ def get_current_user(
         )
 
     identity = token_verifier_factory().verify_access_token(token.strip())
-    return auth_service.get_or_create_user_for_identity(identity)
+    verified_at = perf_counter()
+    user = auth_service.get_or_create_user_for_identity(identity)
+    finished_at = perf_counter()
+    timing_logger.info(
+        "auth timings verify=%.1fms user=%.1fms total=%.1fms",
+        (verified_at - started_at) * 1000,
+        (finished_at - verified_at) * 1000,
+        (finished_at - started_at) * 1000,
+    )
+    return user
 
 
 def get_authorization_service(

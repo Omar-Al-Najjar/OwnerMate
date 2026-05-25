@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
@@ -38,6 +38,15 @@ type DashboardWorkspaceProps = {
   dictionary: Dictionary;
   data: DashboardPayload | null;
   mode?: "overview" | "sales-detail" | "review-insights-detail";
+};
+
+type DashboardEnvelope = {
+  success?: boolean;
+  data?: DashboardPayload | null;
+  error?: {
+    code?: string;
+    message?: string;
+  };
 };
 
 type ExpandedChartViewport = {
@@ -177,7 +186,10 @@ export function DashboardWorkspace({
 }: DashboardWorkspaceProps) {
   const isRTL = locale === "ar";
   const pathname = usePathname();
-  const router = useRouter();
+  const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(data);
+  const [requestState, setRequestState] = useState<"ready" | "loading" | "error">(
+    data ? "ready" : "error"
+  );
   const [filters, setFilters] = useState<DashboardFilters>(
     DEFAULT_DASHBOARD_FILTERS
   );
@@ -190,27 +202,32 @@ export function DashboardWorkspace({
   const [salesChartResetToken, setSalesChartResetToken] = useState(0);
 
   useEffect(() => {
-    if (!data) {
+    setDashboardData(data);
+    setRequestState(data ? "ready" : "error");
+  }, [data]);
+
+  useEffect(() => {
+    if (!dashboardData) {
       return;
     }
 
     const searchParams = new URLSearchParams(window.location.search);
-    const nextFilters = getFiltersFromSearchParams(searchParams, data);
+    const nextFilters = getFiltersFromSearchParams(searchParams, dashboardData);
 
     setFilters((current) =>
       serializeFilters(current) === serializeFilters(nextFilters)
         ? current
         : nextFilters
     );
-  }, [data, pathname]);
+  }, [dashboardData, pathname]);
 
   const view = useMemo<DashboardView | null>(() => {
-    if (!data) {
+    if (!dashboardData) {
       return null;
     }
 
-    return data.view;
-  }, [data]);
+    return dashboardData.view;
+  }, [dashboardData]);
 
   const normalizedRevenueSeries = useMemo(
     () =>
@@ -254,7 +271,7 @@ export function DashboardWorkspace({
     language: dictionary.languageNames,
   };
 
-  if (!data || !view) {
+  if (!dashboardData || !view) {
     return (
       <div className="space-y-8">
         <SectionHeader
@@ -272,7 +289,8 @@ export function DashboardWorkspace({
 
   const rangeLabel = getRangeLabel(filters.range, dictionary);
   const hasSalesData =
-    data.capabilities.salesDataAvailable && data.salesRecords.length > 0;
+    dashboardData.capabilities.salesDataAvailable &&
+    dashboardData.salesRecords.length > 0;
   const executiveMetrics = hasSalesData
     ? view.sales.executiveMetrics
     : view.sales.executiveMetrics.filter(
@@ -351,8 +369,24 @@ export function DashboardWorkspace({
       const currentUrl = `${window.location.pathname}${window.location.search}`;
 
       if (nextUrl !== currentUrl) {
-        router.replace(nextUrl as Route, { scroll: false });
+        window.history.replaceState(null, "", nextUrl);
       }
+
+      const requestKey = nextSearchParams.toString();
+      setRequestState("loading");
+
+      fetch(requestKey ? `/api/dashboard?${requestKey}` : "/api/dashboard")
+        .then(async (response) => {
+          const envelope = (await response.json()) as DashboardEnvelope;
+          if (!response.ok || !envelope.success || !envelope.data) {
+            throw new Error(
+              envelope.error?.message ?? "Failed to load dashboard."
+            );
+          }
+          setDashboardData(envelope.data);
+          setRequestState("ready");
+        })
+        .catch(() => setRequestState("error"));
 
       return nextFilters;
     });
@@ -365,6 +399,19 @@ export function DashboardWorkspace({
         eyebrow={dictionary.navigation.dashboard}
         title={pageTitle}
       />
+
+      {requestState === "loading" ? (
+        <div className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-muted">
+          {dictionary.common.loading}
+        </div>
+      ) : null}
+
+      {requestState === "error" ? (
+        <ErrorState
+          description={dictionary.dashboard.errorDescription}
+          title={dictionary.dashboard.errorTitle}
+        />
+      ) : null}
 
       {mode !== "overview" ? (
         <div className={cn("flex", isRTL ? "justify-end" : "justify-start")}>
@@ -417,7 +464,7 @@ export function DashboardWorkspace({
                   </span>
                 ) : (
                   <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
-                    {data.capabilities.salesDataNote ??
+                    {dashboardData.capabilities.salesDataNote ??
                       dictionary.dashboard.noSalesDataTitle}
                   </span>
                 )}
@@ -441,7 +488,7 @@ export function DashboardWorkspace({
               ) : (
                 <HeroSummaryCard
                   helper={
-                    data.capabilities.salesDataNote ??
+                    dashboardData.capabilities.salesDataNote ??
                     dictionary.dashboard.noSalesDataDescription
                   }
                   label={dictionary.dashboard.salesPerformance}
@@ -484,7 +531,7 @@ export function DashboardWorkspace({
 
       <DashboardFiltersPanel
         activeFilterCount={activeFilterCount}
-        data={data}
+        data={dashboardData}
         dictionary={dictionary}
         filters={filters}
         locale={locale}
@@ -591,7 +638,7 @@ export function DashboardWorkspace({
             ) : (
               <EmptyState
                 description={
-                  data.capabilities.salesDataNote ??
+                  dashboardData.capabilities.salesDataNote ??
                   dictionary.dashboard.noSalesDataDescription
                 }
                 title={dictionary.dashboard.noSalesDataTitle}
@@ -750,7 +797,7 @@ export function DashboardWorkspace({
         ) : (
           <EmptyState
             description={
-              data.capabilities.salesDataNote ??
+              dashboardData.capabilities.salesDataNote ??
               dictionary.dashboard.noSalesDataDescription
             }
             title={dictionary.dashboard.noSalesDataTitle}

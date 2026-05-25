@@ -1,8 +1,7 @@
 "use client";
 
-import type { Route } from "next";
-import { startTransition, useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { formatSourceLabel } from "@/lib/api/adapters";
 import { Button } from "@/components/forms/button";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -83,6 +82,26 @@ type ReviewsWorkspaceProps = {
 
 type ReviewsState = "ready" | "error";
 
+const DEFAULT_REVIEWS_PAGE_SIZE = 10;
+
+type ReviewsPayload = {
+  items: ReviewListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  sourceOptions: string[];
+};
+
+type ReviewsEnvelope = {
+  success?: boolean;
+  data?: ReviewsPayload;
+  error?: {
+    code?: string;
+    message?: string;
+  };
+};
+
 function getDefaultFilters(): ReviewFiltersState {
   return {
     query: "",
@@ -109,14 +128,32 @@ export function ReviewsWorkspace({
   dictionary,
 }: ReviewsWorkspaceProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState<ReviewFiltersState>(initialFilters);
   const [page, setPage] = useState(currentPage);
   const [debouncedQuery, setDebouncedQuery] = useState(initialFilters.query);
-  const [requestState] = useState<ReviewsState>("ready");
+  const [requestState, setRequestState] = useState<ReviewsState>("ready");
+  const [reviewsData, setReviewsData] = useState<ReviewsPayload>({
+    items: reviews,
+    total: totalResults,
+    page: currentPage,
+    pageSize: DEFAULT_REVIEWS_PAGE_SIZE,
+    totalPages,
+    sourceOptions,
+  });
+  const initialRequestKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const nextReviewsData = {
+      items: reviews,
+      total: totalResults,
+      page: currentPage,
+      pageSize: DEFAULT_REVIEWS_PAGE_SIZE,
+      totalPages,
+      sourceOptions,
+    };
+
+    setReviewsData(nextReviewsData);
     setFilters((current) =>
       serializeFilters(initialFilters) !== serializeFilters(current)
         ? initialFilters
@@ -126,7 +163,17 @@ export function ReviewsWorkspace({
     setDebouncedQuery((current) =>
       initialFilters.query !== current ? initialFilters.query : current
     );
-  }, [currentPage, initialFilters, pathname, searchParams]);
+    setRequestState("ready");
+    initialRequestKeyRef.current = null;
+  }, [
+    currentPage,
+    initialFilters,
+    pathname,
+    reviews,
+    sourceOptions,
+    totalPages,
+    totalResults,
+  ]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -136,7 +183,7 @@ export function ReviewsWorkspace({
     return () => window.clearTimeout(timeoutId);
   }, [filters.query]);
 
-  useEffect(() => {
+  const requestParams = useMemo(() => {
     const nextSearchParams = new URLSearchParams();
 
     if (debouncedQuery) {
@@ -160,18 +207,9 @@ export function ReviewsWorkspace({
     if (page > 1) {
       nextSearchParams.set("page", String(page));
     }
+    nextSearchParams.set("pageSize", String(reviewsData.pageSize));
 
-    const nextUrl = nextSearchParams.toString()
-      ? `${pathname}?${nextSearchParams.toString()}`
-      : pathname;
-    const currentSearch = searchParams.toString();
-    const currentUrl = currentSearch ? `${pathname}?${currentSearch}` : pathname;
-
-    if (nextUrl !== currentUrl) {
-      startTransition(() => {
-        router.replace(nextUrl as Route, { scroll: false });
-      });
-    }
+    return nextSearchParams;
   }, [
     debouncedQuery,
     filters.date,
@@ -180,19 +218,69 @@ export function ReviewsWorkspace({
     filters.sentiment,
     filters.source,
     page,
-    pathname,
-    router,
-    searchParams,
+    reviewsData.pageSize,
   ]);
 
-  const safePage = Math.min(page, totalPages);
+  useEffect(() => {
+    const displaySearchParams = new URLSearchParams(requestParams);
+    if (displaySearchParams.get("pageSize") === "10") {
+      displaySearchParams.delete("pageSize");
+    }
+
+    const nextSearch = displaySearchParams.toString();
+    const nextUrl = nextSearch ? `${pathname}?${nextSearch}` : pathname;
+    const currentSearch = searchParams.toString();
+    const currentUrl = currentSearch ? `${pathname}?${currentSearch}` : pathname;
+
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, [pathname, requestParams, searchParams]);
+
+  useEffect(() => {
+    const requestKey = requestParams.toString();
+
+    if (initialRequestKeyRef.current === null) {
+      initialRequestKeyRef.current = requestKey;
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadReviews() {
+      try {
+        const response = await fetch(`/api/reviews?${requestKey}`, {
+          signal: controller.signal,
+        });
+        const envelope = (await response.json()) as ReviewsEnvelope;
+
+        if (!response.ok || !envelope.success || !envelope.data) {
+          throw new Error(envelope.error?.message ?? "Failed to load reviews.");
+        }
+
+        setReviewsData(envelope.data);
+        setRequestState("ready");
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setRequestState("error");
+      }
+    }
+
+    void loadReviews();
+
+    return () => controller.abort();
+  }, [requestParams]);
+
+  const safePage = Math.min(page, reviewsData.totalPages);
   const sourceFilterOptions = useMemo(
     () =>
-      sourceOptions.map((source) => ({
+      reviewsData.sourceOptions.map((source) => ({
         label: formatSourceLabel(source),
         value: source,
       })),
-    [sourceOptions]
+    [reviewsData.sourceOptions]
   );
   const activeFilterCount = [
     filters.query,
@@ -202,7 +290,7 @@ export function ReviewsWorkspace({
     filters.rating !== "all" ? filters.rating : "",
     filters.date !== "newest" ? filters.date : "",
   ].filter(Boolean).length;
-  const visibleResultsCount = reviews.length;
+  const visibleResultsCount = reviewsData.items.length;
 
   const labels = {
     sentiment: dictionary.sentimentLabels,
@@ -223,7 +311,10 @@ export function ReviewsWorkspace({
     setPage(1);
   };
 
-  const paginationPages = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const paginationPages = Array.from(
+    { length: reviewsData.totalPages },
+    (_, index) => index + 1
+  );
 
   return (
     <div className="space-y-6">
@@ -236,7 +327,8 @@ export function ReviewsWorkspace({
                 {dictionary.reviews.filtersTitle}
               </p>
               <p className="mt-2 text-sm text-foreground">
-                {dictionary.common.showing} {totalResults} {dictionary.common.results}
+                {dictionary.common.showing} {reviewsData.total}{" "}
+                {dictionary.common.results}
               </p>
             </div>
 
@@ -272,7 +364,7 @@ export function ReviewsWorkspace({
                 {dictionary.common.results}
               </p>
               <p className="metric-value mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
-                {totalResults}
+                {reviewsData.total}
               </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/72 px-4 py-3">
@@ -280,7 +372,7 @@ export function ReviewsWorkspace({
                 {dictionary.reviews.pageLabel}
               </p>
               <p className="metric-value mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
-                {safePage}/{totalPages}
+                {safePage}/{reviewsData.totalPages}
               </p>
             </div>
           </div>
@@ -342,14 +434,14 @@ export function ReviewsWorkspace({
           />
         ) : null}
 
-        {requestState === "ready" && totalResults === 0 ? (
+        {requestState === "ready" && reviewsData.total === 0 ? (
           <EmptyState
             description={dictionary.reviews.noResultsDescription}
             title={dictionary.reviews.noResultsTitle}
           />
         ) : null}
 
-        {requestState === "ready" && totalResults > 0 ? (
+        {requestState === "ready" && reviewsData.total > 0 ? (
           <>
             <ReviewTable
               columns={{
@@ -362,10 +454,10 @@ export function ReviewsWorkspace({
               detailLabel={dictionary.reviews.openReview}
               labels={labels}
               locale={locale}
-              reviews={reviews}
+              reviews={reviewsData.items}
             />
 
-            {totalPages > 1 ? (
+            {reviewsData.totalPages > 1 ? (
               <div className="soft-panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <Button
                   variant="secondary"
@@ -399,13 +491,16 @@ export function ReviewsWorkspace({
 
                 <div className="flex items-center justify-end gap-3">
                   <span className="text-sm text-muted">
-                    {dictionary.reviews.pageLabel} {safePage} / {totalPages}
+                    {dictionary.reviews.pageLabel} {safePage} /{" "}
+                    {reviewsData.totalPages}
                   </span>
                   <Button
                     variant="secondary"
-                    disabled={safePage === totalPages}
+                    disabled={safePage === reviewsData.totalPages}
                     onClick={() =>
-                      setPage((current) => Math.min(totalPages, current + 1))
+                      setPage((current) =>
+                        Math.min(reviewsData.totalPages, current + 1)
+                      )
                     }
                     type="button"
                   >

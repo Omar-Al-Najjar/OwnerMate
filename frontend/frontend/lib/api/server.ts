@@ -28,8 +28,29 @@ type BackendAuthSession = {
   }>;
 };
 
+const BACKEND_GET_CACHE_TTL_MS = 60_000;
+const backendGetCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: unknown;
+  }
+>();
+
 function getBackendBaseUrl() {
   return process.env.BACKEND_API_BASE_URL ?? "http://127.0.0.1:8000";
+}
+
+function getBackendCacheKey(path: string, init?: RequestInit) {
+  const method = init?.method ?? "GET";
+  if (method.toUpperCase() !== "GET") {
+    backendGetCache.clear();
+    return null;
+  }
+
+  const headers = init?.headers instanceof Headers ? init.headers : null;
+  const authorization = headers?.get("Authorization") ?? "";
+  return `${authorization}:${path}`;
 }
 
 export class BackendRouteError extends Error {
@@ -60,6 +81,14 @@ export async function getAuthenticatedBackendHeaders() {
 }
 
 export async function fetchBackendJson<T>(path: string, init?: RequestInit) {
+  const cacheKey = getBackendCacheKey(path, init);
+  if (cacheKey) {
+    const cached = backendGetCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T;
+    }
+  }
+
   const response = await fetch(`${getBackendBaseUrl()}${path}`, {
     ...init,
     headers: init?.headers,
@@ -76,11 +105,28 @@ export async function fetchBackendJson<T>(path: string, init?: RequestInit) {
     );
   }
 
+  if (cacheKey) {
+    backendGetCache.set(cacheKey, {
+      expiresAt: Date.now() + BACKEND_GET_CACHE_TTL_MS,
+      value: body.data as T,
+    });
+  }
+
   return body.data as T;
 }
 
 export async function getBackendAuthContext() {
   const headers = await getAuthenticatedBackendHeaders();
+  const session = await getAppSession();
+
+  if (session?.businessId) {
+    return {
+      headers,
+      authSession: null,
+      businessId: session.businessId,
+    };
+  }
+
   const authSession = await fetchBackendJson<BackendAuthSession>("/auth/me", {
     headers,
   });
