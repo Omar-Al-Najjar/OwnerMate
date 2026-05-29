@@ -1,191 +1,171 @@
-# README.md
-# Put this file at: repository root
-
 # OwnerMate
 
-OwnerMate is an AI-powered business optimization platform for small and medium-sized businesses, with a strong focus on the Jordanian market and bilingual usage in Arabic and English.
+OwnerMate is a bilingual AI-assisted business platform for small and medium-sized businesses, with a focus on Arabic and English review workflows for the Jordanian market.
 
-This repository is the implementation-ready version of the project for coding agents and developers.
+The current implementation focuses on review ingestion, multilingual sentiment analysis, AI-assisted content generation, operational reporting, and structured task routing. Forecasting, trend analysis, and predictive inventory are intentionally outside the implemented scope and are treated as future work.
 
-## Important Scope Decision
+## Scope
 
-**Trend analysis and everything related to it are excluded from this implementation.**
+OwnerMate includes:
 
-That means the project does **not** include:
-- trend analysis
-- predictive analytics
+- account authentication and role-aware access
+- review ingestion from supported sources and uploaded files
+- Arabic and English sentiment analysis
+- review summaries and operational report support
+- editable review replies and marketing copy
+- orchestrated task routing for approved workflows
+- responsive bilingual web UI with dark and light themes
+
+OwnerMate does not include:
+
 - demand forecasting
 - time-series forecasting
-- inventory forecasting
-- forecast dashboards
-- forecast pages
-- trend-based recommendations
-- sales trend modeling
-- predictive inventory logic
+- inventory prediction
+- trend analysis
+- forecast dashboards or forecast agents
 
-The platform scope is limited to:
-- account authentication and role-based access
-- review ingestion from supported sources
-- bilingual sentiment analysis for reviews
-- AI-assisted content generation
-- multi-agent orchestration for routing and task execution
-- responsive bilingual web experience
+## Repository
 
-## Core Product Goals
+```text
+.
+├─ README.md
+├─ docker-compose.yml
+├─ .env.example
+├─ frontend/
+│  └─ frontend/              Next.js application
+├─ backend/
+│  └─ backend/               FastAPI application, migrations, tests
+├─ AI-system/                AI support services and prototypes
+├─ docs/                     Project documentation and work logs
+└─ scripts/                  Local helper scripts
+```
 
-OwnerMate helps business owners:
-- collect customer reviews from external platforms
-- understand customer sentiment in Arabic and English
-- generate response and marketing content using AI
-- use a guided AI workflow instead of disconnected tools
-
-## Target Users
-
-- restaurant owners
-- cafe owners
-- small retail business owners
-- small marketing teams inside SMBs
-- business managers who need quick insight from customer feedback
-
-## Core Features
-
-### 1. Authentication and Access
-- secure sign in and sign up
-- session management
-- role-based access for business users and admins
-- optional MFA if kept in final scope
-
-### 2. Review Ingestion
-- collect reviews from supported platforms such as Google and Facebook
-- normalize review data into a common structure
-- store source metadata, timestamps, rating, language, and review text
-
-### 3. Sentiment Analysis
-- classify reviews by sentiment
-- support Arabic and English reviews
-- provide business-facing sentiment summaries and labels
-- surface negative reviews that need action
-- provide confidence score or model confidence metadata where useful
-
-### 4. AI Content Generation
-- generate replies to customer reviews
-- generate short marketing copy based on reviews and business context
-- allow user editing before publishing or copying
-- support Arabic and English output
-
-### 5. Multi-Agent Orchestration
-- route user intent to the correct system capability
-- coordinate ingestion, sentiment analysis, and content generation flows
-- keep responses structured and safe
-
-### 6. Responsive Web Application
-- modern responsive UI
-- dark and light themes
-- bilingual interface using i18n
-- dashboard and workflow pages built for real usage on desktop and mobile web
-
-## Documentation Discipline
-
-Every coding session must leave the repository more understandable than before.
-
-After **each meaningful change**, the agent must document what happened in a root-level markdown file named:
-
-- `WORK_LOG.md`
-
-Each entry should include:
-- date and time
-- task or issue worked on
-- files changed
-- what was implemented
-- any migrations, env changes, or setup changes
-- any bugs introduced, discovered, or fixed
-- what still remains
-- whether the work was tested, and how
-
-If a task changes architecture, API behavior, database schema, agent workflow, or UI behavior, the related documentation file must also be updated in the same session.
-
-## Final In-Scope Deliverables
-
-- production-ready Next.js frontend
-- FastAPI backend
-- Supabase-backed persistence and auth integration
-- Alembic-based schema migration workflow
-- Pydantic request and response validation
-- containerized local and deployment setup with Docker
-- implementation documentation for coding agents
+Main documentation now lives in `docs/`.
 
 ## Tech Stack
 
-### Backend
+Backend:
+
 - FastAPI
-- Uvicorn
-- Supabase
-- Alembic
+- SQLAlchemy and Alembic
 - Pydantic
+- Supabase Auth and Postgres
+- Pytest
 
-### Frontend
-- Next.js
-- shadcn/ui
+Frontend:
+
+- Next.js 15
+- React 19
+- TypeScript
 - Tailwind CSS
-- dark/light themes
-- i18n
+- Supabase client libraries
+- Playwright
 
-### Infrastructure
-- Docker containers
+AI and services:
 
-## Local Development
+- sentiment API service
+- Google Maps review import API
+- dataset analysis service
+- optional LLM provider integration
 
-### Prerequisites
+Infrastructure:
+
+- Docker and Docker Compose
+
+## Local Setup
+
+Prerequisites:
 
 - Node.js 20+
 - Python 3.11+
 - Docker and Docker Compose
 - Supabase project credentials
 
-### Suggested startup flow
-- docker compose up --build
+First-time setup:
 
-### Required Environment Variables
+```bash
+cp .env.example .env
+```
 
-At minimum, the project will likely need:
+Fill `.env` with real Supabase, database, and provider credentials.
 
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_ANON_KEY
-- SUPABASE_SERVICE_ROLE_KEY
-- DATABASE_URL
-- API_BASE_URL
-- OPENAI_API_KEY or equivalent LLM provider key if used
-- APP_ENV
+Run the full stack:
 
-### Documentation Index
-- PRD.md
-- ARCHITECTURE.md
-- TECH_STACK.md
-- TASKS.md
-- API.md
-- AGENTS.md
-- DEPLOYMENT.md
-- DATABASE_SCHEMA.md
-- CODING_RULES.md
-- WORK_LOG.md
+```bash
+docker compose up --build
+```
 
-### Implementation Rules for Coding Agents
+Default local services:
 
-- Do not reintroduce removed features.
-- Do not add trend analysis or forecasting under a different name.
-- After each meaningful change, update WORK_LOG.md.
-- If behavior changes, update the relevant markdown docs in the same session.
-- Prefer small, testable commits with documented outcomes.
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:8000`
+- Google Maps API: `http://localhost:8010`
+- Dataset analysis API: `http://localhost:8020`
+- Sentiment API: `http://localhost:8030`
 
-## Suggested Repository Layout
+## Environment Variables
 
-```text
-frontend/
-backend/
-components/
-lib/
-services/
-agents/
-docs/
+Important variables are listed in `.env.example`. The main groups are:
 
+- Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- Database: `DATABASE_URL`, `DIRECT_URL`
+- Backend/API: `BACKEND_API_BASE_URL`, `API_V1_PREFIX`, `UVICORN_HOST`, `UVICORN_PORT`
+- Providers: `SENTIMENT_PROVIDER`, `CONTENT_PROVIDER`, `GOOGLE_REVIEW_PROVIDER`, `REVIEW_INTELLIGENCE_PROVIDER`
+- LLM: `OWNERMATE_LLM_API_KEY`, `OWNERMATE_LLM_MODEL`, `OWNERMATE_LLM_BASE_URL`
+- Service ports: `FRONTEND_HOST_PORT`, `BACKEND_HOST_PORT`, `GOOGLE_MAPS_API_HOST_PORT`, `DATASET_ANALYSIS_HOST_PORT`, `SENTIMENT_HOST_PORT`
 
+Do not commit real secrets.
+
+## Testing
+
+Backend tests:
+
+```bash
+cd backend/backend
+pytest
+```
+
+Frontend checks:
+
+```bash
+cd frontend/frontend
+npm run lint
+npm run build
+npm run test:e2e
+```
+
+Some tests require valid environment variables or running services.
+
+## Documentation Index
+
+- `docs/PRD.md`
+- `docs/ARCHITECTURE.md`
+- `docs/TECH_STACK.md`
+- `docs/TASKS.md`
+- `docs/API.md`
+- `docs/AGENTS.md`
+- `docs/DEPLOYMENT.md`
+- `docs/DOCKER.md`
+- `docs/DATABSE_SCHEMA.md`
+- `docs/CODING_RULES.md`
+- `docs/WORK_LOG.md`
+
+Service-specific docs are under:
+
+- `docs/backend/`
+- `docs/frontend/`
+- `docs/AI-system/`
+
+## Documentation Discipline
+
+After each meaningful change, update `docs/WORK_LOG.md`.
+
+If a change affects architecture, API behavior, database schema, agent workflow, setup, deployment, or UI behavior, update the matching file under `docs/` in the same session.
+
+## Implementation Rules
+
+- Do not reintroduce forecasting, trend analysis, or predictive inventory as implemented features.
+- Keep agent routing limited to approved review, sentiment, summary, and content workflows.
+- Preserve business-scoped access controls.
+- Keep generated content editable before use.
+- Prefer small, testable changes with documented outcomes.

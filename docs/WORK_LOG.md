@@ -1,5 +1,89 @@
 # WORK_LOG
 
+## 2026-05-29 19:50 Asia/Amman
+
+- Task: restored and completed the root README and rechecked report handbook coverage.
+- Files changed: `README.md`, `docs/WORK_LOG.md`.
+- Implemented:
+  - moved the main README back to the repository root
+  - updated README paths to match the `docs/` documentation layout
+  - added current Docker service URLs, environment variable groups, and test commands
+  - removed stale root work-log wording and stale frontend stack wording
+- API payload or UI behavior changed:
+  - no API payload changes
+  - no UI behavior changes
+- Testing:
+  - checked README for current setup, docs, service, and test references
+  - rechecked the Phase II DOCX handbook markers and confirmed revenue text remains absent
+
+## 2026-05-29 19:45 Asia/Amman
+
+- Task: filled final handbook label gaps in the OwnerMate Phase II DOCX.
+- Files changed: `OwnerMate_Final_Phase2.docx`, `docs/WORK_LOG.md`.
+- Implemented:
+  - added explicit `7.1.1 Feature Engineering`
+  - added explicit `7.2 Model Training`
+  - renamed the GitHub/setup section to `Tool/Software Implementation (GitHub Required)`
+  - renamed testing headings to `8.1 Evaluation Metrics` and `8.2 Experimental Results`
+- API payload or UI behavior changed:
+  - no API payload changes
+  - no UI behavior changes
+- Testing:
+  - extracted DOCX text and confirmed the handbook labels are present
+  - confirmed revenue text remains absent
+  - rendered the DOCX and visually checked the affected Phase II pages
+
+## 2026-05-29 19:39 Asia/Amman
+
+- Task: moved markdown documentation into a docs folder as requested.
+- Files changed: markdown files across the repository.
+- Implemented:
+  - preserved the original relative paths under `docs/`
+  - moved root markdown files under `docs/`
+  - moved nested frontend, backend, and AI-system markdown files under matching `docs/` subdirectories
+- API payload or UI behavior changed:
+  - no API payload changes
+  - no UI behavior changes
+- Testing:
+  - verified markdown files are contained under `docs/` after the move
+
+## 2026-05-29 19:35 Asia/Amman
+
+- Task: filled remaining handbook gaps in the OwnerMate Phase II DOCX.
+- Files changed: `OwnerMate_Final_Phase2.docx`, `WORK_LOG.md`.
+- Implemented:
+  - added Chapter 5 with team roles, timeline, risk management, and communication plan
+  - added GitHub repository, README/setup, repository structure, environment variables, and Docker Compose run notes
+  - added explicit Unit Testing and Integration Testing text, plus frontend Playwright test coverage
+  - added a deployment architecture diagram table and caption
+  - added appendices for user manual, test evidence, environment/setup, and uploaded report evidence
+  - relabeled old forecast use case, sequence, and UI references as future work/originally proposed material
+- API payload or UI behavior changed:
+  - no API payload changes
+  - no UI behavior changes
+- Testing:
+  - extracted DOCX text and confirmed required handbook markers are present
+  - confirmed removed revenue text and old forecast-as-implemented phrases are absent
+  - rendered the DOCX with LibreOffice/Poppler and visually inspected the new Chapter 5, Phase II, deployment, and appendix pages
+
+## 2026-05-29 19:19 Asia/Amman
+
+- Task: updated the Phase II DOCX using the uploaded operational and sentiment reports.
+- Files changed: `OwnerMate_Final_Phase2.docx`, `WORK_LOG.md`.
+- Implemented:
+  - added sentiment dataset details from the uploaded sentiment report, including Kaggle/Yelp sources, balanced 150,000 record sample, 50,000 samples per sentiment class, UTF-8 preservation, 128-token sequence handling, and LoRA fine tuning
+  - added model comparison results for mBERT, MARBERT, GigaBERT, and XLM-RoBERTa
+  - identified XLM-RoBERTa as the best reported model with 0.829 accuracy and 0.830 F1 score
+  - added operational report evidence: 1,752 transactions, 93.4% completion rate, and 10.34% Y Mall Tla'a Al-Ali failure rate
+  - added operational quality evaluation results: 91.47% average score and five passed quality metrics
+  - kept demand forecasting and predictive inventory explicitly in future work
+- API payload or UI behavior changed:
+  - no API payload changes
+  - no UI behavior changes
+- Testing:
+  - rendered the updated DOCX with LibreOffice and Poppler through the documents render workflow
+  - visually inspected the updated Phase II pages and report tables
+
 ## 2026-05-28 19:20 Asia/Amman
 
 - Task: completed the Phase II report content for the OwnerMate final DOCX.
