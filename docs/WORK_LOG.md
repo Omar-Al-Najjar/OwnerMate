@@ -1,5 +1,23 @@
 # WORK_LOG
 
+## 2026-06-14 00:00 Asia/Amman
+
+- Task: corrected the Docker setup docs so they work from any directory and reflect the actual repo files.
+- Files changed: `README.md`, `docs/DOCKER.md`, `docs/WORK_LOG.md`.
+- Implemented:
+  - removed the stale root `.env.example` copy step from the README
+  - made the README setup instructions start from the repository root explicitly
+  - added a generic absolute-path Docker Compose example for starting the stack from any directory
+  - updated the Docker guide to describe the root `.env` and note that only service-specific templates may exist
+  - removed the hardcoded local folder name from the setup examples
+- API payload or UI behavior changed:
+  - no API payload changes
+  - no UI behavior changes
+- Testing:
+  - compared the README and Docker guide against the actual repo layout and root compose file
+  - confirmed there is no root `.env.example` in this snapshot
+  - confirmed the absolute-path compose invocation matches the repository location
+
 ## 2026-05-29 19:50 Asia/Amman
 
 - Task: restored and completed the root README and rechecked report handbook coverage.

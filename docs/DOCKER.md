@@ -3,17 +3,24 @@
 ## Files
 
 - Root compose file: `docker-compose.yml`
-- Root env template: `.env.example`
+- Root env file: `.env`
+- Service-specific env templates may exist under subprojects
 
 ## First-time setup
 
-1. Copy `.env.example` to `.env`.
-2. Fill in the real Supabase and LLM credentials in `.env`.
+1. Change into the repository root, or use `-f` with an absolute path to `docker-compose.yml`.
+2. Fill in the real Supabase and LLM credentials in the root `.env`.
 
 ## Run the full stack
 
 ```bash
 docker compose up --build
+```
+
+From any directory, you can also run:
+
+```bash
+docker compose -f /path/to/OwnerMate/docker-compose.yml up --build
 ```
 
 ## Services

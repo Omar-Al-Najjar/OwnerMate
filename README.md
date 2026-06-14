@@ -84,15 +84,21 @@ Prerequisites:
 First-time setup:
 
 ```bash
-cp .env.example .env
+cd /path/to/OwnerMate
 ```
 
-Fill `.env` with real Supabase, database, and provider credentials.
+Fill the root `.env` with real Supabase, database, and provider credentials.
 
 Run the full stack:
 
 ```bash
 docker compose up --build
+```
+
+If you are starting from another folder, point Compose at the repo root explicitly:
+
+```bash
+docker compose -f /path/to/OwnerMate/docker-compose.yml up --build
 ```
 
 Default local services:
@@ -105,7 +111,7 @@ Default local services:
 
 ## Environment Variables
 
-Important variables are listed in `.env.example`. The main groups are:
+Important variables are listed in the root `.env` and, where present, in service-specific `.env.example` files. The main groups are:
 
 - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 - Database: `DATABASE_URL`, `DIRECT_URL`
