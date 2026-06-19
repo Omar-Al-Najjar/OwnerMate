@@ -278,6 +278,16 @@ function toAuthErrorLike(error: unknown): AuthErrorLike | null {
   };
 }
 
+function getSafeBrowserOrigin() {
+  const { origin, hostname, protocol, port } = window.location;
+
+  if (hostname === "0.0.0.0") {
+    return `${protocol}//localhost${port ? `:${port}` : ""}`;
+  }
+
+  return origin;
+}
+
 export function AuthForm({
   common,
   dictionary,
@@ -427,7 +437,7 @@ export function AuthForm({
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
         {
-          redirectTo: `${window.location.origin}/auth/callback?next=/${locale}/sign-in`,
+          redirectTo: `${getSafeBrowserOrigin()}/auth/callback?next=/${locale}/sign-in`,
         }
       );
 
@@ -468,7 +478,7 @@ export function AuthForm({
 
     try {
       const supabase = createBrowserSupabaseClient();
-      const redirectTo = `${window.location.origin}/auth/callback?next=/${locale}/dashboard`;
+      const redirectTo = `${getSafeBrowserOrigin()}/auth/callback?next=/${locale}/dashboard`;
 
       const result =
         mode === "sign-up"
