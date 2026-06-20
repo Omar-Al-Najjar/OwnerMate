@@ -13,11 +13,10 @@ import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/get-dictionary";
 import { getNameValidationIssue } from "@/lib/validation/name-validation";
 import type {
-  DatasetAnalysisActionItem,
   DatasetAnalysisEnvelope,
   DatasetAnalysisJob,
   DatasetAnalysisJobStatus,
-  DatasetAnalysisQueryResult,
+  DatasetAnalysisQuestionItem,
 } from "@/types/dataset-analysis";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -25,8 +24,7 @@ const DATASET_NAME_MAX_LENGTH = 25;
 
 type ResultTab =
   | "overview"
-  | "insights"
-  | "findings";
+  | "questions";
 
 type WorkspaceStatus = "idle" | "uploading" | DatasetAnalysisJobStatus;
 
@@ -217,137 +215,66 @@ function MetricTile({
   );
 }
 
-function QueryPanels({
+function QuestionsPanel({
+  groups,
   items,
-  emptyLabel,
   dictionary,
 }: {
-  items: DatasetAnalysisQueryResult[];
-  emptyLabel: string;
+  groups: Record<string, DatasetAnalysisQuestionItem[]>;
+  items: DatasetAnalysisQuestionItem[];
   dictionary: Dictionary["datasetAnalysis"];
 }) {
+  const groupEntries = Object.entries(groups).filter(([, groupItems]) =>
+    groupItems.length > 0
+  );
+  const displayGroups: Array<[string, DatasetAnalysisQuestionItem[]]> =
+    groupEntries.length > 0 ? groupEntries : [["", items]];
+
   if (!items.length) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-surface/60 px-4 py-6 text-sm text-muted">
-        {emptyLabel}
+        {dictionary.noItemsLabel}
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {items.map((item) => (
-        <div
-          key={`${item.question}-${item.query}`}
-          className="rounded-2xl border border-border bg-card p-5 shadow-sm"
-        >
-          <h3 className="break-words text-base font-semibold text-foreground">
-            {item.question}
-          </h3>
-          {item.error ? (
-            <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-200">
-              {item.error}
-            </p>
-          ) : null}
-          <div className="mt-4 grid gap-4 xl:grid-cols-2">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">
-                {dictionary.generatedCodeLabel}
-              </p>
-              <pre className="overflow-x-auto rounded-2xl bg-slate-950 px-4 py-4 text-xs leading-6 text-slate-100">
-                {item.query || "-"}
-              </pre>
+      {displayGroups.map(([category, groupItems]) => (
+          <DataPanel
+            key={category || "all-questions"}
+            title={
+              category
+                ? `${category} (${groupItems.length})`
+                : dictionary.questionsTab
+            }
+          >
+            <div className="space-y-3">
+              {groupItems.map((item) => (
+                <div
+                  key={`${item.category}-${normalizeQuestionKey(item.question)}`}
+                  className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <p className="text-sm font-semibold leading-7 text-foreground">
+                      {item.question}
+                    </p>
+                    {item.priority ? (
+                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
+                        {dictionary.priorityQuestionsLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  {item.priority_reason ? (
+                    <p className="mt-3 text-sm leading-7 text-muted">
+                      {item.priority_reason}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
             </div>
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-border bg-surface/60 p-4">
-                <p className="text-sm font-semibold text-foreground">
-                  {dictionary.actualResultLabel}
-                </p>
-                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6 text-muted">
-                  {item.actual_result || item.result_summary || "-"}
-                </pre>
-              </div>
-              <div className="rounded-2xl border border-border bg-surface/60 p-4">
-                <p className="text-sm font-semibold text-foreground">
-                  {dictionary.businessExplanationLabel}
-                </p>
-                <p className="mt-3 break-words text-sm leading-7 text-muted">
-                  {item.explanation || "-"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ActionItemCard({
-  action,
-  dictionary,
-}: {
-  action: DatasetAnalysisActionItem;
-  dictionary: Dictionary["datasetAnalysis"];
-}) {
-  const priorityTone =
-    action.priority === "High"
-      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-200"
-      : action.priority === "Medium"
-        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200"
-        : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-200";
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="break-words text-base font-semibold text-foreground">
-          {action.title}
-        </h3>
-        <span
-          className={cn(
-            "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
-            priorityTone
-          )}
-        >
-          {action.priority === "High"
-            ? dictionary.priorityHigh
-            : action.priority === "Medium"
-              ? dictionary.priorityMedium
-              : dictionary.priorityLow}
-        </span>
-      </div>
-      <div className="mt-4 space-y-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-            {dictionary.whatLabel}
-          </p>
-          <p className="mt-2 text-sm leading-7 text-muted">{action.what}</p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-            {dictionary.whyLabel}
-          </p>
-          <p className="mt-2 text-sm leading-7 text-muted">
-            {action.why_it_matters}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-            {dictionary.recommendationLabel}
-          </p>
-          <p className="mt-2 text-sm leading-7 text-muted">
-            {action.recommendation}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-            {dictionary.expectedImpactLabel}
-          </p>
-          <p className="mt-2 text-sm leading-7 text-muted">
-            {action.expected_impact}
-          </p>
-        </div>
-      </div>
+          </DataPanel>
+        ))}
     </div>
   );
 }
@@ -604,10 +531,13 @@ export function DatasetAnalysisWorkspace({
     job?.datasetName ??
     result?.data.semantic_model.dataset_name ??
     "-";
+  const generatedQuestionCount =
+    result?.data.questions.total ??
+    result?.data.questions.items.length ??
+    0;
   const tabs: Array<{ key: ResultTab; label: string }> = [
     { key: "overview", label: dictionary.datasetAnalysis.overviewTab },
-    { key: "insights", label: dictionary.datasetAnalysis.insightsTab },
-    { key: "findings", label: dictionary.datasetAnalysis.findingsTab },
+    { key: "questions", label: dictionary.datasetAnalysis.questionsTab },
   ];
   const shouldShowPendingResultState =
     workspaceStatus === "uploading" ||
@@ -993,7 +923,7 @@ export function DatasetAnalysisWorkspace({
                   />
                   <MetricTile
                     label={dictionary.datasetAnalysis.questionsLabel}
-                    value={formatNumber(result.meta.question_count, locale)}
+                    value={formatNumber(generatedQuestionCount, locale)}
                   />
                   <MetricTile
                     label={dictionary.datasetAnalysis.runtimeLabel}
@@ -1083,104 +1013,47 @@ export function DatasetAnalysisWorkspace({
               </div>
             ) : null}
 
-            {activeTab === "insights" ? (
+            {activeTab === "questions" ? (
               <div className="space-y-5">
-                <DataPanel title={dictionary.datasetAnalysis.executiveSummaryTitle}>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <MetricTile
+                    label={dictionary.datasetAnalysis.totalQuestionsLabel}
+                    value={formatNumber(generatedQuestionCount, locale)}
+                  />
+                  <MetricTile
+                    label={dictionary.datasetAnalysis.questionFloorLabel}
+                    value={formatNumber(
+                      result.data.questions.question_floor,
+                      locale
+                    )}
+                  />
+                  <MetricTile
+                    label={dictionary.datasetAnalysis.priorityQuestionsLabel}
+                    value={formatNumber(
+                      result.data.questions.priority_count,
+                      locale
+                    )}
+                  />
+                </div>
+
+                <DataPanel
+                  title={dictionary.datasetAnalysis.datasetUnderstandingLabel}
+                >
                   <p className="text-sm leading-7 text-muted">
-                    {result.data.insights.executive_summary ??
+                    {result.data.questions.dataset_understanding ??
                       dictionary.datasetAnalysis.noItemsLabel}
                   </p>
                 </DataPanel>
 
-                <DataPanel title={dictionary.datasetAnalysis.positiveHighlightsTitle}>
-                  {result.data.insights.positive_highlights.length ? (
-                    <div className="space-y-3">
-                      {result.data.insights.positive_highlights.map((item) => (
-                        <div
-                          key={item}
-                          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-100"
-                        >
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      description={dictionary.datasetAnalysis.noItemsLabel}
-                      title={dictionary.datasetAnalysis.positiveHighlightsTitle}
-                    />
-                  )}
-                </DataPanel>
-
-                <DataPanel title={dictionary.datasetAnalysis.actionItemsTitle}>
-                  {result.data.insights.action_items.length ? (
-                    <div className="space-y-4">
-                      {result.data.insights.action_items.map((action) => (
-                        <ActionItemCard
-                          action={action}
-                          dictionary={dictionary.datasetAnalysis}
-                          key={`${action.priority}-${action.title}`}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      description={dictionary.datasetAnalysis.noItemsLabel}
-                      title={dictionary.datasetAnalysis.actionItemsTitle}
-                    />
-                  )}
-                </DataPanel>
-
-                <DataPanel title={dictionary.datasetAnalysis.watchOutTitle}>
-                  {result.data.insights.watch_out_for.length ? (
-                    <div className="space-y-3">
-                      {result.data.insights.watch_out_for.map((item) => (
-                        <div
-                          key={item}
-                          className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-100"
-                        >
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      description={dictionary.datasetAnalysis.noItemsLabel}
-                      title={dictionary.datasetAnalysis.watchOutTitle}
-                    />
-                  )}
+                <DataPanel title={dictionary.datasetAnalysis.questionsTab}>
+                  <QuestionsPanel
+                    dictionary={dictionary.datasetAnalysis}
+                    groups={result.data.questions.groups}
+                    items={result.data.questions.items}
+                  />
                 </DataPanel>
               </div>
             ) : null}
-
-          {activeTab === "findings" ? (
-            <div className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-3">
-                <MetricTile
-                  label={dictionary.datasetAnalysis.totalQuestionsLabel}
-                  value={formatNumber(result.data.findings.total, locale)}
-                />
-                <MetricTile
-                  label={dictionary.datasetAnalysis.successfulCountLabel}
-                  value={formatNumber(
-                    result.data.findings.successful_count,
-                    locale
-                  )}
-                />
-                <MetricTile
-                  label={dictionary.datasetAnalysis.failedCountLabel}
-                  value={formatNumber(result.data.findings.failed_count, locale)}
-                />
-              </div>
-              <DataPanel title={dictionary.datasetAnalysis.successfulCountLabel}>
-                <QueryPanels
-                  dictionary={dictionary.datasetAnalysis}
-                  emptyLabel={dictionary.datasetAnalysis.noItemsLabel}
-                  items={result.data.findings.successful}
-                />
-              </DataPanel>
-            </div>
-          ) : null}
         </section>
       ) : shouldShowPendingResultState ? (
         <LoadingSkeleton />

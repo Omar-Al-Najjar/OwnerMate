@@ -718,6 +718,9 @@ def _build_success_envelope(
     answers: Optional[List[QueryResult]] = raw_result.get("answers")
     insights: Optional[BusinessInsightsOutput] = raw_result.get("insights")
     refinement: Optional[RefinementDecision] = raw_result.get("refinement")
+    serialized_questions = _serialize_questions(
+        questions, raw_result.get("question_floor", 0)
+    )
     findings = _serialize_findings(answers)
     failed_count = findings["failed_count"]
     status = "partial_success" if failed_count > 0 else "success"
@@ -735,7 +738,7 @@ def _build_success_envelope(
                 metadata_df, dataset_name, source_name
             ),
             "semantic_model": _serialize_semantic_model(semantic_model),
-            "questions": _serialize_questions(questions, raw_result.get("question_floor", 0)),
+            "questions": serialized_questions,
             "findings": findings,
             "insights": _serialize_insights(insights),
             "run": {
@@ -749,7 +752,7 @@ def _build_success_envelope(
             "agent": DEFAULT_AGENT_NAME,
             "duration_ms": duration_ms,
             "model": config.model,
-            "question_count": findings["total"],
+            "question_count": serialized_questions["total"],
             "successful_queries": findings["successful_count"],
             "failed_queries": findings["failed_count"],
             "api_key_configured": True,

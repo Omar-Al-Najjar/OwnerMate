@@ -36,6 +36,13 @@ export type DatasetAnalysisQueryResult = {
   actual_result?: string | null;
 };
 
+export type DatasetAnalysisQuestionItem = {
+  question: string;
+  category: string;
+  priority: boolean;
+  priority_reason?: string | null;
+};
+
 export type DatasetAnalysisEnvelope = {
   task_type: "analyze_dataset";
   status: DatasetAnalysisResultStatus;
@@ -71,21 +78,8 @@ export type DatasetAnalysisEnvelope = {
       question_floor: number;
       total: number;
       priority_count: number;
-      groups: Record<
-        string,
-        Array<{
-          question: string;
-          category: string;
-          priority: boolean;
-          priority_reason?: string | null;
-        }>
-      >;
-      items: Array<{
-        question: string;
-        category: string;
-        priority: boolean;
-        priority_reason?: string | null;
-      }>;
+      groups: Record<string, DatasetAnalysisQuestionItem[]>;
+      items: DatasetAnalysisQuestionItem[];
     };
     findings: {
       total: number;
